@@ -8,9 +8,9 @@ import os
 class Person:
     name: str
     gender: str
-    birthday: Optional[date]
+    birthday: [date]
     maiden_name: Optional[str] = None
-    relationship: Optional[str] = None  # legacy label (your perspective)
+    relationship: [str] = None  # legacy label (your perspective)
     spouse_name: Optional[str] = None
     parent_names: Optional[List[str]] = None  # actual parents only
     deathday: Optional[date] = None
