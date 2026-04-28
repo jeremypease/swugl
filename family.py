@@ -8,38 +8,58 @@ import os
 class Person:
     name: str
     gender: str
-    birthday: [date]
+    birthday: date
+    nickname: Optional[str] = None
+    birthplace: Optional[str] = None
     maiden_name: Optional[str] = None
-    relationship: [str] = None  # legacy label (your perspective)
+    relationship: Optional[List[str]] = None  # legacy label (your perspective)
     spouse_name: Optional[str] = None
     parent_names: Optional[List[str]] = None  # actual parents only
     deathday: Optional[date] = None
+    deathplace: Optional[str] = None
+    occupation: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    photo_path: Optional[str] = None
+    notes: Optional[str] = None
+    sources: Optional[List[str]] = None
+    id: Optional[str] = None  # auto-generated
 
 people: List[Person] = []
 
-# Will hold "who is looking" so relationships are computed from their perspective
+# Default viewer: relationships computed from Harold & Jeannene Pease's perspective
+# Can be changed via choose_viewer()
 current_viewer: Optional[Person] = None
+
+# Default perspective names
+HAROLD_NAME = "Harold Pease"
+JEANNENE_NAME = "Jeannene Pease"
+
+# --- ID generation ---
+
+
+def generate_person_id(name: str, birthday: date) -> str:
+    """Generate a unique ID based on name and birth date."""
+    base = name.lower().replace(" ", "_")
+    return f"{base}_{birthday.isoformat()}"
 
 # --- Core queries ---
 
 def get_oldest_person(people_list: List[Person]) -> Optional[Person]:
     return min(
-        (p for p in people_list if p.birthday is not None),
+        (p for p in people_list),
         key=lambda p: p.birthday,
         default=None,
     )
 
 def get_youngest_person(people_list: List[Person]) -> Optional[Person]:
     return max(
-        (p for p in people_list if p.birthday is not None),
+        (p for p in people_list),
         key=lambda p: p.birthday,
         default=None,
     )
 
-def get_person_age(person: Person) -> Optional[int]:
-    if person.birthday is None:
-        return None
-
+def get_person_age(person: Person) -> int:
     # Use deathday if set; otherwise today's date
     end = person.deathday or date.today()
     age = end.year - person.birthday.year
@@ -100,20 +120,32 @@ def person_to_dict(p: Person) -> dict:
 
 def person_from_dict(d: dict) -> Person:
     bday_str = d.get("birthday")
-    birthday = date.fromisoformat(bday_str) if bday_str else None
+    if not bday_str:
+        raise ValueError(f"Person '{d.get('name')}' is missing required birthday")
+    birthday = date.fromisoformat(bday_str)
 
     death_str = d.get("deathday")
     deathday = date.fromisoformat(death_str) if death_str else None
 
     return Person(
+        id=d.get("id"),
         name=d["name"],
+        nickname=d.get("nickname"),
         gender=d["gender"],
         birthday=birthday,
+        birthplace=d.get("birthplace"),
         maiden_name=d.get("maiden_name"),
         relationship=d.get("relationship"),
         spouse_name=d.get("spouse_name"),
         parent_names=d.get("parent_names"),
         deathday=deathday,
+        deathplace=d.get("deathplace"),
+        occupation=d.get("occupation"),
+        email=d.get("email"),
+        phone=d.get("phone"),
+        photo_path=d.get("photo_path"),
+        notes=d.get("notes"),
+        sources=d.get("sources"),
     )
 
 def save_to_json(filename: str = "family.json") -> None:
@@ -148,7 +180,7 @@ def add_person_interactive():
         return
 
     gender = input("Gender (Male/Female): ").strip() or "Unknown"
-    birthday_str = input("Birthday (YYYY-MM-DD, or blank if unknown): ").strip()
+    birthday_str = input("Birthday (YYYY-MM-DD): ").strip()
     death_str = input("Death day (YYYY-MM-DD, or blank if alive): ").strip()
     maiden_name = input("Maiden name (or blank): ").strip() or None
     relationship = input("Relationship (e.g., Niece, Brother, etc.): ").strip() or None
@@ -163,15 +195,16 @@ def add_person_interactive():
         else None
     )
 
-    if birthday_str:
-        try:
-            year, month, day = map(int, birthday_str.split("-"))
-            birthday = date(year, month, day)
-        except ValueError:
-            print("Invalid birth date format. Use YYYY-MM-DD.")
-            return
-    else:
-        birthday = None
+    if not birthday_str:
+        print("Birthday is required.")
+        return
+
+    try:
+        year, month, day = map(int, birthday_str.split("-"))
+        birthday = date(year, month, day)
+    except ValueError:
+        print("Invalid birth date format. Use YYYY-MM-DD.")
+        return
 
     if death_str:
         try:
@@ -184,6 +217,7 @@ def add_person_interactive():
         deathday = None
 
     new_person = Person(
+        id=generate_person_id(name, birthday),
         name=name,
         gender=gender,
         birthday=birthday,
@@ -470,6 +504,19 @@ def choose_viewer():
     current_viewer = person
     print(f"Viewer set to {current_viewer.name}.")
 
+
+def get_default_viewer() -> Optional[Person]:
+    """Return the default perspective (Harold Pease)."""
+    harold = find_person_by_name(HAROLD_NAME)
+    return harold
+
+
+def get_viewer() -> Optional[Person]:
+    """Return the current viewer, or default to Harold if none set."""
+    if current_viewer is not None:
+        return current_viewer
+    return get_default_viewer()
+
 # --- Viewer-aware displays ---
 
 def show_person_family():
@@ -482,9 +529,10 @@ def show_person_family():
     print(f"\nFamily for {person.name}:")
 
     # Relationship to viewer if set
-    if current_viewer:
-        rel_text = describe_relationship(current_viewer, person)
-        print(f" Relationship to {current_viewer.name}: {rel_text}")
+    viewer = get_viewer()
+    if viewer:
+        rel_text = describe_relationship(viewer, person)
+        print(f" Relationship to {viewer.name}: {rel_text}")
 
     # Parents
     if person.parent_names:
@@ -522,9 +570,10 @@ def list_all_people():
     )
 
     print("\nAll people in the family tree:")
+    viewer = get_viewer()
     for p in sorted_people:
-        if current_viewer:
-            rel_text = describe_relationship(current_viewer, p)
+        if viewer:
+            rel_text = describe_relationship(viewer, p)
             rel = f" ({rel_text})"
         else:
             rel = f" ({p.relationship})" if p.relationship else ""
@@ -561,9 +610,10 @@ def search_people_by_name():
             print("Age: unknown")
 
         # Relationship from current viewer if set
-        if current_viewer:
-            rel_text = describe_relationship(current_viewer, p)
-            print(f"Relationship to {current_viewer.name}: {rel_text}")
+        viewer = get_viewer()
+        if viewer:
+            rel_text = describe_relationship(viewer, p)
+            print(f"Relationship to {viewer.name}: {rel_text}")
         elif p.relationship:
             # Fallback to stored label (your perspective)
             print(f"Stored relationship: {p.relationship}")
@@ -572,25 +622,7 @@ def search_people_by_name():
 
 def list_people_missing_birthdays():
     """List all people who have no birthday recorded."""
-    if not people:
-        print("No people in the family tree.")
-        return
-
-    missing = [p for p in people if p.birthday is None]
-
-    if not missing:
-        print("Everyone has a birthday recorded.")
-        return
-
-    print("\nPeople without birthdays recorded:")
-    for p in missing:
-        if current_viewer:
-            rel_text = describe_relationship(current_viewer, p)
-            rel = f" ({rel_text})"
-        else:
-            rel = f" ({p.relationship})" if p.relationship else ""
-        print(f" - {p.name}{rel}")
-    print(f"Total missing birthdays: {len(missing)}")
+    print("This feature is no longer needed - birthday is now required.")
 
 # --- Menu ---
 
