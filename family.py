@@ -334,6 +334,27 @@ def show_oldest_and_youngest():
     else:
         print("No youngest person (no birthdays set).")
 
+
+def show_my_relationship():
+    """Show the current viewer's relationship to a chosen person."""
+    viewer = get_viewer()
+    if not viewer:
+        print("No viewer set.")
+        return
+
+    name = input("Enter the name to see your relationship to: ").strip()
+    if not name:
+        print("Name is required.")
+        return
+
+    target = find_person_by_name(name)
+    if not target:
+        print(f"No person found with name '{name}'.")
+        return
+
+    rel = describe_relationship(viewer, target)
+    print(f"Your relationship to {target.name}: {rel}")
+
 def list_descendants_of_person():
     name = input("Enter the name of the person: ").strip()
     person = find_person_by_name(name)
@@ -452,7 +473,7 @@ def describe_relationship(viewer: Person, target: Person) -> str:
             return "sibling-in-law"
     # siblings' spouses
     for sib in get_siblings(viewer):
-        if spouse_t is sib:
+        if target.spouse_name == sib.spouse_name:
             if target.gender == "Male":
                 return "brother-in-law"
             elif target.gender == "Female":
@@ -640,7 +661,7 @@ def main_menu():
         print("8. Save to JSON (family.json)")
         print("9. Load from JSON (family.json, replaces current data)")
         print("10. Quit")
-        print("11. List people without birthdays")
+        print("11. Show my relationship to another person")
 
         choice = input("Choose an option: ").strip()
         if choice == "0":
@@ -667,7 +688,7 @@ def main_menu():
             print("Goodbye.")
             break
         elif choice == "11":
-            list_people_missing_birthdays()
+            show_my_relationship()
         else:
             print("Invalid choice, try again.")
 
