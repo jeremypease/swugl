@@ -12,7 +12,7 @@ class Person:
     nickname: Optional[str] = None
     birthplace: Optional[str] = None
     maiden_name: Optional[str] = None
-    relationship: Optional[List[str]] = None  # legacy label (your perspective)
+    relationship: Optional[str] = None  # legacy label (your perspective)
     spouse_name: Optional[str] = None
     parent_names: Optional[List[str]] = None  # actual parents only
     deathday: Optional[date] = None
@@ -73,6 +73,10 @@ def get_person_gender(person: Person) -> str:
     if person.gender == "Male":
         return "him"
     return "them"
+
+def get_display_name(person: Person) -> str:
+    """Return nickname if available, otherwise full name."""
+    return person.nickname if person.nickname else person.name
 
 def get_children(person: Person, people_list: List[Person]) -> List[Person]:
     """Direct children of this person (by actual parents)."""
@@ -168,7 +172,7 @@ def load_from_json(filename: str = "family.json") -> None:
 
 def find_person_by_name(name: str) -> Optional[Person]:
     for p in people:
-        if p.name == name:
+        if p.name == name or p.nickname == name:
             return p
     return None
 
@@ -312,7 +316,7 @@ def update_person_interactive():
     person.spouse_name = new_spouse
     person.parent_names = new_parents
 
-    print(f"Updated {person.name}.")
+    print(f"Updated {get_display_name(person)}.")
 
 def show_oldest_and_youngest():
     oldest = get_oldest_person(people)
@@ -321,7 +325,7 @@ def show_oldest_and_youngest():
     if oldest:
         oldest_age = get_person_age(oldest)
         print(
-            f"Oldest: {oldest.name} (birthday {oldest.birthday}, age {oldest_age})"
+            f"Oldest: {get_display_name(oldest)} (birthday {oldest.birthday}, age {oldest_age})"
         )
     else:
         print("No oldest person (no birthdays set).")
@@ -329,7 +333,7 @@ def show_oldest_and_youngest():
     if youngest:
         youngest_age = get_person_age(youngest)
         print(
-            f"Youngest: {youngest.name} (birthday {youngest.birthday}, age {youngest_age})"
+            f"Youngest: {get_display_name(youngest)} (birthday {youngest.birthday}, age {youngest_age})"
         )
     else:
         print("No youngest person (no birthdays set).")
@@ -353,7 +357,7 @@ def show_my_relationship():
         return
 
     rel = describe_relationship(viewer, target)
-    print(f"Your relationship to {target.name}: {rel}")
+    print(f"Your relationship to {get_display_name(target)}: {rel}")
 
 def list_descendants_of_person():
     name = input("Enter the name of the person: ").strip()
@@ -364,12 +368,12 @@ def list_descendants_of_person():
 
     desc = get_descendants(person, people)
     if not desc:
-        print(f"{person.name} has no recorded descendants.")
+        print(f"{get_display_name(person)} has no recorded descendants.")
         return
 
-    print(f"{person.name}'s descendants:")
+    print(f"{get_display_name(person)}'s descendants:")
     for p in desc:
-        print(" -", p.name)
+        print(" -", get_display_name(p))
 
 # --- Relationship helpers (viewer-aware) ---
 
@@ -462,7 +466,7 @@ def describe_relationship(viewer: Person, target: Person) -> str:
                 return "daughter-in-law"
             return "child-in-law"
 
-    # Sibling-in-law (spouse's siblings OR siblings' spouses)
+    # Sibling-in-law (spouse's siblings OR siblings' spouses OR spouse's siblings' spouses)
     if spouse_v:
         # spouse's siblings
         if target in get_siblings(spouse_v):
@@ -471,9 +475,17 @@ def describe_relationship(viewer: Person, target: Person) -> str:
             elif target.gender == "Female":
                 return "sister-in-law"
             return "sibling-in-law"
+        # spouse's siblings' spouses
+        for sib in get_siblings(spouse_v):
+            if get_spouse(sib) is target:
+                if target.gender == "Male":
+                    return "brother-in-law"
+                elif target.gender == "Female":
+                    return "sister-in-law"
+                return "sibling-in-law"
     # siblings' spouses
     for sib in get_siblings(viewer):
-        if target.spouse_name == sib.spouse_name:
+        if get_spouse(sib) is target:
             if target.gender == "Male":
                 return "brother-in-law"
             elif target.gender == "Female":
@@ -523,7 +535,7 @@ def choose_viewer():
         current_viewer = None
         return
     current_viewer = person
-    print(f"Viewer set to {current_viewer.name}.")
+    print(f"Viewer set to {get_display_name(current_viewer)}.")
 
 
 def get_default_viewer() -> Optional[Person]:
@@ -547,26 +559,28 @@ def show_person_family():
         print(f"No person found with name '{name}'.")
         return
 
-    print(f"\nFamily for {person.name}:")
+    print(f"\nFamily for {get_display_name(person)}:")
 
     # Relationship to viewer if set
     viewer = get_viewer()
     if viewer:
         rel_text = describe_relationship(viewer, person)
-        print(f" Relationship to {viewer.name}: {rel_text}")
+        print(f" Relationship to {get_display_name(viewer)}: {rel_text}")
 
     # Parents
     if person.parent_names:
         print(" Parents:")
         for parent_name in person.parent_names:
-            print("  -", parent_name)
+            parent = find_person_by_name(parent_name)
+            print("  -", get_display_name(parent) if parent else parent_name)
     else:
         print(" Parents: (unknown)")
 
     # Spouse
     if person.spouse_name:
         print(" Spouse:")
-        print("  -", person.spouse_name)
+        spouse = find_person_by_name(person.spouse_name)
+        print("  -", get_display_name(spouse) if spouse else person.spouse_name)
     else:
         print(" Spouse: (none recorded)")
 
@@ -575,7 +589,7 @@ def show_person_family():
     if children:
         print(" Children:")
         for child in children:
-            print("  -", child.name)
+            print("  -", get_display_name(child))
     else:
         print(" Children: (none recorded)")
 
@@ -598,7 +612,7 @@ def list_all_people():
             rel = f" ({rel_text})"
         else:
             rel = f" ({p.relationship})" if p.relationship else ""
-        print(f" - {p.name}{rel}")
+        print(f" - {get_display_name(p)}{rel}")
     print(f"Total: {len(sorted_people)} people.")
 
 def search_people_by_name():
@@ -617,7 +631,7 @@ def search_people_by_name():
     print(f"\nMatches for '{query}':")
     for p in matches:
         # Name
-        print(p.name)
+        print(get_display_name(p))
 
         # Date + age
         if p.birthday:
@@ -634,7 +648,7 @@ def search_people_by_name():
         viewer = get_viewer()
         if viewer:
             rel_text = describe_relationship(viewer, p)
-            print(f"Relationship to {viewer.name}: {rel_text}")
+            print(f"Relationship to {get_display_name(viewer)}: {rel_text}")
         elif p.relationship:
             # Fallback to stored label (your perspective)
             print(f"Stored relationship: {p.relationship}")
@@ -650,23 +664,21 @@ def list_people_missing_birthdays():
 def main_menu():
     while True:
         print("\n=== Family Tree Menu ===")
-        print("0. Set current viewer")
         print("1. List all people")
         print("2. Search people by (partial) name")
         print("3. Show a person's immediate family")
         print("4. List descendants of a person")
         print("5. Show oldest and youngest")
-        print("6. Add a new person")
-        print("7. Update an existing person")
-        print("8. Save to JSON (family.json)")
-        print("9. Load from JSON (family.json, replaces current data)")
-        print("10. Quit")
-        print("11. Show my relationship to another person")
+        print("6. Show my relationship to another person")
+        print("7. Add a new person")
+        print("8. Update an existing person")
+        print("9. Change current viewer")
+        print("10. Save to JSON (family.json)")
+        print("11. Load from JSON (family.json, replaces current data)")
+        print("12. Quit")
 
         choice = input("Choose an option: ").strip()
-        if choice == "0":
-            choose_viewer()
-        elif choice == "1":
+        if choice == "1":
             list_all_people()
         elif choice == "2":
             search_people_by_name()
@@ -677,21 +689,24 @@ def main_menu():
         elif choice == "5":
             show_oldest_and_youngest()
         elif choice == "6":
-            add_person_interactive()
+            show_my_relationship()
         elif choice == "7":
-            update_person_interactive()
+            add_person_interactive()
         elif choice == "8":
-            save_to_json()
+            update_person_interactive()
         elif choice == "9":
-            load_from_json()
+            choose_viewer()
         elif choice == "10":
+            save_to_json()
+        elif choice == "11":
+            load_from_json()
+        elif choice == "12":
             print("Goodbye.")
             break
-        elif choice == "11":
-            show_my_relationship()
         else:
             print("Invalid choice, try again.")
 
 if __name__ == "__main__":
     load_from_json()  # will print a message if file is missing
+    choose_viewer()  # set viewer automatically on startup
     main_menu()
