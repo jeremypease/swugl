@@ -12,13 +12,9 @@ def create_app():
 
     db.init_app(app)
     login_manager.init_app(app)
+    login_manager.login_view = 'main.login'
 
-    from .models import Person
-
-    @login_manager.user_loader
-    def load_user(user_id):
-        return None  # placeholder until we build user accounts
-
+    from .models import User, Person
     from .routes import main
     app.register_blueprint(main)
 
