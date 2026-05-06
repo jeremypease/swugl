@@ -171,9 +171,34 @@ def load_from_json(filename: str = "family.json") -> None:
 # --- Basic interactive helpers ---
 
 def find_person_by_name(name: str) -> Optional[Person]:
+    name_lower = name.lower().strip()
+    name_words = name_lower.split()
+    
+    # Handle empty input
+    if not name_words:
+        return None
+    
+    # First try exact match (case-insensitive)
     for p in people:
-        if p.name == name or p.nickname == name:
+        if p.name.lower() == name_lower or (p.nickname and p.nickname.lower() == name_lower):
             return p
+    
+    # If no exact match, try matching all words in input against name or nickname
+    # This handles cases like "Chevy Pease" matching "Chevon Pease" (Chevy=nickname, Pease=last name)
+    for p in people:
+        full_name_lower = p.name.lower()
+        nickname_lower = p.nickname.lower() if p.nickname else ""
+        full_name_words = full_name_lower.split()
+        
+        # Check if all input words are found in name or nickname
+        all_words_match = all(
+            any(word in name_part for name_part in full_name_words) or
+            (nickname_lower and word in nickname_lower)
+            for word in name_words
+        )
+        if all_words_match:
+            return p
+    
     return None
 
 def add_person_interactive():
@@ -183,6 +208,7 @@ def add_person_interactive():
         print("Name is required.")
         return
 
+    nickname = input("Nickname (or blank): ").strip() or None
     gender = input("Gender (Male/Female): ").strip() or "Unknown"
     birthday_str = input("Birthday (YYYY-MM-DD): ").strip()
     death_str = input("Death day (YYYY-MM-DD, or blank if alive): ").strip()
@@ -223,6 +249,7 @@ def add_person_interactive():
     new_person = Person(
         id=generate_person_id(name, birthday),
         name=name,
+        nickname=nickname,
         gender=gender,
         birthday=birthday,
         maiden_name=maiden_name,
@@ -246,6 +273,7 @@ def update_person_interactive():
     print(f"Current data: {asdict(person)}")
 
     new_name = input(f"Name [{person.name}]: ").strip() or person.name
+    new_nickname = input(f"Nickname [{person.nickname or ''}]: ").strip() or person.nickname
     new_gender = input(f"Gender [{person.gender}]: ").strip() or person.gender
 
     if person.birthday:
@@ -308,6 +336,7 @@ def update_person_interactive():
 
     # Apply updates
     person.name = new_name
+    person.nickname = new_nickname
     person.gender = new_gender
     person.birthday = new_birthday
     person.deathday = new_deathday
@@ -451,9 +480,9 @@ def describe_relationship(viewer: Person, target: Person) -> str:
 
     # Spouse
     if spouse_v is target:
-        if target.gender == "Male":
+        if viewer.gender == "Male":
             return "husband"
-        elif target.gender == "Female":
+        elif viewer.gender == "Female":
             return "wife"
         return "spouse"
 
@@ -622,7 +651,7 @@ def search_people_by_name():
         print("Search text is empty.")
         return
 
-    matches = [p for p in people if query in p.name.lower()]
+    matches = [p for p in people if query in p.name.lower() or (p.nickname and query in p.nickname.lower())]
 
     if not matches:
         print("No matches found.")
@@ -630,8 +659,13 @@ def search_people_by_name():
 
     print(f"\nMatches for '{query}':")
     for p in matches:
-        # Name
-        print(get_display_name(p))
+        # Name (show nickname if available, otherwise full name)
+        display_name = get_display_name(p)
+        full_name = p.name if p.nickname else ""
+        name_line = display_name
+        if full_name and full_name != display_name:
+            name_line += f" ({full_name})"
+        print(name_line)
 
         # Date + age
         if p.birthday:
