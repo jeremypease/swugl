@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}Pease Vine - Admin{% endblock %}
+
+{% block content %}
+<h1>User Management</h1>
+
+<h2>Pending Approval</h2>
+{% if pending %}
+    <table border="1" cellpadding="8">
+        <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Phone</th>
+            <th>Actions</th>
+        </tr>
+        {% for user in pending %}
+        <tr>
+            <td>{{ user.get_full_name() }}</td>
+            <td>{{ user.email }}</td>
+            <td>{{ user.phone }}</td>
+            <td>
+                <form method="POST" action="/admin/approve/{{ user.id }}" style="display:inline">
+                    <button type="submit">Approve</button>
+                </form>
+                <form method="POST" action="/admin/reject/{{ user.id }}" style="display:inline">
+                    <button type="submit">Reject</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+{% else %}
+    <p>No users pending approval.</p>
+{% endif %}
+
+<h2>All Users</h2>
+{% if users %}
+    <table border="1" cellpadding="8">
+        <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Status</th>
+            <th>Admin</th>
+            <th>Delegate</th>
+        </tr>
+        {% for user in users %}
+        <tr>
+            <td>{{ user.get_full_name() }}</td>
+            <td>{{ user.email }}</td>
+            <td>{{ user.status }}</td>
+            <td>{{ 'Yes' if user.is_admin else 'No' }}</td>
+            <td>{{ 'Yes' if user.is_delegate else 'No' }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+{% endif %}
+{% endblock %}

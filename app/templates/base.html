@@ -6,15 +6,19 @@
     <title>{% block title %}Pease Vine{% endblock %}</title>
 </head>
 <body>
-    <nav>
+        <nav>
         <a href="/">Home</a>
         {% if current_user.is_authenticated %}
             | Welcome, {{ current_user.first_name }}
+            {% if current_user.is_admin %}
+                | <a href="/admin/users">Admin</a>
+            {% endif %}
             | <a href="/logout">Logout</a>
         {% else %}
             | <a href="/login">Sign In</a>
         {% endif %}
     </nav>
+
 
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
