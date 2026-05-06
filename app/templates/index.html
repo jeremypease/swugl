@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}Pease Vine - Home{% endblock %}
+
+{% block content %}
+<h1>Welcome to Pease Vine</h1>
+<h2>Family Members</h2>
+{% if people %}
+    <ul>
+        {% for person in people %}
+            <li>{{ person.get_display_name() }}</li>
+        {% endfor %}
+    </ul>
+{% else %}
+    <p>No family members yet.</p>
+{% endif %}
+{% endblock %}
