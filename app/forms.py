@@ -1,5 +1,5 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, BooleanField, SubmitField, DateField, TextAreaField
+from wtforms import StringField, PasswordField, BooleanField, SubmitField, DateField, TextAreaField, SelectField
 from wtforms.validators import DataRequired, Email, Length, EqualTo, Regexp
 
 class LoginForm(FlaskForm):
@@ -44,11 +44,14 @@ class RegistrationForm(FlaskForm):
     ])
     submit = SubmitField('Register')
 
-    from wtforms import DateField, TextAreaField
 
 class ProfileForm(FlaskForm):
     nickname = StringField('Nickname', validators=[Length(max=50)])
-    gender = StringField('Gender', validators=[Length(max=10)])
+    gender = SelectField('Gender', choices=[
+        ('', '-- Select --'),
+        ('Male', 'Male'),
+        ('Female', 'Female')
+    ], validators=[DataRequired()])
     birthday = DateField('Birthday', validators=[DataRequired()])
     birthplace = StringField('Birthplace', validators=[Length(max=100)])
     maiden_name = StringField('Maiden Name', validators=[Length(max=100)])

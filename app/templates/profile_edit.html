@@ -18,7 +18,7 @@
 
     <div>
         {{ form.gender.label }}<br>
-        {{ form.gender(size=40) }}<br>
+        {{ form.gender() }}<br>
         {% for error in form.gender.errors %}
             <span style="color: red;">{{ error }}</span>
         {% endfor %}
