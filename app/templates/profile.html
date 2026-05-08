@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}Pease Vine - {{ person.get_display_name() }}{% endblock %}
+
+{% block content %}
+<h1>{{ person.get_display_name() }}</h1>
+
+{% if person.user == current_user %}
+    <a href="/profile/edit">Edit My Profile</a>
+{% endif %}
+
+<h2>Personal Information</h2>
+<table cellpadding="8">
+    <tr><td><strong>Full Name</strong></td><td>{{ person.name }}</td></tr>
+    {% if person.nickname %}
+    <tr><td><strong>Nickname</strong></td><td>{{ person.nickname }}</td></tr>
+    {% endif %}
+    {% if person.gender %}
+    <tr><td><strong>Gender</strong></td><td>{{ person.gender }}</td></tr>
+    {% endif %}
+    {% if person.birthday %}
+    <tr><td><strong>Birthday</strong></td><td>{{ person.birthday.strftime('%B %d, %Y') }} (Age {{ person.get_age() }})</td></tr>
+    {% endif %}
+    {% if person.birthplace %}
+    <tr><td><strong>Birthplace</strong></td><td>{{ person.birthplace }}</td></tr>
+    {% endif %}
+    {% if person.maiden_name %}
+    <tr><td><strong>Maiden Name</strong></td><td>{{ person.maiden_name }}</td></tr>
+    {% endif %}
+    {% if person.occupation %}
+    <tr><td><strong>Occupation</strong></td><td>{{ person.occupation }}</td></tr>
+    {% endif %}
+    {% if person.notes %}
+    <tr><td><strong>Notes</strong></td><td>{{ person.notes }}</td></tr>
+    {% endif %}
+</table>
+
+<h2>Contact Information</h2>
+<table cellpadding="8">
+    {% if person.email %}
+    <tr><td><strong>Email</strong></td><td><a href="mailto:{{ person.email }}">{{ person.email }}</a></td></tr>
+    {% endif %}
+    {% if person.phone %}
+    <tr><td><strong>Phone</strong></td><td>{{ person.phone }}</td></tr>
+    {% endif %}
+</table>
+
+<h2>Family</h2>
+{% if person.parents %}
+    <p><strong>Parents:</strong>
+    {% for parent in person.parents %}
+        <a href="/person/{{ parent.id }}">{{ parent.get_display_name() }}</a>{% if not loop.last %}, {% endif %}
+    {% endfor %}
+    </p>
+{% endif %}
+
+{% if person.spouse_name %}
+    <p><strong>Spouse:</strong> {{ person.spouse_name }}</p>
+{% endif %}
+
+{% if person.children %}
+    <p><strong>Children:</strong>
+    {% for child in person.children %}
+        <a href="/person/{{ child.id }}">{{ child.get_display_name() }}</a>{% if not loop.last %}, {% endif %}
+    {% endfor %}
+    </p>
+{% endif %}
+
+{% endblock %}

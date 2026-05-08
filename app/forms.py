@@ -43,3 +43,16 @@ class RegistrationForm(FlaskForm):
         EqualTo('password', message='Passwords must match')
     ])
     submit = SubmitField('Register')
+
+    from wtforms import DateField, TextAreaField
+
+class ProfileForm(FlaskForm):
+    nickname = StringField('Nickname', validators=[Length(max=50)])
+    gender = StringField('Gender', validators=[Length(max=10)])
+    birthday = DateField('Birthday', validators=[DataRequired()])
+    birthplace = StringField('Birthplace', validators=[Length(max=100)])
+    maiden_name = StringField('Maiden Name', validators=[Length(max=100)])
+    occupation = StringField('Occupation', validators=[Length(max=100)])
+    phone = StringField('Phone', validators=[Length(max=20)])
+    notes = TextAreaField('Notes')
+    submit = SubmitField('Save Changes')

@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}Pease Vine - Edit Profile{% endblock %}
+
+{% block content %}
+<h1>Edit My Profile</h1>
+
+<form method="POST" action="">
+    {{ form.hidden_tag() }}
+
+    <div>
+        {{ form.nickname.label }}<br>
+        {{ form.nickname(size=40) }}<br>
+        {% for error in form.nickname.errors %}
+            <span style="color: red;">{{ error }}</span>
+        {% endfor %}
+    </div>
+
+    <div>
+        {{ form.gender.label }}<br>
+        {{ form.gender(size=40) }}<br>
+        {% for error in form.gender.errors %}
+            <span style="color: red;">{{ error }}</span>
+        {% endfor %}
+    </div>
+
+    <div>
+        {{ form.birthday.label }}<br>
+        {{ form.birthday() }}<br>
+        {% for error in form.birthday.errors %}
+            <span style="color: red;">{{ error }}</span>
+        {% endfor %}
+    </div>
+
+    <div>
+        {{ form.birthplace.label }}<br>
+        {{ form.birthplace(size=40) }}<br>
+        {% for error in form.birthplace.errors %}
+            <span style="color: red;">{{ error }}</span>
+        {% endfor %}
+    </div>
+
+    <div>
+        {{ form.maiden_name.label }}<br>
+        {{ form.maiden_name(size=40) }}<br>
+        {% for error in form.maiden_name.errors %}
+            <span style="color: red;">{{ error }}</span>
+        {% endfor %}
+    </div>
+
+    <div>
+        {{ form.occupation.label }}<br>
+        {{ form.occupation(size=40) }}<br>
+        {% for error in form.occupation.errors %}
+            <span style="color: red;">{{ error }}</span>
+        {% endfor %}
+    </div>
+
+    <div>
+        {{ form.phone.label }}<br>
+        {{ form.phone(size=40) }}<br>
+        {% for error in form.phone.errors %}
+            <span style="color: red;">{{ error }}</span>
+        {% endfor %}
+    </div>
+
+    <div>
+        {{ form.notes.label }}<br>
+        {{ form.notes(rows=4, cols=40) }}<br>
+        {% for error in form.notes.errors %}
+            <span style="color: red;">{{ error }}</span>
+        {% endfor %}
+    </div>
+
+    <div>
+        {{ form.submit() }}
+        <a href="/profile">Cancel</a>
+    </div>
+
+</form>
+{% endblock %}
