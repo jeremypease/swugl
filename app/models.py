@@ -9,6 +9,27 @@ parent_child = db.Table('parent_child',
     db.Column('child_id', db.Integer, db.ForeignKey('people.id'), primary_key=True)
 )
 
+class SpouseRelationship(db.Model):
+    __tablename__ = 'spouse_relationships'
+
+    id = db.Column(db.Integer, primary_key=True)
+    person1_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=False)
+    person2_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=False)
+    status = db.Column(db.String(20), default='active')  # active, deceased, divorced, separated, annulled
+    marriage_date = db.Column(db.Date)
+    end_date = db.Column(db.Date)
+    confirmed = db.Column(db.Boolean, default=False)
+    confirmation_token = db.Column(db.String(100))
+
+    person1 = db.relationship('Person', foreign_keys=[person1_id], backref='spouse_relationships_as_p1')
+    person2 = db.relationship('Person', foreign_keys=[person2_id], backref='spouse_relationships_as_p2')
+
+    def get_spouse_of(self, person):
+        """Return the other person in this relationship."""
+        if self.person1_id == person.id:
+            return self.person2
+        return self.person1
+    
 class Person(db.Model):
     __tablename__ = 'people'
 
@@ -37,6 +58,20 @@ class Person(db.Model):
         backref='parents'
     )
 
+    def get_active_spouse(self):
+        """Return the confirmed active spouse if one exists."""
+        for rel in self.spouse_relationships_as_p1 + self.spouse_relationships_as_p2:
+            if rel.status == 'active' and rel.confirmed:
+                return rel.get_spouse_of(self)
+        return None
+
+    def get_pending_spouse_request(self):
+        """Return any unconfirmed spouse relationship."""
+        for rel in self.spouse_relationships_as_p1 + self.spouse_relationships_as_p2:
+            if not rel.confirmed:
+                return rel
+        return None
+    
     # Link to user account
     user = db.relationship('User', back_populates='person', uselist=False)
 
@@ -79,6 +114,10 @@ class User(UserMixin, db.Model):
     # Link to person in family tree
     person_id = db.Column(db.Integer, db.ForeignKey('people.id'))
     person = db.relationship('Person', back_populates='user')
+
+    # Invitation tracking
+    invitation_token = db.Column(db.String(100))
+    invited_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)

@@ -59,3 +59,28 @@ def send_pending_notification(admin_email, new_user):
     <p><a href="http://127.0.0.1:5000/admin/users">Review pending users</a></p>
     """
     return send_email(admin_email, subject, html_content)
+
+def send_spouse_confirmation_email(requesting_person, target_user, token):
+    """Send spouse confirmation request email."""
+    subject = "Spouse connection request on Pease Vine"
+    html_content = f"""
+    <h2>Spouse Connection Request</h2>
+    <p>{requesting_person.get_display_name()} has indicated that you are their spouse on Pease Vine.</p>
+    <p>Please click the link below to confirm or ignore this request:</p>
+    <p><a href="http://127.0.0.1:5000/spouse/confirm/{token}">Confirm Spouse Request</a></p>
+    <p><a href="http://127.0.0.1:5000/spouse/decline/{token}">Decline Spouse Request</a></p>
+    """
+    return send_email(target_user.email, subject, html_content)
+
+def send_spouse_invitation_email(inviting_person, to_email, token):
+    """Send spouse invitation email to someone not yet in the system."""
+    subject = "You've been invited to join Pease Vine"
+    html_content = f"""
+    <h2>You're Invited to Pease Vine!</h2>
+    <p>{inviting_person.get_display_name()} has invited you to join Pease Vine, 
+    a private family connection site.</p>
+    <p>Click the link below to create your account:</p>
+    <p><a href="http://127.0.0.1:5000/register/invite/{token}">Accept Invitation & Register</a></p>
+    <p>This link will expire in 7 days.</p>
+    """
+    return send_email(to_email, subject, html_content)

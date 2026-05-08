@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}Pease Vine - End Spouse Relationship{% endblock %}
+
+{% block content %}
+<h1>End Relationship with {{ spouse.get_display_name() }}</h1>
+
+<form method="POST" action="">
+    {{ form.hidden_tag() }}
+
+    <div>
+        {{ form.status.label }}<br>
+        {{ form.status() }}<br>
+        {% for error in form.status.errors %}
+            <span style="color: red;">{{ error }}</span>
+        {% endfor %}
+    </div>
+
+    <div>
+        {{ form.end_date.label }}<br>
+        {{ form.end_date() }}<br>
+        {% for error in form.end_date.errors %}
+            <span style="color: red;">{{ error }}</span>
+        {% endfor %}
+    </div>
+
+    <div>
+        {{ form.submit() }}
+        <a href="/profile">Cancel</a>
+    </div>
+</form>
+{% endblock %}

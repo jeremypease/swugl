@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Pease Vine - Add Spouse{% endblock %}
+
+{% block content %}
+<h1>Add Spouse</h1>
+
+<h2>Option 1: Select Existing Family Member</h2>
+<form method="POST" action="/spouse/add">
+    {{ form.hidden_tag() }}
+
+    <div>
+        {{ form.spouse_id.label }}<br>
+        {{ form.spouse_id() }}<br>
+        {% for error in form.spouse_id.errors %}
+            <span style="color: red;">{{ error }}</span>
+        {% endfor %}
+    </div>
+
+    <div>
+        {{ form.marriage_date.label }}<br>
+        {{ form.marriage_date() }}<br>
+        {% for error in form.marriage_date.errors %}
+            <span style="color: red;">{{ error }}</span>
+        {% endfor %}
+    </div>
+
+    <div>
+        {{ form.submit() }}
+    </div>
+</form>
+
+<hr>
+
+<h2>Option 2: Invite Spouse to Join</h2>
+<form method="POST" action="/spouse/invite">
+    {{ invite_form.hidden_tag() }}
+
+    <div>
+        {{ invite_form.first_name.label }}<br>
+        {{ invite_form.first_name(size=40) }}<br>
+        {% for error in invite_form.first_name.errors %}
+            <span style="color: red;">{{ error }}</span>
+        {% endfor %}
+    </div>
+
+    <div>
+        {{ invite_form.last_name.label }}<br>
+        {{ invite_form.last_name(size=40) }}<br>
+        {% for error in invite_form.last_name.errors %}
+            <span style="color: red;">{{ error }}</span>
+        {% endfor %}
+    </div>
+
+    <div>
+        {{ invite_form.email.label }}<br>
+        {{ invite_form.email(size=40) }}<br>
+        {% for error in invite_form.email.errors %}
+            <span style="color: red;">{{ error }}</span>
+        {% endfor %}
+    </div>
+
+    <div>
+        {{ invite_form.marriage_date.label }}<br>
+        {{ invite_form.marriage_date() }}<br>
+        {% for error in invite_form.marriage_date.errors %}
+            <span style="color: red;">{{ error }}</span>
+        {% endfor %}
+    </div>
+
+    <div>
+        {{ invite_form.submit() }}
+    </div>
+</form>
+
+<a href="/profile">Cancel</a>
+{% endblock %}

@@ -5,6 +5,10 @@
 {% block content %}
 <h1>Create Your Account</h1>
 
+{% if invited %}
+<p style="color: green;">You've been invited to join Pease Vine! Your name and email have been pre-filled. Please set your password to complete registration.</p>
+{% endif %}
+
 <form method="POST" action="">
     {{ form.hidden_tag() }}
 

@@ -9,6 +9,15 @@
     <a href="/profile/edit">Edit My Profile</a>
 {% endif %}
 
+{% set pending = person.get_pending_spouse_request() %}
+{% if pending and pending.person1_id != person.id and person.user == current_user %}
+    <p style="color: orange;">
+        ⚠️ {{ pending.person1.get_display_name() }} has requested to link as your spouse.
+        <a href="/spouse/confirm/{{ pending.confirmation_token }}">Confirm</a> |
+        <a href="/spouse/decline/{{ pending.confirmation_token }}">Decline</a>
+    </p>
+{% endif %}
+
 <h2>Personal Information</h2>
 <table cellpadding="8">
     <tr><td><strong>Full Name</strong></td><td>{{ person.name }}</td></tr>
@@ -43,16 +52,30 @@
 </table>
 
 <h2>Family</h2>
+{% set active_spouse = person.get_active_spouse() %}
+{% set pending_request = person.get_pending_spouse_request() %}
+
+{% if active_spouse %}
+    <p><strong>Spouse:</strong> 
+        <a href="/person/{{ active_spouse.id }}">{{ active_spouse.get_display_name() }}</a>
+        {% if person.user == current_user %}
+            | <a href="/spouse/end">End Relationship</a>
+        {% endif %}
+    </p>
+{% elif pending_request %}
+    <p><strong>Spouse:</strong> Pending confirmation from {{ pending_request.get_spouse_of(person).get_display_name() }}</p>
+{% else %}
+    {% if person.user == current_user %}
+        <p><a href="/spouse/add">Add Spouse</a></p>
+    {% endif %}
+{% endif %}
+
 {% if person.parents %}
     <p><strong>Parents:</strong>
     {% for parent in person.parents %}
         <a href="/person/{{ parent.id }}">{{ parent.get_display_name() }}</a>{% if not loop.last %}, {% endif %}
     {% endfor %}
     </p>
-{% endif %}
-
-{% if person.spouse_name %}
-    <p><strong>Spouse:</strong> {{ person.spouse_name }}</p>
 {% endif %}
 
 {% if person.children %}

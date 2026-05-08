@@ -58,3 +58,25 @@ class ProfileForm(FlaskForm):
     phone = StringField('Phone', validators=[Length(max=20)])
     notes = TextAreaField('Notes')
     submit = SubmitField('Save Changes')
+
+class SpouseForm(FlaskForm):
+    spouse_id = SelectField('Select Spouse', coerce=int, validators=[DataRequired()])
+    marriage_date = DateField('Marriage Date', validators=[])
+    submit = SubmitField('Send Spouse Request')
+
+class EndSpouseForm(FlaskForm):
+    status = SelectField('Reason for Ending', choices=[
+        ('divorced', 'Divorced'),
+        ('deceased', 'Deceased'),
+        ('separated', 'Separated'),
+        ('annulled', 'Annulled')
+    ], validators=[DataRequired()])
+    end_date = DateField('End Date', validators=[])
+    submit = SubmitField('Confirm')
+
+class SpouseInviteForm(FlaskForm):
+    first_name = StringField('First Name', validators=[DataRequired(), Length(min=2, max=50)])
+    last_name = StringField('Last Name', validators=[DataRequired(), Length(min=2, max=50)])
+    email = StringField('Email', validators=[DataRequired(), Email()])
+    marriage_date = DateField('Marriage Date', validators=[])
+    submit = SubmitField('Send Invitation')
