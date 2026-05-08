@@ -52,7 +52,6 @@ class ProfileForm(FlaskForm):
     birthday = DateField('Birthday', validators=[DataRequired()])
     birthplace = StringField('Birthplace', validators=[Length(max=100)])
     maiden_name = StringField('Maiden Name', validators=[Length(max=100)])
-    occupation = StringField('Occupation', validators=[Length(max=100)])
     phone = StringField('Phone', validators=[Length(max=20)])
     notes = TextAreaField('Notes')
     submit = SubmitField('Save Changes')

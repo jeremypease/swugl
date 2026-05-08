@@ -49,14 +49,6 @@
     </div>
 
     <div>
-        {{ form.occupation.label }}<br>
-        {{ form.occupation(size=40) }}<br>
-        {% for error in form.occupation.errors %}
-            <span style="color: red;">{{ error }}</span>
-        {% endfor %}
-    </div>
-
-    <div>
         {{ form.phone.label }}<br>
         {{ form.phone(size=40) }}<br>
         {% for error in form.phone.errors %}
