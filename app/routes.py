@@ -48,7 +48,25 @@ def admin_required(f):
 @login_required
 def index():
     people = Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
-    return render_template('index.html', people=people, family=current_user.family)
+    today = date.today()
+    upcoming_birthdays = []
+    for person in people:
+        if person.birthday:
+            try:
+                bday = person.birthday.replace(year=today.year)
+            except ValueError:
+                bday = person.birthday.replace(year=today.year, day=28)
+            if bday < today:
+                try:
+                    bday = person.birthday.replace(year=today.year + 1)
+                except ValueError:
+                    bday = person.birthday.replace(year=today.year + 1, day=28)
+            days = (bday - today).days
+            if days <= 30:
+                upcoming_birthdays.append((person, bday, days))
+    upcoming_birthdays.sort(key=lambda x: x[2])
+    return render_template('index.html', people=people, family=current_user.family,
+                           upcoming_birthdays=upcoming_birthdays)
 
 @main.route('/login', methods=['GET', 'POST'])
 def login():

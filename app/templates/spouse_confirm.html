@@ -1,25 +1,47 @@
 {% extends "base.html" %}
 
-{% block title %}Pease Vine - Spouse Request{% endblock %}
+{% block title %}Spouse Request — Peavines{% endblock %}
 
 {% block content %}
-<h1>Spouse Connection Request</h1>
+<div class="page-head">
+    <div>
+        <div class="eyebrow">Family</div>
+        <h1>Spouse Connection Request</h1>
+    </div>
+</div>
 
-<p>{{ rel.person1.get_display_name() }} has indicated that you are their spouse.</p>
+<div style="max-width: 480px;">
+    <div class="card">
+        <div style="text-align:center;padding:16px 0 24px;">
+            <div class="av av-lg" style="background:var(--vine);margin:0 auto 16px;">{{ rel.person1.name[0] }}</div>
+            <h3 style="margin-bottom:6px;">{{ rel.person1.get_display_name() }}</h3>
+            <p style="color:var(--text-muted);font-size:15px;">has indicated that you are their spouse.</p>
+            {% if rel.marriage_date %}
+            <p style="color:var(--pea);font-size:14px;margin-top:8px;font-style:italic;">
+                <i data-lucide="calendar" style="width:14px;height:14px;vertical-align:middle;"></i>
+                Married {{ rel.marriage_date.strftime('%B %-d, %Y') }}
+            </p>
+            {% endif %}
+        </div>
 
-{% if rel.marriage_date %}
-<p>Marriage date: {{ rel.marriage_date.strftime('%B %d, %Y') }}</p>
-{% endif %}
+        <div style="display:flex;gap:10px;justify-content:center;padding-top:16px;border-top:1px solid var(--hairline);">
+            <form method="POST" action="/spouse/confirm/{{ token }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-primary">
+                    <i data-lucide="check"></i> Confirm
+                </button>
+            </form>
+            <form method="POST" action="/spouse/decline/{{ token }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-danger">
+                    <i data-lucide="x"></i> Decline
+                </button>
+            </form>
+        </div>
 
-<form method="POST" action="/spouse/confirm/{{ token }}" style="display:inline;">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <button type="submit">Confirm</button>
-</form>
-
-<form method="POST" action="/spouse/decline/{{ token }}" style="display:inline; margin-left: 1em;">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <button type="submit">Decline</button>
-</form>
-
-<p style="margin-top: 1em;"><a href="/profile">Cancel</a></p>
+        <p style="text-align:center;margin-top:16px;">
+            <a href="/profile" style="font-size:13px;color:var(--text-muted);">Decide later</a>
+        </p>
+    </div>
+</div>
 {% endblock %}

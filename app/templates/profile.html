@@ -1,93 +1,145 @@
 {% extends "base.html" %}
 
-{% block title %}Pease Vine - {{ person.get_display_name() }}{% endblock %}
+{% block title %}{{ person.get_display_name() }} — Peavines{% endblock %}
 
 {% block content %}
-<h1>{{ person.get_display_name() }}</h1>
 
-{% if person.user == current_user %}
-    <a href="/profile/edit">Edit My Profile</a>
-{% endif %}
+{% set is_own_profile = person.user == current_user %}
+
+<div class="page-head">
+    <div>
+        <div class="eyebrow">Profile</div>
+        <h1>{{ person.get_display_name() }}</h1>
+        {% if person.nickname and person.nickname != person.name %}
+        <p class="sub"><em>née {{ person.name }}</em></p>
+        {% endif %}
+    </div>
+    {% if is_own_profile %}
+    <a href="/profile/edit" class="btn btn-secondary">
+        <i data-lucide="edit-2"></i> Edit my profile
+    </a>
+    {% endif %}
+</div>
 
 {% set pending = person.get_pending_spouse_request() %}
-{% if pending and pending.person1_id != person.id and person.user == current_user %}
-    <p style="color: orange;">
-        ⚠️ {{ pending.person1.get_display_name() }} has requested to link as your spouse.
-        <a href="/spouse/confirm/{{ pending.confirmation_token }}">Confirm</a> |
-        <a href="/spouse/decline/{{ pending.confirmation_token }}">Decline</a>
-    </p>
+{% if pending and pending.person1_id != person.id and is_own_profile %}
+<div class="flash f-warn" style="margin-bottom: 20px;">
+    ⚠️ <strong>{{ pending.person1.get_display_name() }}</strong> has requested to link as your spouse.
+    <a href="/spouse/confirm/{{ pending.confirmation_token }}" style="margin-left:8px;">Review request →</a>
+</div>
 {% endif %}
 
-<h2>Personal Information</h2>
-<table cellpadding="8">
-    <tr><td><strong>Full Name</strong></td><td>{{ person.name }}</td></tr>
-    {% if person.nickname %}
-    <tr><td><strong>Nickname</strong></td><td>{{ person.nickname }}</td></tr>
-    {% endif %}
-    {% if person.gender %}
-    <tr><td><strong>Gender</strong></td><td>{{ person.gender }}</td></tr>
-    {% endif %}
-    {% if person.birthday %}
-    <tr><td><strong>Birthday</strong></td><td>{{ person.birthday.strftime('%B %d, %Y') }} (Age {{ person.get_age() }})</td></tr>
-    {% endif %}
-    {% if person.birthplace %}
-    <tr><td><strong>Birthplace</strong></td><td>{{ person.birthplace }}</td></tr>
-    {% endif %}
-    {% if person.maiden_name %}
-    <tr><td><strong>Maiden Name</strong></td><td>{{ person.maiden_name }}</td></tr>
-    {% endif %}
-    {% if person.notes %}
-    <tr><td><strong>Notes</strong></td><td>{{ person.notes }}</td></tr>
-    {% endif %}
-</table>
+<div class="profile-grid">
 
-<h2>Contact Information</h2>
-<table cellpadding="8">
-    {% if person.email %}
-    <tr><td><strong>Email</strong></td><td><a href="mailto:{{ person.email }}">{{ person.email }}</a></td></tr>
-    {% endif %}
-    {% if person.phone %}
-    <tr><td><strong>Phone</strong></td><td>{{ person.phone }}</td></tr>
-    {% endif %}
-</table>
+    <!-- Left: photo + key facts -->
+    <div>
+        <div class="card profile-photo-card">
+            <div class="photo" style="background: linear-gradient(135deg, var(--sprout) 0%, var(--vine) 100%); display:flex;align-items:center;justify-content:center;">
+                <div class="av av-xl" style="background: var(--vine-deep);">{{ person.name[0] }}</div>
+            </div>
+            <div class="name">{{ person.name }}</div>
+            {% if person.maiden_name %}
+            <div class="nee">née {{ person.maiden_name }}</div>
+            {% endif %}
+            {% if person.get_age() %}
+            <div class="age">Age {{ person.get_age() }}{% if person.deathday %} · Passed away{% endif %}</div>
+            {% endif %}
 
-<h2>Family</h2>
-{% set active_spouse = person.get_active_spouse() %}
-{% set pending_request = person.get_pending_spouse_request() %}
+            <dl class="facts">
+                {% if person.gender %}
+                <dt>Gender</dt><dd>{{ person.gender }}</dd>
+                {% endif %}
+                {% if person.birthday %}
+                <dt>Birthday</dt><dd>{{ person.birthday.strftime('%B %-d, %Y') }}</dd>
+                {% endif %}
+                {% if person.birthplace %}
+                <dt>Birthplace</dt><dd>{{ person.birthplace }}</dd>
+                {% endif %}
+                {% if person.deathday %}
+                <dt>Passed</dt><dd>{{ person.deathday.strftime('%B %-d, %Y') }}</dd>
+                {% endif %}
+                {% if person.email %}
+                <dt>Email</dt><dd><a href="mailto:{{ person.email }}">{{ person.email }}</a></dd>
+                {% endif %}
+                {% if person.phone %}
+                <dt>Phone</dt><dd>{{ person.phone }}</dd>
+                {% endif %}
+            </dl>
+        </div>
+    </div>
 
-{% if active_spouse %}
-    <p><strong>Spouse:</strong> 
-        <a href="/person/{{ active_spouse.id }}">{{ active_spouse.get_display_name() }}</a>
-        {% if person.user == current_user %}
-            | <a href="/spouse/end">End Relationship</a>
+    <!-- Right: relations + notes -->
+    <div style="display:flex;flex-direction:column;gap:20px;">
+
+        <!-- Family connections -->
+        <div class="card">
+            <div class="card-header">
+                <h3>Family</h3>
+                {% if is_own_profile %}
+                <a href="/spouse/add" class="btn btn-ghost btn-sm"><i data-lucide="plus"></i> Add spouse</a>
+                {% endif %}
+            </div>
+
+            {% set active_spouse = person.get_active_spouse() %}
+            {% set pending_request = person.get_pending_spouse_request() %}
+
+            {% if active_spouse %}
+            <div class="relation-row">
+                <span class="role">Spouse</span>
+                <div class="av av-sm" style="background:var(--pea);">{{ active_spouse.name[0] }}</div>
+                <span class="name"><a href="/person/{{ active_spouse.id }}">{{ active_spouse.get_display_name() }}</a></span>
+                {% if is_own_profile %}
+                <a href="/spouse/end" class="btn btn-ghost btn-sm" style="color:var(--tomato);">End</a>
+                {% endif %}
+            </div>
+            {% elif pending_request %}
+            <div class="relation-row">
+                <span class="role">Spouse</span>
+                <span class="name" style="color:var(--text-muted);font-style:italic;">
+                    {% if pending_request.person1_id == person.id %}
+                        Awaiting confirmation from {{ pending_request.get_spouse_of(person).get_display_name() }}
+                    {% else %}
+                        <a href="/spouse/confirm/{{ pending_request.confirmation_token }}">Confirm request from {{ pending_request.get_spouse_of(person).get_display_name() }}</a>
+                    {% endif %}
+                </span>
+            </div>
+            {% elif is_own_profile %}
+            <div class="relation-row">
+                <span class="role">Spouse</span>
+                <a href="/spouse/add" class="btn btn-ghost btn-sm"><i data-lucide="plus"></i> Add spouse</a>
+            </div>
+            {% endif %}
+
+            {% for parent in person.parents %}
+            <div class="relation-row">
+                <span class="role">Parent</span>
+                <div class="av av-sm" style="background:var(--vine);">{{ parent.name[0] }}</div>
+                <span class="name"><a href="/person/{{ parent.id }}">{{ parent.get_display_name() }}</a></span>
+                {% if parent.birthday %}<span class="meta">b. {{ parent.birthday.strftime('%Y') }}</span>{% endif %}
+            </div>
+            {% endfor %}
+
+            {% for child in person.children %}
+            <div class="relation-row">
+                <span class="role">Child</span>
+                <div class="av av-sm" style="background:var(--sprout);color:var(--vine-deep);">{{ child.name[0] }}</div>
+                <span class="name"><a href="/person/{{ child.id }}">{{ child.get_display_name() }}</a></span>
+                {% if child.birthday %}<span class="meta">b. {{ child.birthday.strftime('%Y') }}</span>{% endif %}
+            </div>
+            {% endfor %}
+
+            {% if not active_spouse and not pending_request and not person.parents and not person.children and not is_own_profile %}
+            <p style="color:var(--text-muted);font-size:14px;padding:8px 0;">No family connections recorded yet.</p>
+            {% endif %}
+        </div>
+
+        {% if person.notes %}
+        <div class="card">
+            <div class="card-header"><h3>Notes</h3></div>
+            <p class="lead" style="font-size:15px;line-height:1.6;white-space:pre-wrap;">{{ person.notes }}</p>
+        </div>
         {% endif %}
-    </p>
-{% elif pending_request %}
-    {% if pending_request.person1_id == person.id %}
-        <p><strong>Spouse:</strong> Awaiting confirmation from {{ pending_request.get_spouse_of(person).get_display_name() }}</p>
-    {% else %}
-        <p><strong>Spouse:</strong> {{ pending_request.get_spouse_of(person).get_display_name() }} has requested to link as your spouse — <a href="/spouse/confirm/{{ pending_request.confirmation_token }}">review request</a></p>
-    {% endif %}
-{% else %}
-    {% if person.user == current_user %}
-        <p><a href="/spouse/add">Add Spouse</a></p>
-    {% endif %}
-{% endif %}
 
-{% if person.parents %}
-    <p><strong>Parents:</strong>
-    {% for parent in person.parents %}
-        <a href="/person/{{ parent.id }}">{{ parent.get_display_name() }}</a>{% if not loop.last %}, {% endif %}
-    {% endfor %}
-    </p>
-{% endif %}
-
-{% if person.children %}
-    <p><strong>Children:</strong>
-    {% for child in person.children %}
-        <a href="/person/{{ child.id }}">{{ child.get_display_name() }}</a>{% if not loop.last %}, {% endif %}
-    {% endfor %}
-    </p>
-{% endif %}
-
+    </div>
+</div>
 {% endblock %}

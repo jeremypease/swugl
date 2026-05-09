@@ -1,60 +1,101 @@
 {% extends "base.html" %}
 
-{% block title %}Pease Vine - Admin{% endblock %}
+{% block title %}Members — Peavines{% endblock %}
 
 {% block content %}
-<h1>User Management</h1>
+<div class="page-head">
+    <div>
+        <div class="eyebrow">Admin</div>
+        <h1>Members</h1>
+    </div>
+</div>
 
-<h2>Pending Approval</h2>
 {% if pending %}
-    <table border="1" cellpadding="8">
-        <tr>
-            <th>Name</th>
-            <th>Email</th>
-            <th>Phone</th>
-            <th>Actions</th>
-        </tr>
-        {% for user in pending %}
-        <tr>
-            <td>{{ user.get_full_name() }}</td>
-            <td>{{ user.email }}</td>
-            <td>{{ user.phone }}</td>
-            <td>
-                <form method="POST" action="/admin/approve/{{ user.id }}" style="display:inline">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit">Approve</button>
-                </form>
-                <form method="POST" action="/admin/reject/{{ user.id }}" style="display:inline">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit">Reject</button>
-                </form>
-            </td>
-        </tr>
-        {% endfor %}
+<div class="card" style="margin-bottom: 24px; border-left: 3px solid var(--honey);">
+    <div class="card-header">
+        <h3>Pending approval</h3>
+        <span class="badge b-pending"><span class="dot"></span>{{ pending|length }} waiting</span>
+    </div>
+    <table class="tbl">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th class="col-actions">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in pending %}
+            <tr>
+                <td>
+                    <div class="av av-sm" style="background:var(--honey);color:var(--ink);display:inline-flex;margin-right:8px;vertical-align:middle;">{{ user.first_name[0] }}{{ user.last_name[0] }}</div>
+                    {{ user.get_full_name() }}
+                </td>
+                <td>{{ user.email }}</td>
+                <td>{{ user.phone or '—' }}</td>
+                <td class="col-actions">
+                    <form method="POST" action="/admin/approve/{{ user.id }}" style="display:inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-primary btn-sm">Approve</button>
+                    </form>
+                    <form method="POST" action="/admin/reject/{{ user.id }}" style="display:inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-danger btn-sm">Reject</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
     </table>
-{% else %}
-    <p>No users pending approval.</p>
+</div>
 {% endif %}
 
-<h2>All Users</h2>
-{% if users %}
-    <table border="1" cellpadding="8">
-        <tr>
-            <th>Name</th>
-            <th>Email</th>
-            <th>Status</th>
-            <th>Admin</th>
-            <th>Delegate</th>
-        </tr>
-        {% for user in users %}
-        <tr>
-            <td>{{ user.get_full_name() }}</td>
-            <td>{{ user.email }}</td>
-            <td>{{ user.status }}</td>
-            <td>{{ 'Yes' if user.is_admin else 'No' }}</td>
-            <td>{{ 'Yes' if user.is_delegate else 'No' }}</td>
-        </tr>
-        {% endfor %}
+<div class="card">
+    <div class="card-header">
+        <h3>All members</h3>
+        <span class="meta">{{ users|length }} total</span>
+    </div>
+    <table class="tbl">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Status</th>
+                <th>Role</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in users %}
+            <tr>
+                <td>
+                    <div class="av av-sm" style="background:var(--vine);display:inline-flex;margin-right:8px;vertical-align:middle;">{{ user.first_name[0] }}{{ user.last_name[0] }}</div>
+                    {{ user.get_full_name() }}
+                </td>
+                <td>{{ user.email }}</td>
+                <td>
+                    {% if user.status == 'approved' %}
+                    <span class="badge b-active"><span class="dot"></span>Active</span>
+                    {% elif user.status == 'pending' %}
+                    <span class="badge b-pending"><span class="dot"></span>Pending</span>
+                    {% elif user.status == 'invited' %}
+                    <span class="badge b-invited"><span class="dot"></span>Invited</span>
+                    {% else %}
+                    <span class="badge b-deceased"><span class="dot"></span>{{ user.status|capitalize }}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if user.is_admin %}
+                    <span class="badge b-admin"><span class="dot"></span>Admin</span>
+                    {% elif user.is_delegate %}
+                    <span class="badge b-delegate"><span class="dot"></span>Delegate</span>
+                    {% else %}
+                    <span style="color:var(--text-muted);font-size:13px;">Member</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
     </table>
-{% endif %}
+</div>
 {% endblock %}

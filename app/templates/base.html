@@ -3,36 +3,96 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Pease Vine{% endblock %}</title>
+    <title>{% block title %}Peavines{% endblock %}</title>
+    <link rel="icon" href="{{ url_for('static', filename='assets/favicon.svg') }}" type="image/svg+xml">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/peavines.css') }}">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    {% block head %}{% endblock %}
 </head>
 <body>
-        <nav>
-        <a href="/">Home</a>
-        {% if current_user.is_authenticated %}
-            | Welcome, {{ current_user.first_name }}
+
+{% if current_user.is_authenticated %}
+<div class="shell">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="brand">
+            <img src="{{ url_for('static', filename='assets/peavines-mark.svg') }}" alt="Peavines">
+        </div>
+        <div class="family-name">{{ current_user.family.name }}</div>
+        <div class="family-meta">Family</div>
+
+        <nav class="nav">
+            <div class="nav-section">Navigate</div>
+            <a href="/" {% if request.path == '/' %}class="active"{% endif %}>
+                <i data-lucide="home"></i> Home
+            </a>
+            <a href="/profile" {% if request.path == '/profile' %}class="active"{% endif %}>
+                <i data-lucide="user"></i> My Profile
+            </a>
             {% if current_user.is_admin %}
-                | <a href="/admin/users">Admin</a>
+            <div class="nav-section">Admin</div>
+            <a href="/admin/users" {% if request.path.startswith('/admin') %}class="active"{% endif %}>
+                <i data-lucide="users"></i> Members
+            </a>
             {% endif %}
-            | <form method="POST" action="/logout" style="display:inline;">
+        </nav>
+
+        <div class="user-chip">
+            <div class="av av-sm" style="background: var(--vine);">{{ current_user.first_name[0] }}{{ current_user.last_name[0] }}</div>
+            <div>
+                <div class="name">{{ current_user.get_full_name() }}</div>
+                <div class="role">{% if current_user.is_admin %}Admin{% else %}Member{% endif %}</div>
+            </div>
+            <form method="POST" action="/logout" style="margin-left: auto;">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;color:inherit;text-decoration:underline;">Logout</button>
+                <button type="submit" class="btn btn-ghost btn-sm" title="Sign out" style="padding: 6px;">
+                    <i data-lucide="log-out"></i>
+                </button>
             </form>
-        {% else %}
-            | <a href="/login">Sign In</a>
-        {% endif %}
-    </nav>
+        </div>
+    </aside>
 
+    <!-- Canvas -->
+    <div class="canvas">
+        <header class="topbar">
+            <div class="search">
+                <i data-lucide="search"></i>
+                <span>Search family…</span>
+            </div>
+            <div class="topbar-actions">
+                <a href="/spouse/add" class="btn btn-primary btn-sm">
+                    <i data-lucide="plus"></i> Add Spouse
+                </a>
+            </div>
+        </header>
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-                <p class="{{ category }}">{{ message }}</p>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div style="padding: 16px 40px 0;">
+                {% for category, message in messages %}
+                <div class="flash {% if category == 'error' %}f-error{% elif category == 'info' %}f-info{% else %}f-warn{% endif %}">
+                    <i data-lucide="{% if category == 'error' %}alert-circle{% elif category == 'info' %}info{% else %}alert-triangle{% endif %}" style="width:16px;height:16px;flex-shrink:0;"></i>
+                    {{ message }}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        {% endwith %}
 
-    <main>
-        {% block content %}{% endblock %}
-    </main>
+        <div class="canvas-inner">
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+</div>
+
+{% else %}
+
+{% with messages = get_flashed_messages(with_categories=true) %}{% endwith %}
+{% block content %}{% endblock %}
+
+{% endif %}
+
+<script>lucide.createIcons();</script>
 </body>
 </html>

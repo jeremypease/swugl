@@ -1,83 +1,119 @@
 {% extends "base.html" %}
 
-{% block title %}Pease Vine - Register{% endblock %}
+{% block title %}{% if invited %}Join your family — Peavines{% else %}Create your family — Peavines{% endif %}{% endblock %}
 
 {% block content %}
-<h1>Create Your Account</h1>
+<div class="signin-shell">
 
-{% if invited %}
-<p style="color: green;">You've been invited to join! Your name and email have been pre-filled. Please set your password to complete registration.</p>
-{% endif %}
-
-<form method="POST" action="">
-    {{ form.hidden_tag() }}
-
-    {% if not invited %}
-    <div>
-        {{ form.family_name.label }}<br>
-        {{ form.family_name(size=40, placeholder="e.g. Smith Family") }}<br>
-        {% for error in form.family_name.errors %}
-            <span style="color: red;">{{ error }}</span>
-        {% endfor %}
-    </div>
-    {% endif %}
-
-    <div>
-        {{ form.first_name.label }}<br>
-        {{ form.first_name(size=40) }}<br>
-        {% for error in form.first_name.errors %}
-            <span style="color: red;">{{ error }}</span>
-        {% endfor %}
+    <!-- Marketing rail -->
+    <div class="signin-marketing">
+        <div class="logo">
+            <img src="{{ url_for('static', filename='assets/peavines-logo.svg') }}" alt="Peavines">
+        </div>
+        <div>
+            <h1>Every branch matters.</h1>
+            <p>Build your family tree together — birthdays, photos, stories, and connections that last.</p>
+        </div>
+        <p class="testimonial">"We finally have one place the whole family can keep up."</p>
+        <img class="vines" src="{{ url_for('static', filename='assets/illustrations/vine-divider.svg') }}" alt="">
     </div>
 
-    <div>
-        {{ form.last_name.label }}<br>
-        {{ form.last_name(size=40) }}<br>
-        {% for error in form.last_name.errors %}
-            <span style="color: red;">{{ error }}</span>
-        {% endfor %}
+    <!-- Form rail -->
+    <div class="signin-form-wrap">
+        <div class="signin-form" style="max-width: 420px;">
+            <div class="brand">
+                <img src="{{ url_for('static', filename='assets/peavines-logo.svg') }}" alt="Peavines">
+            </div>
+
+            {% if invited %}
+            <h2>Join your family</h2>
+            <p class="sub">Your name and email are pre-filled. Set a password to finish.</p>
+            {% else %}
+            <h2>Create your family's space</h2>
+            <p class="sub">You'll be the admin — invite everyone else once you're in.</p>
+            {% endif %}
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                    <div class="flash {% if category == 'error' %}f-error{% elif category == 'info' %}f-info{% else %}f-warn{% endif %}">
+                        {{ message }}
+                    </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form method="POST">
+                {{ form.hidden_tag() }}
+
+                {% if not invited %}
+                <div class="field">
+                    {{ form.family_name.label }}
+                    {{ form.family_name(placeholder="e.g. The Smith Family") }}
+                    {% for error in form.family_name.errors %}
+                    <span class="msg">{{ error }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <div class="field-row">
+                    <div class="field">
+                        {{ form.first_name.label }}
+                        {{ form.first_name() }}
+                        {% for error in form.first_name.errors %}
+                        <span class="msg">{{ error }}</span>
+                        {% endfor %}
+                    </div>
+                    <div class="field">
+                        {{ form.last_name.label }}
+                        {{ form.last_name() }}
+                        {% for error in form.last_name.errors %}
+                        <span class="msg">{{ error }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="field">
+                    {{ form.email.label }}
+                    {{ form.email(placeholder="you@example.com") }}
+                    {% for error in form.email.errors %}
+                    <span class="msg">{{ error }}</span>
+                    {% endfor %}
+                </div>
+
+                <div class="field">
+                    {{ form.phone.label }}
+                    {{ form.phone(placeholder="801-555-0100") }}
+                    {% for error in form.phone.errors %}
+                    <span class="msg">{{ error }}</span>
+                    {% endfor %}
+                </div>
+
+                <div class="field">
+                    {{ form.password.label }}
+                    {{ form.password(placeholder="••••••••") }}
+                    <span class="help">At least 8 characters — uppercase, lowercase, number, and special character.</span>
+                    {% for error in form.password.errors %}
+                    <span class="msg">{{ error }}</span>
+                    {% endfor %}
+                </div>
+
+                <div class="field">
+                    {{ form.confirm_password.label }}
+                    {{ form.confirm_password(placeholder="••••••••") }}
+                    {% for error in form.confirm_password.errors %}
+                    <span class="msg">{{ error }}</span>
+                    {% endfor %}
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-block">
+                    {% if invited %}Join the family{% else %}Create family{% endif %}
+                </button>
+            </form>
+
+            <p class="meta-line">Already have an account? <a href="/login">Sign in</a></p>
+        </div>
     </div>
 
-    <div>
-        {{ form.email.label }}<br>
-        {{ form.email(size=40) }}<br>
-        {% for error in form.email.errors %}
-            <span style="color: red;">{{ error }}</span>
-        {% endfor %}
-    </div>
-
-    <div>
-        {{ form.phone.label }}<br>
-        {{ form.phone(size=40) }}<br>
-        {% for error in form.phone.errors %}
-            <span style="color: red;">{{ error }}</span>
-        {% endfor %}
-    </div>
-
-    <div>
-        {{ form.password.label }}<br>
-        {{ form.password(size=40) }}<br>
-        {% for error in form.password.errors %}
-            <span style="color: red;">{{ error }}</span>
-        {% endfor %}
-        <small>
-            At least 8 characters, including uppercase, lowercase, 
-            a number, and a special character (!@#$%^&*)
-        </small>
-    </div>
-
-    <div>
-        {{ form.confirm_password.label }}<br>
-        {{ form.confirm_password(size=40) }}<br>
-        {% for error in form.confirm_password.errors %}
-            <span style="color: red;">{{ error }}</span>
-        {% endfor %}
-    </div>
-
-    <div>
-        {{ form.submit() }}
-    </div>
-</form>
-
-<p>Already have an account? <a href="/login">Sign In</a></p>
+</div>
 {% endblock %}

@@ -1,77 +1,75 @@
 {% extends "base.html" %}
 
-{% block title %}Pease Vine - Add Spouse{% endblock %}
+{% block title %}Add Spouse — Peavines{% endblock %}
 
 {% block content %}
-<h1>Add Spouse</h1>
-
-<h2>Option 1: Select Existing Family Member</h2>
-<form method="POST" action="/spouse/add">
-    {{ form.hidden_tag() }}
-
+<div class="page-head">
     <div>
-        {{ form.spouse_id.label }}<br>
-        {{ form.spouse_id() }}<br>
-        {% for error in form.spouse_id.errors %}
-            <span style="color: red;">{{ error }}</span>
-        {% endfor %}
+        <div class="eyebrow">Family</div>
+        <h1>Add Spouse</h1>
+    </div>
+    <a href="/profile" class="btn btn-secondary">
+        <i data-lucide="x"></i> Cancel
+    </a>
+</div>
+
+<div class="two-col-eq">
+
+    <!-- Option 1: existing member -->
+    <div class="card">
+        <div class="card-header">
+            <h3>Select a family member</h3>
+        </div>
+        <p style="font-size:14px;color:var(--text-muted);margin-bottom:16px;">Choose someone already in the family tree. They'll receive a confirmation request.</p>
+        <form method="POST" action="/spouse/add">
+            {{ form.hidden_tag() }}
+            <div class="field">
+                {{ form.spouse_id.label }}
+                {{ form.spouse_id() }}
+                {% for error in form.spouse_id.errors %}<span class="msg">{{ error }}</span>{% endfor %}
+            </div>
+            <div class="field">
+                {{ form.marriage_date.label }}
+                {{ form.marriage_date() }}
+                {% for error in form.marriage_date.errors %}<span class="msg">{{ error }}</span>{% endfor %}
+            </div>
+            <button type="submit" class="btn btn-primary">Send spouse request</button>
+        </form>
     </div>
 
-    <div>
-        {{ form.marriage_date.label }}<br>
-        {{ form.marriage_date() }}<br>
-        {% for error in form.marriage_date.errors %}
-            <span style="color: red;">{{ error }}</span>
-        {% endfor %}
+    <!-- Option 2: invite -->
+    <div class="card">
+        <div class="card-header">
+            <h3>Invite someone new</h3>
+        </div>
+        <p style="font-size:14px;color:var(--text-muted);margin-bottom:16px;">They'll get an email invitation to join the family and their account will be linked as your spouse.</p>
+        <form method="POST" action="/spouse/invite">
+            {{ invite_form.hidden_tag() }}
+            <div class="field-row">
+                <div class="field">
+                    {{ invite_form.first_name.label }}
+                    {{ invite_form.first_name() }}
+                    {% for error in invite_form.first_name.errors %}<span class="msg">{{ error }}</span>{% endfor %}
+                </div>
+                <div class="field">
+                    {{ invite_form.last_name.label }}
+                    {{ invite_form.last_name() }}
+                    {% for error in invite_form.last_name.errors %}<span class="msg">{{ error }}</span>{% endfor %}
+                </div>
+            </div>
+            <div class="field">
+                {{ invite_form.email.label }}
+                {{ invite_form.email(placeholder="their@email.com") }}
+                {% for error in invite_form.email.errors %}<span class="msg">{{ error }}</span>{% endfor %}
+            </div>
+            <div class="field">
+                {{ invite_form.marriage_date.label }}
+                {{ invite_form.marriage_date() }}
+                {% for error in invite_form.marriage_date.errors %}<span class="msg">{{ error }}</span>{% endfor %}
+            </div>
+            <button type="submit" class="btn btn-primary">Send invitation</button>
+        </form>
     </div>
 
-    <div>
-        {{ form.submit() }}
-    </div>
-</form>
-
-<hr>
-
-<h2>Option 2: Invite Spouse to Join</h2>
-<form method="POST" action="/spouse/invite">
-    {{ invite_form.hidden_tag() }}
-
-    <div>
-        {{ invite_form.first_name.label }}<br>
-        {{ invite_form.first_name(size=40) }}<br>
-        {% for error in invite_form.first_name.errors %}
-            <span style="color: red;">{{ error }}</span>
-        {% endfor %}
-    </div>
-
-    <div>
-        {{ invite_form.last_name.label }}<br>
-        {{ invite_form.last_name(size=40) }}<br>
-        {% for error in invite_form.last_name.errors %}
-            <span style="color: red;">{{ error }}</span>
-        {% endfor %}
-    </div>
-
-    <div>
-        {{ invite_form.email.label }}<br>
-        {{ invite_form.email(size=40) }}<br>
-        {% for error in invite_form.email.errors %}
-            <span style="color: red;">{{ error }}</span>
-        {% endfor %}
-    </div>
-
-    <div>
-        {{ invite_form.marriage_date.label }}<br>
-        {{ invite_form.marriage_date() }}<br>
-        {% for error in invite_form.marriage_date.errors %}
-            <span style="color: red;">{{ error }}</span>
-        {% endfor %}
-    </div>
-
-    <div>
-        {{ invite_form.submit() }}
-    </div>
-</form>
-
-<a href="/profile">Cancel</a>
+</div>
 {% endblock %}

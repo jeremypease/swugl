@@ -1,32 +1,40 @@
 {% extends "base.html" %}
 
-{% block title %}Pease Vine - End Spouse Relationship{% endblock %}
+{% block title %}End Relationship — Peavines{% endblock %}
 
 {% block content %}
-<h1>End Relationship with {{ spouse.get_display_name() }}</h1>
-
-<form method="POST" action="">
-    {{ form.hidden_tag() }}
-
+<div class="page-head">
     <div>
-        {{ form.status.label }}<br>
-        {{ form.status() }}<br>
-        {% for error in form.status.errors %}
-            <span style="color: red;">{{ error }}</span>
-        {% endfor %}
+        <div class="eyebrow">Family</div>
+        <h1>End Relationship</h1>
     </div>
+    <a href="/profile" class="btn btn-secondary">
+        <i data-lucide="x"></i> Cancel
+    </a>
+</div>
 
-    <div>
-        {{ form.end_date.label }}<br>
-        {{ form.end_date() }}<br>
-        {% for error in form.end_date.errors %}
-            <span style="color: red;">{{ error }}</span>
-        {% endfor %}
+<div style="max-width: 480px;">
+    <div class="card" style="border-left: 3px solid var(--tomato);">
+        <p style="color:var(--text-muted);margin-bottom:20px;">
+            You're ending your relationship with <strong>{{ spouse.get_display_name() }}</strong>. This won't remove them from the family tree.
+        </p>
+        <form method="POST">
+            {{ form.hidden_tag() }}
+            <div class="field">
+                {{ form.status.label }}
+                {{ form.status() }}
+                {% for error in form.status.errors %}<span class="msg">{{ error }}</span>{% endfor %}
+            </div>
+            <div class="field">
+                {{ form.end_date.label }}
+                {{ form.end_date() }}
+                {% for error in form.end_date.errors %}<span class="msg">{{ error }}</span>{% endfor %}
+            </div>
+            <div style="display:flex;gap:10px;">
+                <button type="submit" class="btn btn-danger">Confirm</button>
+                <a href="/profile" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
     </div>
-
-    <div>
-        {{ form.submit() }}
-        <a href="/profile">Cancel</a>
-    </div>
-</form>
+</div>
 {% endblock %}

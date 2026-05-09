@@ -1,45 +1,71 @@
 {% extends "base.html" %}
 
-{% block title %}Pease Vine - Sign In{% endblock %}
+{% block title %}Sign in — Peavines{% endblock %}
 
 {% block content %}
-<h1>Sign In</h1>
+<div class="signin-shell">
 
-{% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-        {% for category, message in messages %}
-            <p class="{{ category }}">{{ message }}</p>
-        {% endfor %}
-    {% endif %}
-{% endwith %}
-
-<form method="POST" action="">
-    {{ form.hidden_tag() }}
-
-    <div>
-        {{ form.email.label }}<br>
-        {{ form.email(size=40) }}<br>
-        {% for error in form.email.errors %}
-            <span style="color: red;">{{ error }}</span>
-        {% endfor %}
+    <!-- Marketing rail -->
+    <div class="signin-marketing">
+        <div class="logo">
+            <img src="{{ url_for('static', filename='assets/peavines-logo.svg') }}" alt="Peavines">
+        </div>
+        <div>
+            <h1>Keep the whole family close.</h1>
+            <p>Birthdays, branches, and reunion plans — all in one place, just for your family.</p>
+        </div>
+        <p class="testimonial">"Finally, a place where Grandma's birthday never gets forgotten."</p>
+        <img class="vines" src="{{ url_for('static', filename='assets/illustrations/vine-divider.svg') }}" alt="">
     </div>
 
-    <div>
-        {{ form.password.label }}<br>
-        {{ form.password(size=40) }}<br>
-        {% for error in form.password.errors %}
-            <span style="color: red;">{{ error }}</span>
-        {% endfor %}
+    <!-- Form rail -->
+    <div class="signin-form-wrap">
+        <div class="signin-form">
+            <div class="brand">
+                <img src="{{ url_for('static', filename='assets/peavines-logo.svg') }}" alt="Peavines">
+            </div>
+            <h2>Welcome back</h2>
+            <p class="sub">Sign in to your family's account.</p>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                    <div class="flash {% if category == 'error' %}f-error{% elif category == 'info' %}f-info{% else %}f-warn{% endif %}">
+                        {{ message }}
+                    </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form method="POST">
+                {{ form.hidden_tag() }}
+
+                <div class="field">
+                    {{ form.email.label }}
+                    {{ form.email(placeholder="you@example.com") }}
+                    {% for error in form.email.errors %}
+                    <span class="msg">{{ error }}</span>
+                    {% endfor %}
+                </div>
+
+                <div class="field">
+                    {{ form.password.label }}
+                    {{ form.password(placeholder="••••••••") }}
+                    {% for error in form.password.errors %}
+                    <span class="msg">{{ error }}</span>
+                    {% endfor %}
+                </div>
+
+                <div class="row-between">
+                    <label class="checkbox">{{ form.remember_me() }} Remember me</label>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-block">Sign in</button>
+            </form>
+
+            <p class="meta-line">No account? <a href="/register">Create your family's space</a></p>
+        </div>
     </div>
 
-    <div>
-        {{ form.remember_me() }} {{ form.remember_me.label }}
-    </div>
-
-    <div>
-        {{ form.submit() }}
-    </div>
-</form>
-
-<p>Don't have an account? <a href="/register">Register</a></p>
+</div>
 {% endblock %}

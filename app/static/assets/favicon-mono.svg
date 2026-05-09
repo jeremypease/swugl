@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Peavines">
+  
+  <g transform="translate(16 16) rotate(-30)" fill="#3F5A30">
+    <path d="M -10 0 Q -10 -6.5 0 -7 Q 10 -6.5 10 0 Q 10 6.5 0 7 Q -10 6.5 -10 0 Z"></path>
+    <circle cx="-5.4" cy="0.6" r="1.6" fill="#FBF7EE"></circle>
+    <circle cx="0" cy="0.8" r="1.7" fill="#FBF7EE"></circle>
+    <circle cx="5.4" cy="0.6" r="1.6" fill="#FBF7EE"></circle>
+  </g>
+</svg>
