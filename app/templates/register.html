@@ -6,11 +6,21 @@
 <h1>Create Your Account</h1>
 
 {% if invited %}
-<p style="color: green;">You've been invited to join Pease Vine! Your name and email have been pre-filled. Please set your password to complete registration.</p>
+<p style="color: green;">You've been invited to join! Your name and email have been pre-filled. Please set your password to complete registration.</p>
 {% endif %}
 
 <form method="POST" action="">
     {{ form.hidden_tag() }}
+
+    {% if not invited %}
+    <div>
+        {{ form.family_name.label }}<br>
+        {{ form.family_name(size=40, placeholder="e.g. Smith Family") }}<br>
+        {% for error in form.family_name.errors %}
+            <span style="color: red;">{{ error }}</span>
+        {% endfor %}
+    </div>
+    {% endif %}
 
     <div>
         {{ form.first_name.label }}<br>

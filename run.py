@@ -1,34 +1,38 @@
 from app import create_app, db
-from app.models import User, Person
+from app.models import Family, User, Person
 from datetime import date
 
 app = create_app()
 
 def seed_admin():
-    """Create admin account and person record if no users exist yet."""
+    """Create the Pease family, admin account, and person record if no users exist yet."""
     if User.query.count() == 0:
-        # Create your Person record first
+        family = Family(name="Pease Family")
+        db.session.add(family)
+        db.session.flush()
+
         person = Person(
             name="Jeremy Pease",
             gender="Male",
-            birthday=date(1979, 7, 20),  # update with your real birthday
-            email="jeremypease@me.com",     # update with your real email
+            birthday=date(1979, 7, 20),
+            email="jeremypease@me.com",
+            family_id=family.id,
         )
         db.session.add(person)
-        db.session.flush()  # gets person.id without committing
+        db.session.flush()
 
-        # Create your admin User account
         admin = User(
             first_name="Jeremy",
             last_name="Pease",
-            email="jeremypease@me.com",     # update with your real email
-            phone="801-857-7980",       # update with your real phone
+            email="jeremypease@me.com",
+            phone="801-857-7980",
             email_verified=True,
             status='approved',
             is_admin=True,
-            person_id=person.id
+            family_id=family.id,
+            person_id=person.id,
         )
-        admin.set_password("IwillfollowH1m")  # update with a real password
+        admin.set_password("IwillfollowH1m")
         db.session.add(admin)
         db.session.commit()
         print("Admin account created.")

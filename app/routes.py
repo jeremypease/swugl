@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app
 from flask_login import login_user, logout_user, login_required, current_user
-from .models import User, Person, SpouseRelationship
+from .models import Family, User, Person, SpouseRelationship
 from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm
 from .email import send_verification_email, send_pending_notification, send_approval_notification, send_spouse_confirmation_email, send_spouse_invitation_email
 from datetime import date, datetime, timedelta
@@ -47,8 +47,8 @@ def admin_required(f):
 @main.route('/')
 @login_required
 def index():
-    people = Person.query.order_by(Person.name).all()
-    return render_template('index.html', people=people)
+    people = Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
+    return render_template('index.html', people=people, family=current_user.family)
 
 @main.route('/login', methods=['GET', 'POST'])
 def login():
@@ -87,20 +87,25 @@ def register():
         return redirect(url_for('main.index'))
     form = RegistrationForm()
     if form.validate_on_submit():
+        if not form.family_name.data:
+            flash('Please enter a family name.', 'error')
+            return render_template('register.html', form=form)
         existing_user = User.query.filter_by(email=form.email.data).first()
         if existing_user:
             flash('An account with that email already exists.', 'error')
             return redirect(url_for('main.register'))
+        family = Family(name=form.family_name.data)
+        db.session.add(family)
+        db.session.flush()
         full_name = f"{form.first_name.data} {form.last_name.data}"
-        person = Person.query.filter_by(name=full_name).first()
-        if not person:
-            person = Person(
-                name=full_name,
-                email=form.email.data,
-                phone=format_phone(form.phone.data),
-            )
-            db.session.add(person)
-            db.session.flush()
+        person = Person(
+            name=full_name,
+            email=form.email.data,
+            phone=format_phone(form.phone.data),
+            family_id=family.id,
+        )
+        db.session.add(person)
+        db.session.flush()
         token = secrets.token_urlsafe(32)
         user = User(
             first_name=form.first_name.data,
@@ -110,22 +115,22 @@ def register():
             verification_token=token,
             verification_token_expiry=datetime.utcnow() + timedelta(hours=24),
             email_verified=False,
-            status='pending',
-            person_id=person.id
+            # Family creator is auto-approved — email verification is the only gate
+            status='approved',
+            is_admin=True,
+            family_id=family.id,
+            person_id=person.id,
         )
         user.set_password(form.password.data)
         db.session.add(user)
         db.session.commit()
         if current_app.config.get('MAIL_ENABLED'):
             send_verification_email(user, url_for('main.verify_email', token=token, _external=True))
-            admins = User.query.filter_by(is_admin=True, status='approved').all()
-            for admin in admins:
-                send_pending_notification(admin.email, user, url_for('main.admin_users', _external=True))
             flash('Registration successful! Please check your email to verify your account.', 'info')
         else:
             user.email_verified = True
             db.session.commit()
-            flash('Registration successful! Your account is pending admin approval.', 'info')
+            flash('Registration successful! You can now sign in.', 'info')
         return redirect(url_for('main.login'))
     return render_template('register.html', form=form)
 
@@ -142,7 +147,7 @@ def verify_email(token):
     user.verification_token = None
     user.verification_token_expiry = None
     db.session.commit()
-    flash('Email verified! Your account is pending admin approval.', 'info')
+    flash('Email verified! You can now sign in.', 'info')
     return redirect(url_for('main.login'))
 
 @main.route('/register/invite/<token>', methods=['GET', 'POST'])
@@ -184,8 +189,8 @@ def register_invited(token):
 @login_required
 @admin_required
 def admin_users():
-    pending = User.query.filter_by(status='pending').all()
-    users = User.query.order_by(User.last_name).all()
+    pending = User.query.filter_by(status='pending', family_id=current_user.family_id).all()
+    users = User.query.filter_by(family_id=current_user.family_id).order_by(User.last_name).all()
     return render_template('admin_users.html', pending=pending, users=users)
 
 @main.route('/admin/approve/<int:user_id>', methods=['POST'])
@@ -193,7 +198,7 @@ def admin_users():
 @admin_required
 def approve_user(user_id):
     user = db.session.get(User, user_id)
-    if not user:
+    if not user or user.family_id != current_user.family_id:
         flash('User not found.', 'error')
         return redirect(url_for('main.admin_users'))
     user.status = 'approved'
@@ -210,7 +215,7 @@ def approve_user(user_id):
 @admin_required
 def reject_user(user_id):
     user = db.session.get(User, user_id)
-    if not user:
+    if not user or user.family_id != current_user.family_id:
         flash('User not found.', 'error')
         return redirect(url_for('main.admin_users'))
     user.status = 'rejected'
@@ -253,7 +258,7 @@ def profile_edit():
 @login_required
 def person_detail(person_id):
     person = db.session.get(Person, person_id)
-    if not person:
+    if not person or person.family_id != current_user.family_id:
         flash('Person not found.', 'error')
         return redirect(url_for('main.index'))
     return render_template('profile.html', person=person)
@@ -270,7 +275,7 @@ def spouse_add():
         flash('You already have an active spouse. Please end that relationship first.', 'error')
         return redirect(url_for('main.profile'))
     eligible = [
-        p for p in Person.query.order_by(Person.name).all()
+        p for p in Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
         if p.id != person.id and not p.get_active_spouse()
     ]
     form = SpouseForm()
@@ -278,7 +283,7 @@ def spouse_add():
     invite_form = SpouseInviteForm()
     if form.submit.data and form.validate_on_submit():
         spouse_person = db.session.get(Person, form.spouse_id.data)
-        if not spouse_person:
+        if not spouse_person or spouse_person.family_id != current_user.family_id:
             flash('Person not found.', 'error')
             return redirect(url_for('main.spouse_add'))
         token = secrets.token_urlsafe(32)
@@ -320,11 +325,12 @@ def spouse_invite():
             flash('An account with that email already exists.', 'error')
             return redirect(url_for('main.spouse_add'))
         full_name = f"{invite_form.first_name.data} {invite_form.last_name.data}"
-        spouse_person = Person.query.filter_by(name=full_name).first()
+        spouse_person = Person.query.filter_by(name=full_name, family_id=current_user.family_id).first()
         if not spouse_person:
             spouse_person = Person(
                 name=full_name,
                 email=invite_form.email.data,
+                family_id=current_user.family_id,
             )
             db.session.add(spouse_person)
             db.session.flush()
@@ -346,7 +352,8 @@ def spouse_invite():
             invitation_token=invitation_token,
             invitation_token_expiry=datetime.utcnow() + timedelta(days=7),
             invited_by_id=current_user.id,
-            person_id=spouse_person.id
+            family_id=current_user.family_id,
+            person_id=spouse_person.id,
         )
         db.session.add(invited_user)
         db.session.commit()
@@ -360,7 +367,7 @@ def spouse_invite():
         return redirect(url_for('main.profile'))
     form = SpouseForm()
     eligible = [
-        p for p in Person.query.order_by(Person.name).all()
+        p for p in Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
         if p.id != person.id and not p.get_active_spouse()
     ]
     form.spouse_id.choices = [(0, '-- Select --')] + [(p.id, p.get_display_name()) for p in eligible]

@@ -9,6 +9,17 @@ parent_child = db.Table('parent_child',
     db.Column('child_id', db.Integer, db.ForeignKey('people.id'), primary_key=True)
 )
 
+class Family(db.Model):
+    __tablename__ = 'families'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    people = db.relationship('Person', back_populates='family')
+    users = db.relationship('User', back_populates='family')
+
+
 class SpouseRelationship(db.Model):
     __tablename__ = 'spouse_relationships'
 
@@ -35,6 +46,7 @@ class Person(db.Model):
     __tablename__ = 'people'
 
     id = db.Column(db.Integer, primary_key=True)
+    family_id = db.Column(db.Integer, db.ForeignKey('families.id'), nullable=False)
     name = db.Column(db.String(100), nullable=False)
     gender = db.Column(db.String(10))
     birthday = db.Column(db.Date)
@@ -48,6 +60,8 @@ class Person(db.Model):
     phone = db.Column(db.String(20))
     photo_path = db.Column(db.String(200))
     notes = db.Column(db.Text)
+
+    family = db.relationship('Family', back_populates='people')
 
     # Relationships
     children = db.relationship(
@@ -92,6 +106,7 @@ class User(UserMixin, db.Model):
     __tablename__ = 'users'
 
     id = db.Column(db.Integer, primary_key=True)
+    family_id = db.Column(db.Integer, db.ForeignKey('families.id'), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
     first_name = db.Column(db.String(50), nullable=False)
@@ -115,6 +130,8 @@ class User(UserMixin, db.Model):
     # Link to person in family tree
     person_id = db.Column(db.Integer, db.ForeignKey('people.id'))
     person = db.relationship('Person', back_populates='user')
+
+    family = db.relationship('Family', back_populates='users')
 
     # Invitation tracking
     invitation_token = db.Column(db.String(100))

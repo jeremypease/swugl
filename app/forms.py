@@ -15,6 +15,7 @@ class LoginForm(FlaskForm):
 
 
 class RegistrationForm(FlaskForm):
+    family_name = StringField('Family Name', validators=[Length(max=100)])
     first_name = StringField('First Name', validators=[
         DataRequired(),
         Length(min=2, max=50)
