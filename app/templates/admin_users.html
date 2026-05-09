@@ -21,9 +21,11 @@
             <td>{{ user.phone }}</td>
             <td>
                 <form method="POST" action="/admin/approve/{{ user.id }}" style="display:inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit">Approve</button>
                 </form>
                 <form method="POST" action="/admin/reject/{{ user.id }}" style="display:inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit">Reject</button>
                 </form>
             </td>

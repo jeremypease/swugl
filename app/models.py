@@ -1,6 +1,6 @@
 from . import db, login_manager
 from flask_login import UserMixin
-from datetime import date
+from datetime import date, datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 
 # Junction table for parent-child relationships
@@ -20,6 +20,7 @@ class SpouseRelationship(db.Model):
     end_date = db.Column(db.Date)
     confirmed = db.Column(db.Boolean, default=False)
     confirmation_token = db.Column(db.String(100))
+    confirmation_token_expiry = db.Column(db.DateTime)
 
     person1 = db.relationship('Person', foreign_keys=[person1_id], backref='spouse_relationships_as_p1')
     person2 = db.relationship('Person', foreign_keys=[person2_id], backref='spouse_relationships_as_p2')
@@ -29,7 +30,7 @@ class SpouseRelationship(db.Model):
         if self.person1_id == person.id:
             return self.person2
         return self.person1
-    
+
 class Person(db.Model):
     __tablename__ = 'people'
 
@@ -40,7 +41,6 @@ class Person(db.Model):
     nickname = db.Column(db.String(50))
     birthplace = db.Column(db.String(100))
     maiden_name = db.Column(db.String(100))
-    spouse_name = db.Column(db.String(100))
     deathday = db.Column(db.Date)
     deathplace = db.Column(db.String(100))
     occupation = db.Column(db.String(100))
@@ -71,7 +71,7 @@ class Person(db.Model):
             if not rel.confirmed:
                 return rel
         return None
-    
+
     # Link to user account
     user = db.relationship('User', back_populates='person', uselist=False)
 
@@ -101,9 +101,10 @@ class User(UserMixin, db.Model):
     # Email verification
     email_verified = db.Column(db.Boolean, default=False)
     verification_token = db.Column(db.String(100))
+    verification_token_expiry = db.Column(db.DateTime)
 
     # Approval
-    status = db.Column(db.String(20), default='pending')  # pending/approved/rejected
+    status = db.Column(db.String(20), default='pending')  # pending/approved/rejected/invited
     approved_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     approved_date = db.Column(db.Date)
 
@@ -117,6 +118,7 @@ class User(UserMixin, db.Model):
 
     # Invitation tracking
     invitation_token = db.Column(db.String(100))
+    invitation_token_expiry = db.Column(db.DateTime)
     invited_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
 
     def set_password(self, password):
@@ -131,4 +133,4 @@ class User(UserMixin, db.Model):
 
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    return db.session.get(User, int(user_id))

@@ -1,13 +1,13 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request
+from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app
 from flask_login import login_user, logout_user, login_required, current_user
 from .models import User, Person, SpouseRelationship
 from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm
 from .email import send_verification_email, send_pending_notification, send_approval_notification, send_spouse_confirmation_email, send_spouse_invitation_email
-from datetime import date
+from datetime import date, datetime, timedelta
 from functools import wraps
+from urllib.parse import urlparse
 from . import db
 import secrets
-import os
 import re
 
 main = Blueprint('main', __name__)
@@ -29,6 +29,9 @@ def format_birthplace(raw):
     if len(parts) >= 2:
         city = parts[0].title()
         state = parts[1].upper()
+        extra = [p for p in parts[2:] if p]
+        if extra:
+            return f"{city}, {state}, {', '.join(extra)}"
         return f"{city}, {state}"
     return raw.title()
 
@@ -65,10 +68,13 @@ def login():
             return redirect(url_for('main.login'))
         login_user(user, remember=form.remember_me.data)
         next_page = request.args.get('next')
+        # Reject absolute URLs to prevent open redirect
+        if next_page and urlparse(next_page).netloc != '':
+            next_page = None
         return redirect(next_page or url_for('main.index'))
     return render_template('login.html', form=form)
 
-@main.route('/logout')
+@main.route('/logout', methods=['POST'])
 @login_required
 def logout():
     logout_user()
@@ -102,6 +108,7 @@ def register():
             email=form.email.data,
             phone=format_phone(form.phone.data),
             verification_token=token,
+            verification_token_expiry=datetime.utcnow() + timedelta(hours=24),
             email_verified=False,
             status='pending',
             person_id=person.id
@@ -109,11 +116,11 @@ def register():
         user.set_password(form.password.data)
         db.session.add(user)
         db.session.commit()
-        if os.environ.get('FLASK_ENV') == 'production':
-            send_verification_email(user, token)
+        if current_app.config.get('MAIL_ENABLED'):
+            send_verification_email(user, url_for('main.verify_email', token=token, _external=True))
             admins = User.query.filter_by(is_admin=True, status='approved').all()
             for admin in admins:
-                send_pending_notification(admin.email, user)
+                send_pending_notification(admin.email, user, url_for('main.admin_users', _external=True))
             flash('Registration successful! Please check your email to verify your account.', 'info')
         else:
             user.email_verified = True
@@ -128,23 +135,28 @@ def verify_email(token):
     if not user:
         flash('Invalid or expired verification link.', 'error')
         return redirect(url_for('main.login'))
+    if user.verification_token_expiry and user.verification_token_expiry < datetime.utcnow():
+        flash('This verification link has expired. Please register again.', 'error')
+        return redirect(url_for('main.login'))
     user.email_verified = True
     user.verification_token = None
+    user.verification_token_expiry = None
     db.session.commit()
     flash('Email verified! Your account is pending admin approval.', 'info')
     return redirect(url_for('main.login'))
 
 @main.route('/register/invite/<token>', methods=['GET', 'POST'])
 def register_invited(token):
-    # Find the invited user record
     invited_user = User.query.filter_by(invitation_token=token).first()
     if not invited_user or invited_user.status != 'invited':
         flash('Invalid or expired invitation link.', 'error')
         return redirect(url_for('main.login'))
+    if invited_user.invitation_token_expiry and invited_user.invitation_token_expiry < datetime.utcnow():
+        flash('This invitation link has expired. Please ask to be re-invited.', 'error')
+        return redirect(url_for('main.login'))
 
     form = RegistrationForm()
 
-    # Pre-fill name and email
     if request.method == 'GET':
         form.first_name.data = invited_user.first_name
         form.last_name.data = invited_user.last_name
@@ -158,8 +170,11 @@ def register_invited(token):
         invited_user.email_verified = True
         invited_user.status = 'approved'
         invited_user.invitation_token = None
+        invited_user.invitation_token_expiry = None
+        # Sync person name if first/last name changed during registration
+        if invited_user.person:
+            invited_user.person.name = f"{form.first_name.data} {form.last_name.data}"
         db.session.commit()
-
         flash('Account created! You can now log in.', 'info')
         return redirect(url_for('main.login'))
 
@@ -177,7 +192,7 @@ def admin_users():
 @login_required
 @admin_required
 def approve_user(user_id):
-    user = User.query.get(user_id)
+    user = db.session.get(User, user_id)
     if not user:
         flash('User not found.', 'error')
         return redirect(url_for('main.admin_users'))
@@ -185,8 +200,8 @@ def approve_user(user_id):
     user.approved_by_id = current_user.id
     user.approved_date = date.today()
     db.session.commit()
-    if os.environ.get('FLASK_ENV') == 'production':
-        send_approval_notification(user)
+    if current_app.config.get('MAIL_ENABLED'):
+        send_approval_notification(user, url_for('main.login', _external=True))
     flash(f'{user.get_full_name()} has been approved.', 'info')
     return redirect(url_for('main.admin_users'))
 
@@ -194,7 +209,7 @@ def approve_user(user_id):
 @login_required
 @admin_required
 def reject_user(user_id):
-    user = User.query.get(user_id)
+    user = db.session.get(User, user_id)
     if not user:
         flash('User not found.', 'error')
         return redirect(url_for('main.admin_users'))
@@ -228,7 +243,7 @@ def profile_edit():
         person.maiden_name = form.maiden_name.data
         person.phone = format_phone(form.phone.data)
         person.notes = form.notes.data
-        person.email = current_user.email
+        person.email = current_user.email  # kept in sync with login account email
         db.session.commit()
         flash('Profile updated successfully!', 'info')
         return redirect(url_for('main.profile'))
@@ -237,7 +252,7 @@ def profile_edit():
 @main.route('/person/<int:person_id>')
 @login_required
 def person_detail(person_id):
-    person = Person.query.get(person_id)
+    person = db.session.get(Person, person_id)
     if not person:
         flash('Person not found.', 'error')
         return redirect(url_for('main.index'))
@@ -262,7 +277,7 @@ def spouse_add():
     form.spouse_id.choices = [(0, '-- Select --')] + [(p.id, p.get_display_name()) for p in eligible]
     invite_form = SpouseInviteForm()
     if form.submit.data and form.validate_on_submit():
-        spouse_person = Person.query.get(form.spouse_id.data)
+        spouse_person = db.session.get(Person, form.spouse_id.data)
         if not spouse_person:
             flash('Person not found.', 'error')
             return redirect(url_for('main.spouse_add'))
@@ -272,13 +287,19 @@ def spouse_add():
             person2_id=spouse_person.id,
             marriage_date=form.marriage_date.data,
             confirmed=False,
-            confirmation_token=token
+            confirmation_token=token,
+            confirmation_token_expiry=datetime.utcnow() + timedelta(days=7)
         )
         db.session.add(rel)
         db.session.commit()
         if spouse_person.user:
-            if os.environ.get('FLASK_ENV') == 'production':
-                send_spouse_confirmation_email(person, spouse_person.user, token)
+            if current_app.config.get('MAIL_ENABLED'):
+                send_spouse_confirmation_email(
+                    person,
+                    spouse_person.user,
+                    url_for('main.spouse_confirm', token=token, _external=True),
+                    url_for('main.spouse_decline', token=token, _external=True)
+                )
             flash(f'Spouse request sent to {spouse_person.get_display_name()}.', 'info')
         else:
             flash(f'Spouse request created. {spouse_person.get_display_name()} will need to confirm when they register.', 'info')
@@ -308,13 +329,11 @@ def spouse_invite():
             db.session.add(spouse_person)
             db.session.flush()
         invitation_token = secrets.token_urlsafe(32)
-        spouse_token = secrets.token_urlsafe(32)
         rel = SpouseRelationship(
             person1_id=person.id,
             person2_id=spouse_person.id,
             marriage_date=invite_form.marriage_date.data,
             confirmed=True,
-            confirmation_token=spouse_token
         )
         db.session.add(rel)
         invited_user = User(
@@ -325,13 +344,18 @@ def spouse_invite():
             email_verified=False,
             status='invited',
             invitation_token=invitation_token,
+            invitation_token_expiry=datetime.utcnow() + timedelta(days=7),
             invited_by_id=current_user.id,
             person_id=spouse_person.id
         )
         db.session.add(invited_user)
         db.session.commit()
-        if os.environ.get('FLASK_ENV') == 'production':
-            send_spouse_invitation_email(person, invite_form.email.data, invitation_token)
+        if current_app.config.get('MAIL_ENABLED'):
+            send_spouse_invitation_email(
+                person,
+                invite_form.email.data,
+                url_for('main.register_invited', token=invitation_token, _external=True)
+            )
         flash(f'Invitation sent to {full_name} at {invite_form.email.data}.', 'info')
         return redirect(url_for('main.profile'))
     form = SpouseForm()
@@ -342,26 +366,48 @@ def spouse_invite():
     form.spouse_id.choices = [(0, '-- Select --')] + [(p.id, p.get_display_name()) for p in eligible]
     return render_template('spouse_add.html', form=form, invite_form=invite_form)
 
-@main.route('/spouse/confirm/<token>')
+@main.route('/spouse/confirm/<token>', methods=['GET', 'POST'])
 @login_required
 def spouse_confirm(token):
     rel = SpouseRelationship.query.filter_by(confirmation_token=token).first()
     if not rel:
         flash('Invalid or expired confirmation link.', 'error')
         return redirect(url_for('main.profile'))
-    rel.confirmed = True
-    rel.confirmation_token = None
-    db.session.commit()
-    flash('Spouse relationship confirmed!', 'info')
-    return redirect(url_for('main.profile'))
+    if rel.confirmed:
+        flash('This relationship has already been confirmed.', 'info')
+        return redirect(url_for('main.profile'))
+    if rel.confirmation_token_expiry and rel.confirmation_token_expiry < datetime.utcnow():
+        flash('This confirmation link has expired.', 'error')
+        return redirect(url_for('main.profile'))
+    # Ensure only the intended recipient can confirm
+    if rel.person2.user and rel.person2.user != current_user:
+        flash('You are not authorized to confirm this relationship.', 'error')
+        return redirect(url_for('main.profile'))
+    if request.method == 'POST':
+        rel.confirmed = True
+        rel.confirmation_token = None
+        rel.confirmation_token_expiry = None
+        db.session.commit()
+        flash('Spouse relationship confirmed!', 'info')
+        return redirect(url_for('main.profile'))
+    return render_template('spouse_confirm.html', rel=rel, token=token)
 
-@main.route('/spouse/decline/<token>')
+@main.route('/spouse/decline/<token>', methods=['GET', 'POST'])
 @login_required
 def spouse_decline(token):
     rel = SpouseRelationship.query.filter_by(confirmation_token=token).first()
     if not rel:
         flash('Invalid or expired confirmation link.', 'error')
         return redirect(url_for('main.profile'))
+    if rel.confirmation_token_expiry and rel.confirmation_token_expiry < datetime.utcnow():
+        flash('This confirmation link has expired.', 'error')
+        return redirect(url_for('main.profile'))
+    if rel.person2.user and rel.person2.user != current_user:
+        flash('You are not authorized to decline this relationship.', 'error')
+        return redirect(url_for('main.profile'))
+    if request.method == 'GET':
+        # Email decline links land here; show the confirmation page first
+        return redirect(url_for('main.spouse_confirm', token=token))
     db.session.delete(rel)
     db.session.commit()
     flash('Spouse request declined.', 'info')

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Pease Vine - Spouse Request{% endblock %}
+
+{% block content %}
+<h1>Spouse Connection Request</h1>
+
+<p>{{ rel.person1.get_display_name() }} has indicated that you are their spouse.</p>
+
+{% if rel.marriage_date %}
+<p>Marriage date: {{ rel.marriage_date.strftime('%B %d, %Y') }}</p>
+{% endif %}
+
+<form method="POST" action="/spouse/confirm/{{ token }}" style="display:inline;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit">Confirm</button>
+</form>
+
+<form method="POST" action="/spouse/decline/{{ token }}" style="display:inline; margin-left: 1em;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit">Decline</button>
+</form>
+
+<p style="margin-top: 1em;"><a href="/profile">Cancel</a></p>
+{% endblock %}

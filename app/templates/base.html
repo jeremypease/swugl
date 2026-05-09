@@ -13,7 +13,10 @@
             {% if current_user.is_admin %}
                 | <a href="/admin/users">Admin</a>
             {% endif %}
-            | <a href="/logout">Logout</a>
+            | <form method="POST" action="/logout" style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;color:inherit;text-decoration:underline;">Logout</button>
+            </form>
         {% else %}
             | <a href="/login">Sign In</a>
         {% endif %}

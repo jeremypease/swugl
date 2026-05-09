@@ -63,7 +63,11 @@
         {% endif %}
     </p>
 {% elif pending_request %}
-    <p><strong>Spouse:</strong> Pending confirmation from {{ pending_request.get_spouse_of(person).get_display_name() }}</p>
+    {% if pending_request.person1_id == person.id %}
+        <p><strong>Spouse:</strong> Awaiting confirmation from {{ pending_request.get_spouse_of(person).get_display_name() }}</p>
+    {% else %}
+        <p><strong>Spouse:</strong> {{ pending_request.get_spouse_of(person).get_display_name() }} has requested to link as your spouse — <a href="/spouse/confirm/{{ pending_request.confirmation_token }}">review request</a></p>
+    {% endif %}
 {% else %}
     {% if person.user == current_user %}
         <p><a href="/spouse/add">Add Spouse</a></p>
