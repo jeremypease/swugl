@@ -8,6 +8,9 @@
         <div class="eyebrow">Admin</div>
         <h1>Members</h1>
     </div>
+    <a href="/admin/add-member" class="btn btn-primary">
+        <i data-lucide="user-plus"></i> Add member
+    </a>
 </div>
 
 {% if pending %}
@@ -53,44 +56,52 @@
 
 <div class="card">
     <div class="card-header">
-        <h3>All members</h3>
-        <span class="meta">{{ users|length }} total</span>
+        <h3>All family members</h3>
+        <span class="meta">{{ people|length }} total</span>
     </div>
     <table class="tbl">
         <thead>
             <tr>
                 <th>Name</th>
                 <th>Email</th>
-                <th>Status</th>
+                <th>Account</th>
                 <th>Role</th>
             </tr>
         </thead>
         <tbody>
-            {% for user in users %}
+            {% for person in people %}
             <tr>
                 <td>
-                    <div class="av av-sm" style="background:var(--vine);display:inline-flex;margin-right:8px;vertical-align:middle;">{{ user.first_name[0] }}{{ user.last_name[0] }}</div>
-                    {{ user.get_full_name() }}
+                    <div class="av av-sm" style="background:var(--vine);display:inline-flex;margin-right:8px;vertical-align:middle;">{{ person.name[0] }}</div>
+                    <a href="/person/{{ person.id }}" style="color:inherit;">{{ person.get_display_name() }}</a>
                 </td>
-                <td>{{ user.email }}</td>
+                <td>{{ person.email or '—' }}</td>
                 <td>
-                    {% if user.status == 'approved' %}
-                    <span class="badge b-active"><span class="dot"></span>Active</span>
-                    {% elif user.status == 'pending' %}
-                    <span class="badge b-pending"><span class="dot"></span>Pending</span>
-                    {% elif user.status == 'invited' %}
-                    <span class="badge b-invited"><span class="dot"></span>Invited</span>
+                    {% if person.user %}
+                        {% if person.user.status == 'approved' %}
+                        <span class="badge b-active"><span class="dot"></span>Active</span>
+                        {% elif person.user.status == 'pending' %}
+                        <span class="badge b-pending"><span class="dot"></span>Pending</span>
+                        {% elif person.user.status == 'invited' %}
+                        <span class="badge b-invited"><span class="dot"></span>Invited</span>
+                        {% else %}
+                        <span class="badge b-deceased"><span class="dot"></span>{{ person.user.status|capitalize }}</span>
+                        {% endif %}
                     {% else %}
-                    <span class="badge b-deceased"><span class="dot"></span>{{ user.status|capitalize }}</span>
+                    <span style="color:var(--text-muted);font-size:13px;">No account</span>
                     {% endif %}
                 </td>
                 <td>
-                    {% if user.is_admin %}
-                    <span class="badge b-admin"><span class="dot"></span>Admin</span>
-                    {% elif user.is_delegate %}
-                    <span class="badge b-delegate"><span class="dot"></span>Delegate</span>
+                    {% if person.user %}
+                        {% if person.user.is_admin %}
+                        <span class="badge b-admin"><span class="dot"></span>Admin</span>
+                        {% elif person.user.is_delegate %}
+                        <span class="badge b-delegate"><span class="dot"></span>Delegate</span>
+                        {% else %}
+                        <span style="color:var(--text-muted);font-size:13px;">Member</span>
+                        {% endif %}
                     {% else %}
-                    <span style="color:var(--text-muted);font-size:13px;">Member</span>
+                    <span style="color:var(--text-muted);font-size:13px;">—</span>
                     {% endif %}
                 </td>
             </tr>

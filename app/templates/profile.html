@@ -5,14 +5,12 @@
 {% block content %}
 
 {% set is_own_profile = person.user == current_user %}
+{% set can_edit = current_user.is_admin or is_own_profile %}
 
 <div class="page-head">
     <div>
         <div class="eyebrow">Profile</div>
         <h1>{{ person.get_display_name() }}</h1>
-        {% if person.nickname and person.nickname != person.name %}
-        <p class="sub"><em>née {{ person.name }}</em></p>
-        {% endif %}
     </div>
     {% if is_own_profile %}
     <a href="/profile/edit" class="btn btn-secondary">
@@ -38,19 +36,22 @@
                 <div class="av av-xl" style="background: var(--vine-deep);">{{ person.name[0] }}</div>
             </div>
             <div class="name">{{ person.name }}</div>
-            {% if person.maiden_name %}
-            <div class="nee">née {{ person.maiden_name }}</div>
-            {% endif %}
             {% if person.get_age() %}
             <div class="age">Age {{ person.get_age() }}{% if person.deathday %} · Passed away{% endif %}</div>
             {% endif %}
 
             <dl class="facts">
+                {% if relationship and not is_own_profile %}
+                <dt>Relationship</dt><dd>{{ relationship }}</dd>
+                {% endif %}
                 {% if person.gender %}
                 <dt>Gender</dt><dd>{{ person.gender }}</dd>
                 {% endif %}
                 {% if person.birthday %}
                 <dt>Birthday</dt><dd>{{ person.birthday.strftime('%B %-d, %Y') }}</dd>
+                {% endif %}
+                {% if person.maiden_name %}
+                <dt>Maiden Name</dt><dd>{{ person.maiden_name }}</dd>
                 {% endif %}
                 {% if person.birthplace %}
                 <dt>Birthplace</dt><dd>{{ person.birthplace }}</dd>
@@ -73,15 +74,20 @@
 
         <!-- Family connections -->
         <div class="card">
-            <div class="card-header">
-                <h3>Family</h3>
-                {% if is_own_profile %}
-                <a href="/spouse/add" class="btn btn-ghost btn-sm"><i data-lucide="plus"></i> Add spouse</a>
-                {% endif %}
-            </div>
-
             {% set active_spouse = person.get_active_spouse() %}
             {% set pending_request = person.get_pending_spouse_request() %}
+
+            <div class="card-header">
+                <h3>Family</h3>
+                {% if relationship and not is_own_profile %}
+                <span style="font-size:13px;color:var(--text-muted);">Your {{ relationship }}</span>
+                {% endif %}
+                {% if is_own_profile %}
+                <a href="/spouse/add" class="btn btn-ghost btn-sm"><i data-lucide="plus"></i> Add spouse</a>
+                {% elif current_user.is_admin and not active_spouse and not pending_request %}
+                <a href="/person/{{ person.id }}/link-spouse" class="btn btn-ghost btn-sm"><i data-lucide="link"></i> Link spouse</a>
+                {% endif %}
+            </div>
 
             {% if active_spouse %}
             <div class="relation-row">
@@ -116,8 +122,23 @@
                 <div class="av av-sm" style="background:var(--vine);">{{ parent.name[0] }}</div>
                 <span class="name"><a href="/person/{{ parent.id }}">{{ parent.get_display_name() }}</a></span>
                 {% if parent.birthday %}<span class="meta">b. {{ parent.birthday.strftime('%Y') }}</span>{% endif %}
+                {% if can_edit %}
+                <form method="POST" action="/person/{{ person.id }}/remove-parent/{{ parent.id }}" style="margin-left:auto;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);">Remove</button>
+                </form>
+                {% endif %}
             </div>
             {% endfor %}
+
+            {% if can_edit %}
+            <div class="relation-row">
+                <span class="role">Parent</span>
+                <a href="/person/{{ person.id }}/add-parent" class="btn btn-ghost btn-sm">
+                    <i data-lucide="plus"></i> Add parent
+                </a>
+            </div>
+            {% endif %}
 
             {% for child in person.children %}
             <div class="relation-row">
@@ -125,10 +146,25 @@
                 <div class="av av-sm" style="background:var(--sprout);color:var(--vine-deep);">{{ child.name[0] }}</div>
                 <span class="name"><a href="/person/{{ child.id }}">{{ child.get_display_name() }}</a></span>
                 {% if child.birthday %}<span class="meta">b. {{ child.birthday.strftime('%Y') }}</span>{% endif %}
+                {% if can_edit %}
+                <form method="POST" action="/person/{{ person.id }}/remove-child/{{ child.id }}" style="margin-left:auto;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);">Remove</button>
+                </form>
+                {% endif %}
             </div>
             {% endfor %}
 
-            {% if not active_spouse and not pending_request and not person.parents and not person.children and not is_own_profile %}
+            {% if can_edit %}
+            <div class="relation-row">
+                <span class="role">Child</span>
+                <a href="/person/{{ person.id }}/add-child" class="btn btn-ghost btn-sm">
+                    <i data-lucide="plus"></i> Add child
+                </a>
+            </div>
+            {% endif %}
+
+            {% if not active_spouse and not pending_request and not person.parents and not person.children and not can_edit %}
             <p style="color:var(--text-muted);font-size:14px;padding:8px 0;">No family connections recorded yet.</p>
             {% endif %}
         </div>

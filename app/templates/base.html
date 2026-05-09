@@ -30,10 +30,16 @@
             <a href="/profile" {% if request.path == '/profile' %}class="active"{% endif %}>
                 <i data-lucide="user"></i> My Profile
             </a>
+            <a href="/family/tree" {% if request.path == '/family/tree' %}class="active"{% endif %}>
+                <i data-lucide="git-branch"></i> Family Tree
+            </a>
             {% if current_user.is_admin %}
             <div class="nav-section">Admin</div>
-            <a href="/admin/users" {% if request.path.startswith('/admin') %}class="active"{% endif %}>
+            <a href="/admin/users" {% if request.path.startswith('/admin') and request.path != '/admin/family' %}class="active"{% endif %}>
                 <i data-lucide="users"></i> Members
+            </a>
+            <a href="/admin/family" {% if request.path == '/admin/family' %}class="active"{% endif %}>
+                <i data-lucide="settings"></i> Family Settings
             </a>
             {% endif %}
         </nav>
@@ -60,11 +66,6 @@
                 <i data-lucide="search"></i>
                 <span>Search family…</span>
             </div>
-            <div class="topbar-actions">
-                <a href="/spouse/add" class="btn btn-primary btn-sm">
-                    <i data-lucide="plus"></i> Add Spouse
-                </a>
-            </div>
         </header>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -81,16 +82,14 @@
         {% endwith %}
 
         <div class="canvas-inner">
-            {% block content %}{% endblock %}
+{% endif %}
+
+{% block content %}{% endblock %}
+
+{% if current_user.is_authenticated %}
         </div>
     </div>
 </div>
-
-{% else %}
-
-{% with messages = get_flashed_messages(with_categories=true) %}{% endwith %}
-{% block content %}{% endblock %}
-
 {% endif %}
 
 <script>lucide.createIcons();</script>

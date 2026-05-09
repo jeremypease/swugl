@@ -71,6 +71,17 @@ def send_spouse_confirmation_email(requesting_person, target_user, confirm_url, 
     """
     return send_email(target_user.email, subject, html_content)
 
+def send_password_reset_email(user, reset_url):
+    subject = "Reset your Peavines password"
+    html_content = f"""
+    <h2>Password Reset</h2>
+    <p>Hi {user.first_name},</p>
+    <p>We received a request to reset your Peavines password. Click the link below to set a new one:</p>
+    <p><a href="{reset_url}">Reset My Password</a></p>
+    <p>This link expires in 1 hour. If you didn't request a reset, you can ignore this email.</p>
+    """
+    return send_email(user.email, subject, html_content)
+
 def send_spouse_invitation_email(inviting_person, to_email, url):
     subject = "You've been invited to join Pease Vine"
     html_content = f"""

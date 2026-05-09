@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Link Spouse — Peavines{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <div class="eyebrow">{{ subject.get_display_name() }}</div>
+        <h1>Link Spouse</h1>
+    </div>
+    <a href="/person/{{ subject.id }}" class="btn btn-secondary">
+        <i data-lucide="x"></i> Cancel
+    </a>
+</div>
+
+<div style="max-width: 480px;">
+    <div class="card">
+        <p style="font-size:14px;color:var(--text-muted);margin-bottom:20px;">
+            This creates a confirmed spouse link immediately — no confirmation request is sent.
+        </p>
+        <form method="POST">
+            {{ form.hidden_tag() }}
+            <div class="field">
+                {{ form.spouse_id.label }}
+                {{ form.spouse_id() }}
+                {% for error in form.spouse_id.errors %}<span class="msg">{{ error }}</span>{% endfor %}
+            </div>
+            <div class="field">
+                {{ form.marriage_date.label }}
+                {{ form.marriage_date() }}
+            </div>
+            <div style="display:flex;gap:10px;margin-top:8px;">
+                <button type="submit" class="btn btn-primary">Link as Spouses</button>
+                <a href="/person/{{ subject.id }}" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

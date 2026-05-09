@@ -16,8 +16,13 @@ class Family(db.Model):
     name = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    people = db.relationship('Person', back_populates='family')
-    users = db.relationship('User', back_populates='family')
+    patriarch_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=True)
+    matriarch_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=True)
+
+    people = db.relationship('Person', back_populates='family', foreign_keys='Person.family_id')
+    users = db.relationship('User', back_populates='family', foreign_keys='User.family_id')
+    patriarch = db.relationship('Person', foreign_keys=[patriarch_id])
+    matriarch = db.relationship('Person', foreign_keys=[matriarch_id])
 
 
 class SpouseRelationship(db.Model):
@@ -61,7 +66,7 @@ class Person(db.Model):
     photo_path = db.Column(db.String(200))
     notes = db.Column(db.Text)
 
-    family = db.relationship('Family', back_populates='people')
+    family = db.relationship('Family', back_populates='people', foreign_keys='Person.family_id')
 
     # Relationships
     children = db.relationship(
@@ -137,6 +142,10 @@ class User(UserMixin, db.Model):
     invitation_token = db.Column(db.String(100))
     invitation_token_expiry = db.Column(db.DateTime)
     invited_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+
+    # Password reset
+    reset_token = db.Column(db.String(100))
+    reset_token_expiry = db.Column(db.DateTime)
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)

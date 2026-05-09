@@ -1,8 +1,8 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app
 from flask_login import login_user, logout_user, login_required, current_user
 from .models import Family, User, Person, SpouseRelationship
-from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm
-from .email import send_verification_email, send_pending_notification, send_approval_notification, send_spouse_confirmation_email, send_spouse_invitation_email
+from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm, ForgotPasswordForm, ResetPasswordForm, AddPersonForm, RelativeForm, FamilySettingsForm
+from .email import send_verification_email, send_pending_notification, send_approval_notification, send_spouse_confirmation_email, send_spouse_invitation_email, send_password_reset_email
 from datetime import date, datetime, timedelta
 from functools import wraps
 from urllib.parse import urlparse
@@ -43,6 +43,113 @@ def admin_required(f):
             return redirect(url_for('main.index'))
         return f(*args, **kwargs)
     return decorated_function
+
+def _gender_term(person, male, female, neutral):
+    if person.gender == 'Male':
+        return male
+    if person.gender == 'Female':
+        return female
+    return neutral
+
+def get_relationship(a, b):
+    """Return a relationship label from person a's perspective of person b."""
+    if not a or not b or a.id == b.id:
+        return None
+    a_spouse = a.get_active_spouse()
+    # Spouse
+    if a_spouse and a_spouse.id == b.id:
+        return _gender_term(b, 'Husband', 'Wife', 'Spouse')
+    # Parent
+    if b in a.parents:
+        return _gender_term(b, 'Father', 'Mother', 'Parent')
+    # Child
+    if b in a.children:
+        return _gender_term(b, 'Son', 'Daughter', 'Child')
+    # Sibling
+    shared = set(p.id for p in a.parents) & set(p.id for p in b.parents)
+    if shared:
+        return _gender_term(b, 'Brother', 'Sister', 'Sibling')
+    # Grandparent
+    for p in a.parents:
+        if b in p.parents:
+            return _gender_term(b, 'Grandfather', 'Grandmother', 'Grandparent')
+    # Grandchild
+    for c in a.children:
+        if b in c.children:
+            return _gender_term(b, 'Grandson', 'Granddaughter', 'Grandchild')
+    # Great-grandparent
+    for p in a.parents:
+        for gp in p.parents:
+            if b in gp.parents:
+                return _gender_term(b, 'Great-grandfather', 'Great-grandmother', 'Great-grandparent')
+    # Aunt / Uncle
+    for p in a.parents:
+        for gp in p.parents:
+            for s in gp.children:
+                if s.id != p.id and s.id == b.id:
+                    return _gender_term(b, 'Uncle', 'Aunt', 'Aunt/Uncle')
+    # Niece / Nephew
+    for p in a.parents:
+        for s in p.children:
+            if s.id != a.id and b in s.children:
+                return _gender_term(b, 'Nephew', 'Niece', 'Niece/Nephew')
+    # Child-in-law
+    for c in a.children:
+        c_spouse = c.get_active_spouse()
+        if c_spouse and c_spouse.id == b.id:
+            return _gender_term(b, 'Son-in-law', 'Daughter-in-law', 'Child-in-law')
+    # Grandchild-in-law
+    for c in a.children:
+        for gc in c.children:
+            gc_spouse = gc.get_active_spouse()
+            if gc_spouse and gc_spouse.id == b.id:
+                return _gender_term(b, 'Grandson-in-law', 'Granddaughter-in-law', 'Grandchild-in-law')
+    # In-law relationships via spouse
+    if a_spouse:
+        if b in a_spouse.parents:
+            return _gender_term(b, 'Father-in-law', 'Mother-in-law', 'Parent-in-law')
+        for sp in a_spouse.parents:
+            for s in sp.children:
+                if s.id != a_spouse.id and s.id == b.id:
+                    return _gender_term(b, 'Brother-in-law', 'Sister-in-law', 'Sibling-in-law')
+            if b in sp.parents:
+                return _gender_term(b, 'Grandfather-in-law', 'Grandmother-in-law', 'Grandparent-in-law')
+    # Cousin
+    for p in a.parents:
+        for gp in p.parents:
+            for ps in gp.children:
+                if ps.id != p.id and b in ps.children:
+                    return 'Cousin'
+    return None
+
+def build_tree_node(person, family_id, visited=None):
+    if visited is None:
+        visited = set()
+    if person.id in visited:
+        return None
+    visited.add(person.id)
+    spouse = person.get_active_spouse()
+    if spouse:
+        visited.add(spouse.id)
+    all_children = list(person.children)
+    if spouse:
+        for c in spouse.children:
+            if c not in all_children and c.id not in visited:
+                all_children.append(c)
+    all_children = [c for c in all_children if c.family_id == family_id]
+    all_children.sort(key=lambda c: c.birthday or date.max)
+    children = [n for c in all_children if (n := build_tree_node(c, family_id, visited))]
+    return {"person": person, "spouse": spouse, "children": children}
+
+def get_core_ids(node):
+    if not node:
+        return set()
+    ids = {node['person'].id}
+    if node['spouse']:
+        ids.add(node['spouse'].id)
+    for child in node['children']:
+        ids |= get_core_ids(child)
+    return ids
 
 @main.route('/')
 @login_required
@@ -203,13 +310,231 @@ def register_invited(token):
 
     return render_template('register.html', form=form, invited=True)
 
+@main.route('/admin/add-member', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def add_member():
+    form = AddPersonForm()
+    if form.validate_on_submit():
+        person = Person(
+            name=f"{form.first_name.data} {form.last_name.data}",
+            family_id=current_user.family_id,
+            email=form.email.data or None,
+            phone=format_phone(form.phone.data),
+            gender=form.gender.data or None,
+            birthday=form.birthday.data,
+            birthplace=format_birthplace(form.birthplace.data),
+            nickname=form.nickname.data or None,
+            maiden_name=form.maiden_name.data or None,
+            notes=form.notes.data or None,
+        )
+        db.session.add(person)
+        db.session.commit()
+        flash(f'{person.name} has been added to the family.', 'info')
+        return redirect(url_for('main.person_detail', person_id=person.id))
+    return render_template('add_member.html', form=form)
+
+@main.route('/person/<int:person_id>/add-parent', methods=['GET', 'POST'])
+@login_required
+def add_parent(person_id):
+    person = db.session.get(Person, person_id)
+    if not person or person.family_id != current_user.family_id:
+        flash('Person not found.', 'error')
+        return redirect(url_for('main.index'))
+    can_edit = current_user.is_admin or (person.user and person.user == current_user)
+    if not can_edit:
+        flash('You do not have permission to edit this profile.', 'error')
+        return redirect(url_for('main.person_detail', person_id=person_id))
+    existing_parent_ids = {p.id for p in person.parents}
+    eligible = [
+        p for p in Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
+        if p.id != person.id and p.id not in existing_parent_ids
+    ]
+    form = RelativeForm()
+    form.relative_id.choices = [(0, '-- Select --')] + [(p.id, p.get_display_name()) for p in eligible]
+    if form.validate_on_submit():
+        parent_person = db.session.get(Person, form.relative_id.data)
+        if not parent_person or parent_person.family_id != current_user.family_id:
+            flash('Person not found.', 'error')
+            return redirect(url_for('main.add_parent', person_id=person_id))
+        person.parents.append(parent_person)
+        db.session.commit()
+        flash(f'{parent_person.get_display_name()} added as a parent.', 'info')
+        return redirect(url_for('main.person_detail', person_id=person_id))
+    return render_template('add_relative.html', form=form, subject=person, action='parent')
+
+@main.route('/person/<int:person_id>/add-child', methods=['GET', 'POST'])
+@login_required
+def add_child(person_id):
+    person = db.session.get(Person, person_id)
+    if not person or person.family_id != current_user.family_id:
+        flash('Person not found.', 'error')
+        return redirect(url_for('main.index'))
+    can_edit = current_user.is_admin or (person.user and person.user == current_user)
+    if not can_edit:
+        flash('You do not have permission to edit this profile.', 'error')
+        return redirect(url_for('main.person_detail', person_id=person_id))
+    existing_child_ids = {c.id for c in person.children}
+    eligible = [
+        p for p in Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
+        if p.id != person.id and p.id not in existing_child_ids
+    ]
+    form = RelativeForm()
+    form.relative_id.choices = [(0, '-- Select --')] + [(p.id, p.get_display_name()) for p in eligible]
+    if form.validate_on_submit():
+        child_person = db.session.get(Person, form.relative_id.data)
+        if not child_person or child_person.family_id != current_user.family_id:
+            flash('Person not found.', 'error')
+            return redirect(url_for('main.add_child', person_id=person_id))
+        person.children.append(child_person)
+        db.session.commit()
+        flash(f'{child_person.get_display_name()} added as a child.', 'info')
+        return redirect(url_for('main.person_detail', person_id=person_id))
+    return render_template('add_relative.html', form=form, subject=person, action='child')
+
+@main.route('/person/<int:person_id>/remove-parent/<int:parent_id>', methods=['POST'])
+@login_required
+def remove_parent(person_id, parent_id):
+    person = db.session.get(Person, person_id)
+    if not person or person.family_id != current_user.family_id:
+        flash('Person not found.', 'error')
+        return redirect(url_for('main.index'))
+    can_edit = current_user.is_admin or (person.user and person.user == current_user)
+    if not can_edit:
+        flash('You do not have permission to edit this profile.', 'error')
+        return redirect(url_for('main.person_detail', person_id=person_id))
+    parent_person = db.session.get(Person, parent_id)
+    if parent_person and parent_person in person.parents:
+        person.parents.remove(parent_person)
+        db.session.commit()
+        flash(f'{parent_person.get_display_name()} removed as a parent.', 'info')
+    return redirect(url_for('main.person_detail', person_id=person_id))
+
+@main.route('/person/<int:person_id>/remove-child/<int:child_id>', methods=['POST'])
+@login_required
+def remove_child(person_id, child_id):
+    person = db.session.get(Person, person_id)
+    if not person or person.family_id != current_user.family_id:
+        flash('Person not found.', 'error')
+        return redirect(url_for('main.index'))
+    can_edit = current_user.is_admin or (person.user and person.user == current_user)
+    if not can_edit:
+        flash('You do not have permission to edit this profile.', 'error')
+        return redirect(url_for('main.person_detail', person_id=person_id))
+    child_person = db.session.get(Person, child_id)
+    if child_person and child_person in person.children:
+        person.children.remove(child_person)
+        db.session.commit()
+        flash(f'{child_person.get_display_name()} removed as a child.', 'info')
+    return redirect(url_for('main.person_detail', person_id=person_id))
+
+@main.route('/admin/family', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def family_settings():
+    family = current_user.family
+    people = Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
+    choices = [(0, '-- None --')] + [(p.id, p.get_display_name()) for p in people]
+    form = FamilySettingsForm()
+    form.patriarch_id.choices = choices
+    form.matriarch_id.choices = choices
+    if request.method == 'GET':
+        form.family_name.data = family.name
+        form.patriarch_id.data = family.patriarch_id or 0
+        form.matriarch_id.data = family.matriarch_id or 0
+    if form.validate_on_submit():
+        family.name = form.family_name.data
+        family.patriarch_id = form.patriarch_id.data or None
+        family.matriarch_id = form.matriarch_id.data or None
+        db.session.commit()
+        flash('Family settings saved.', 'info')
+        return redirect(url_for('main.family_settings'))
+    return render_template('family_settings.html', form=form, family=family)
+
+@main.route('/family/tree')
+@login_required
+def family_tree():
+    family = current_user.family
+    patriarch = family.patriarch
+    matriarch = family.matriarch
+    if not patriarch and not matriarch:
+        flash('Set a founding couple in Family Settings first.', 'info')
+        return redirect(url_for('main.index'))
+
+    # Build root node explicitly so patriarch+matriarch always show as a couple
+    # regardless of whether a SpouseRelationship record exists between them.
+    visited = set()
+    if patriarch:
+        visited.add(patriarch.id)
+    if matriarch:
+        visited.add(matriarch.id)
+
+    all_root_children = list(patriarch.children if patriarch else [])
+    if matriarch:
+        for c in matriarch.children:
+            if c not in all_root_children:
+                all_root_children.append(c)
+    all_root_children = [c for c in all_root_children if c.family_id == current_user.family_id]
+    all_root_children.sort(key=lambda c: c.birthday or date.max)
+
+    tree = {
+        "person": patriarch or matriarch,
+        "spouse": matriarch if patriarch else None,
+        "children": [n for c in all_root_children if (n := build_tree_node(c, current_user.family_id, visited))]
+    }
+
+    core_ids = get_core_ids(tree)
+    all_people = Person.query.filter_by(family_id=current_user.family_id).all()
+    extended = [p for p in all_people if p.id not in core_ids]
+    return render_template('family_tree.html', tree=tree, extended=extended, family=family)
+
+@main.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    if current_user.is_authenticated:
+        return redirect(url_for('main.index'))
+    form = ForgotPasswordForm()
+    if form.validate_on_submit():
+        user = User.query.filter_by(email=form.email.data).first()
+        if user and user.status == 'approved':
+            token = secrets.token_urlsafe(32)
+            user.reset_token = token
+            user.reset_token_expiry = datetime.utcnow() + timedelta(hours=1)
+            db.session.commit()
+            reset_url = url_for('main.reset_password', token=token, _external=True)
+            if current_app.config.get('MAIL_ENABLED'):
+                send_password_reset_email(user, reset_url)
+            else:
+                flash(f'Dev mode — reset link: {reset_url}', 'info')
+        # Always show this message to prevent email enumeration
+        flash('If that email is registered, a reset link has been sent.', 'info')
+        return redirect(url_for('main.login'))
+    return render_template('forgot_password.html', form=form)
+
+@main.route('/reset-password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    if current_user.is_authenticated:
+        return redirect(url_for('main.index'))
+    user = User.query.filter_by(reset_token=token).first()
+    if not user or (user.reset_token_expiry and user.reset_token_expiry < datetime.utcnow()):
+        flash('This reset link is invalid or has expired.', 'error')
+        return redirect(url_for('main.forgot_password'))
+    form = ResetPasswordForm()
+    if form.validate_on_submit():
+        user.set_password(form.password.data)
+        user.reset_token = None
+        user.reset_token_expiry = None
+        db.session.commit()
+        flash('Password reset successfully. You can now sign in.', 'info')
+        return redirect(url_for('main.login'))
+    return render_template('reset_password.html', form=form)
+
 @main.route('/admin/users')
 @login_required
 @admin_required
 def admin_users():
     pending = User.query.filter_by(status='pending', family_id=current_user.family_id).all()
-    users = User.query.filter_by(family_id=current_user.family_id).order_by(User.last_name).all()
-    return render_template('admin_users.html', pending=pending, users=users)
+    people = Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
+    return render_template('admin_users.html', pending=pending, people=people)
 
 @main.route('/admin/approve/<int:user_id>', methods=['POST'])
 @login_required
@@ -248,7 +573,7 @@ def profile():
     if not person:
         flash('No profile found. Please contact the admin.', 'error')
         return redirect(url_for('main.index'))
-    return render_template('profile.html', person=person)
+    return render_template('profile.html', person=person, relationship=None)
 
 @main.route('/profile/edit', methods=['GET', 'POST'])
 @login_required
@@ -279,7 +604,42 @@ def person_detail(person_id):
     if not person or person.family_id != current_user.family_id:
         flash('Person not found.', 'error')
         return redirect(url_for('main.index'))
-    return render_template('profile.html', person=person)
+    relationship = get_relationship(current_user.person, person) if current_user.person else None
+    return render_template('profile.html', person=person, relationship=relationship)
+
+@main.route('/person/<int:person_id>/link-spouse', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def admin_link_spouse(person_id):
+    person = db.session.get(Person, person_id)
+    if not person or person.family_id != current_user.family_id:
+        flash('Person not found.', 'error')
+        return redirect(url_for('main.index'))
+    if person.get_active_spouse():
+        flash(f'{person.get_display_name()} already has an active spouse.', 'error')
+        return redirect(url_for('main.person_detail', person_id=person_id))
+    eligible = [
+        p for p in Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
+        if p.id != person.id and not p.get_active_spouse()
+    ]
+    form = SpouseForm()
+    form.spouse_id.choices = [(0, '-- Select --')] + [(p.id, p.get_display_name()) for p in eligible]
+    if form.validate_on_submit():
+        spouse_person = db.session.get(Person, form.spouse_id.data)
+        if not spouse_person or spouse_person.family_id != current_user.family_id:
+            flash('Person not found.', 'error')
+            return redirect(url_for('main.admin_link_spouse', person_id=person_id))
+        rel = SpouseRelationship(
+            person1_id=person.id,
+            person2_id=spouse_person.id,
+            marriage_date=form.marriage_date.data,
+            confirmed=True,  # admin links are pre-confirmed
+        )
+        db.session.add(rel)
+        db.session.commit()
+        flash(f'{person.get_display_name()} and {spouse_person.get_display_name()} linked as spouses.', 'info')
+        return redirect(url_for('main.person_detail', person_id=person_id))
+    return render_template('admin_link_spouse.html', form=form, subject=person)
 
 @main.route('/spouse/add', methods=['GET', 'POST'])
 @login_required

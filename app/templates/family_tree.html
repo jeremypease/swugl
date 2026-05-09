@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Family Tree — Peavines{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <div class="eyebrow">{{ family.name }}</div>
+        <h1>Family Tree</h1>
+    </div>
+</div>
+
+{% macro render_node(node) %}
+<div class="tree-branch">
+    <div class="tree-couple">
+        <a href="/person/{{ node.person.id }}" class="tree-card">
+            <div class="av av-sm" style="background:var(--vine);">{{ node.person.name[0] }}</div>
+            <span>{{ node.person.get_display_name() }}</span>
+        </a>
+        {% if node.spouse %}
+        <span class="tree-connector">+</span>
+        <a href="/person/{{ node.spouse.id }}" class="tree-card">
+            <div class="av av-sm" style="background:var(--pea);">{{ node.spouse.name[0] }}</div>
+            <span>{{ node.spouse.get_display_name() }}</span>
+        </a>
+        {% endif %}
+    </div>
+    {% if node.children %}
+    <div class="tree-children">
+        {% for child in node.children %}
+        {{ render_node(child) }}
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endmacro %}
+
+<div class="tree-wrap">
+    {% if tree %}
+    {{ render_node(tree) }}
+    {% else %}
+    <div class="card" style="max-width:480px;">
+        <p style="color:var(--text-muted);">No tree data available. Set a founding couple in
+            <a href="/admin/family">Family Settings</a> to get started.
+        </p>
+    </div>
+    {% endif %}
+</div>
+
+{% if extended %}
+<div class="card" style="margin-top: 40px;">
+    <div class="card-header">
+        <h3>Extended Connections</h3>
+        <span style="font-size:13px;color:var(--text-muted);">Added by family members — informational only</span>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;padding-top:4px;">
+        {% for person in extended %}
+        <a href="/person/{{ person.id }}" class="tree-card">
+            <div class="av av-sm" style="background:var(--sprout);color:var(--vine-deep);">{{ person.name[0] }}</div>
+            <span>{{ person.get_display_name() }}</span>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

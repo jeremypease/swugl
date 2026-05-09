@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Add Family Member — Peavines{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <div class="eyebrow">Admin</div>
+        <h1>Add Family Member</h1>
+    </div>
+    <a href="/admin/users" class="btn btn-secondary">
+        <i data-lucide="x"></i> Cancel
+    </a>
+</div>
+
+<div style="max-width: 580px;">
+    <div class="card">
+        <form method="POST">
+            {{ form.hidden_tag() }}
+
+            <div class="field-row">
+                <div class="field">
+                    {{ form.first_name.label }}
+                    {{ form.first_name() }}
+                    {% for error in form.first_name.errors %}<span class="msg">{{ error }}</span>{% endfor %}
+                </div>
+                <div class="field">
+                    {{ form.last_name.label }}
+                    {{ form.last_name() }}
+                    {% for error in form.last_name.errors %}<span class="msg">{{ error }}</span>{% endfor %}
+                </div>
+            </div>
+
+            <div class="field-row">
+                <div class="field">
+                    {{ form.gender.label }}
+                    {{ form.gender() }}
+                </div>
+                <div class="field">
+                    {{ form.nickname.label }}
+                    {{ form.nickname() }}
+                </div>
+            </div>
+
+            <div class="field-row">
+                <div class="field">
+                    {{ form.birthday.label }}
+                    {{ form.birthday() }}
+                </div>
+                <div class="field">
+                    {{ form.birthplace.label }}
+                    {{ form.birthplace() }}
+                </div>
+            </div>
+
+            <div class="field-row">
+                <div class="field">
+                    {{ form.email.label }}
+                    {{ form.email(placeholder="optional") }}
+                    {% for error in form.email.errors %}<span class="msg">{{ error }}</span>{% endfor %}
+                </div>
+                <div class="field">
+                    {{ form.phone.label }}
+                    {{ form.phone(placeholder="optional") }}
+                </div>
+            </div>
+
+            <div class="field">
+                {{ form.maiden_name.label }}
+                {{ form.maiden_name() }}
+            </div>
+
+            <div class="field">
+                {{ form.notes.label }}
+                {{ form.notes(rows=3) }}
+            </div>
+
+            <div style="display:flex;gap:10px;margin-top:8px;">
+                <button type="submit" class="btn btn-primary">
+                    <i data-lucide="user-plus"></i> Add Member
+                </button>
+                <a href="/admin/users" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

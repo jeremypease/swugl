@@ -666,3 +666,104 @@ body {
 .checkbox input { width: 16px; height: 16px; accent-color: var(--vine); }
 
 .kbd { font-family: var(--font-mono); font-size: 11px; background: var(--leaf-mist); border: 1px solid var(--hairline); border-radius: 4px; padding: 1px 5px; color: var(--vine-deep); }
+
+/* Family Tree ------------------------------------------------ */
+.tree-wrap { overflow-x: auto; padding-bottom: 24px; }
+
+.tree-branch {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.tree-couple {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    position: relative;
+    z-index: 1;
+}
+
+.tree-card {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    background: var(--surface);
+    border: 1.5px solid var(--hairline-strong);
+    border-radius: var(--r-m);
+    text-decoration: none;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: border-color 0.15s, background 0.15s;
+}
+.tree-card:hover {
+    border-color: var(--pea);
+    background: var(--leaf-mist);
+    color: var(--vine-deep);
+}
+
+.tree-connector {
+    font-size: 18px;
+    color: var(--text-muted);
+    font-weight: 300;
+    padding: 0 2px;
+}
+
+/* Vertical stem from couple node down to children row */
+.tree-branch > .tree-children {
+    position: relative;
+    padding-top: 32px;
+    display: flex;
+    gap: 32px;
+}
+.tree-branch > .tree-children::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 2px;
+    height: 32px;
+    background: var(--hairline-strong);
+    transform: translateX(-50%);
+}
+
+/* Horizontal line connecting siblings, and vertical drops */
+.tree-branch > .tree-children > .tree-branch {
+    position: relative;
+    padding-top: 32px;
+}
+.tree-branch > .tree-children > .tree-branch::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 2px;
+    height: 32px;
+    background: var(--hairline-strong);
+    transform: translateX(-50%);
+}
+/* Horizontal bar across all siblings */
+.tree-branch > .tree-children > .tree-branch::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--hairline-strong);
+}
+/* Hide left half of first child's horizontal bar */
+.tree-branch > .tree-children > .tree-branch:first-child::after {
+    left: 50%;
+}
+/* Hide right half of last child's horizontal bar */
+.tree-branch > .tree-children > .tree-branch:last-child::after {
+    right: 50%;
+}
+/* Single child: no horizontal bar needed */
+.tree-branch > .tree-children > .tree-branch:only-child::after {
+    display: none;
+}
