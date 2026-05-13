@@ -62,7 +62,7 @@ class ProfileForm(FlaskForm):
 
 class SpouseForm(FlaskForm):
     spouse_id = SelectField('Select Spouse', coerce=int, validators=[DataRequired()])
-    marriage_date = DateField('Marriage Date', validators=[])
+    marriage_date = DateField('Marriage Date', validators=[Optional()])
     submit = SubmitField('Send Spouse Request')
 
 class EndSpouseForm(FlaskForm):
@@ -72,14 +72,14 @@ class EndSpouseForm(FlaskForm):
         ('separated', 'Separated'),
         ('annulled', 'Annulled')
     ], validators=[DataRequired()])
-    end_date = DateField('End Date', validators=[])
+    end_date = DateField('End Date', validators=[Optional()])
     submit = SubmitField('Confirm')
 
 class SpouseInviteForm(FlaskForm):
     first_name = StringField('First Name', validators=[DataRequired(), Length(min=2, max=50)])
     last_name = StringField('Last Name', validators=[DataRequired(), Length(min=2, max=50)])
     email = StringField('Email', validators=[DataRequired(), Email()])
-    marriage_date = DateField('Marriage Date', validators=[])
+    marriage_date = DateField('Marriage Date', validators=[Optional()])
     submit = SubmitField('Send Invitation')
 
 class FamilySettingsForm(FlaskForm):
@@ -113,13 +113,13 @@ class EditPersonForm(FlaskForm):
         ('Male', 'Male'),
         ('Female', 'Female')
     ])
-    birthday = DateField('Birthday', validators=[])
+    birthday = DateField('Birthday', validators=[Optional()])
     birthplace = StringField('Birthplace', validators=[Optional(), Length(max=100)])
     maiden_name = StringField('Maiden Name', validators=[Optional(), Length(max=100)])
     occupation = StringField('Occupation', validators=[Optional(), Length(max=100)])
     email = StringField('Email', validators=[Optional(), Email()])
     phone = StringField('Phone', validators=[Optional(), Length(max=20)])
-    deathday = DateField('Date of Passing', validators=[])
+    deathday = DateField('Date of Passing', validators=[Optional()])
     deathplace = StringField('Place of Passing', validators=[Optional(), Length(max=100)])
     notes = TextAreaField('Notes')
     submit = SubmitField('Save Changes')
