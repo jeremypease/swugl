@@ -684,6 +684,18 @@ body {
     z-index: 1;
 }
 
+.tree-actions {
+    display: flex;
+    gap: 4px;
+    margin-top: 6px;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.tree-branch:hover > .tree-actions {
+    opacity: 1;
+}
+
 .tree-card {
     display: flex;
     align-items: center;

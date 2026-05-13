@@ -25,6 +25,17 @@
         </a>
         {% endif %}
     </div>
+    {% if current_user.is_admin %}
+    <div class="tree-actions">
+        {% set p2 = node.spouse.id if node.spouse else '' %}
+        <a href="/admin/add-member?parent1_id={{ node.person.id }}&parent2_id={{ p2 }}&next=tree" class="btn btn-ghost btn-sm">
+            <i data-lucide="plus"></i> Add child
+        </a>
+        <a href="/person/{{ node.person.id }}/add-child?next=tree" class="btn btn-ghost btn-sm">
+            <i data-lucide="link"></i> Link existing
+        </a>
+    </div>
+    {% endif %}
     {% if node.children %}
     <div class="tree-children">
         {% for child in node.children %}

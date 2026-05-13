@@ -8,14 +8,22 @@
         <div class="eyebrow">Admin</div>
         <h1>Add Family Member</h1>
     </div>
-    <a href="/admin/users" class="btn btn-secondary">
+    <a href="{{ '/family/tree' if next_page == 'tree' else '/admin/users' }}" class="btn btn-secondary">
         <i data-lucide="x"></i> Cancel
     </a>
 </div>
 
+{% if parent1 or parent2 %}
+<div class="flash f-info" style="max-width:580px;margin-bottom:16px;">
+    <i data-lucide="info" style="width:16px;height:16px;flex-shrink:0;"></i>
+    Adding child of
+    <strong>{% if parent1 %}{{ parent1.get_display_name() }}{% endif %}{% if parent1 and parent2 %} &amp; {% endif %}{% if parent2 %}{{ parent2.get_display_name() }}{% endif %}</strong>
+</div>
+{% endif %}
+
 <div style="max-width: 580px;">
     <div class="card">
-        <form method="POST">
+        <form method="POST" action="/admin/add-member{% if parent1 or parent2 or next_page %}?{% if parent1 %}parent1_id={{ parent1.id }}{% endif %}{% if parent2 %}&amp;parent2_id={{ parent2.id }}{% endif %}{% if next_page %}&amp;next={{ next_page }}{% endif %}{% endif %}">
             {{ form.hidden_tag() }}
 
             <div class="field-row">
@@ -79,7 +87,7 @@
                 <button type="submit" class="btn btn-primary">
                     <i data-lucide="user-plus"></i> Add Member
                 </button>
-                <a href="/admin/users" class="btn btn-secondary">Cancel</a>
+                <a href="{{ '/family/tree' if next_page == 'tree' else '/admin/users' }}" class="btn btn-secondary">Cancel</a>
             </div>
         </form>
     </div>

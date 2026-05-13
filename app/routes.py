@@ -314,6 +314,15 @@ def register_invited(token):
 @login_required
 @admin_required
 def add_member():
+    parent1_id = request.args.get('parent1_id', type=int)
+    parent2_id = request.args.get('parent2_id', type=int)
+    next_page = request.args.get('next')
+    parent1 = db.session.get(Person, parent1_id) if parent1_id else None
+    parent2 = db.session.get(Person, parent2_id) if parent2_id else None
+    if parent1 and parent1.family_id != current_user.family_id:
+        parent1 = None
+    if parent2 and parent2.family_id != current_user.family_id:
+        parent2 = None
     form = AddPersonForm()
     if form.validate_on_submit():
         person = Person(
@@ -329,10 +338,17 @@ def add_member():
             notes=form.notes.data or None,
         )
         db.session.add(person)
+        db.session.flush()
+        if parent1:
+            parent1.children.append(person)
+        if parent2:
+            parent2.children.append(person)
         db.session.commit()
         flash(f'{person.name} has been added to the family.', 'info')
+        if next_page == 'tree':
+            return redirect(url_for('main.family_tree'))
         return redirect(url_for('main.person_detail', person_id=person.id))
-    return render_template('add_member.html', form=form)
+    return render_template('add_member.html', form=form, parent1=parent1, parent2=parent2, next_page=next_page)
 
 @main.route('/person/<int:person_id>/add-parent', methods=['GET', 'POST'])
 @login_required
@@ -381,6 +397,7 @@ def add_child(person_id):
     ]
     form = RelativeForm()
     form.relative_id.choices = [(0, '-- Select --')] + [(p.id, p.get_display_name()) for p in eligible]
+    next_page = request.args.get('next')
     if form.validate_on_submit():
         child_person = db.session.get(Person, form.relative_id.data)
         if not child_person or child_person.family_id != current_user.family_id:
@@ -389,8 +406,10 @@ def add_child(person_id):
         person.children.append(child_person)
         db.session.commit()
         flash(f'{child_person.get_display_name()} added as a child.', 'info')
+        if next_page == 'tree':
+            return redirect(url_for('main.family_tree'))
         return redirect(url_for('main.person_detail', person_id=person_id))
-    return render_template('add_relative.html', form=form, subject=person, action='child')
+    return render_template('add_relative.html', form=form, subject=person, action='child', next_page=next_page)
 
 @main.route('/person/<int:person_id>/remove-parent/<int:parent_id>', methods=['POST'])
 @login_required
