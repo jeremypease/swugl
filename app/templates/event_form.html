@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block title %}{% if event %}Edit {{ event.name }}{% else %}New Event{% endif %} — Peavines{% endblock %}
+
+{% block head %}
+<style>
+.ac-item { padding:9px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--hairline); }
+.ac-item:last-child { border-bottom:none; }
+.ac-item:hover,.ac-item.active { background:var(--leaf-mist); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <div class="eyebrow">Events</div>
+        <h1>{% if event %}Edit Event{% else %}New Event{% endif %}</h1>
+    </div>
+    <a href="{{ '/events/' ~ event.id if event else '/events' }}" class="btn btn-secondary">
+        <i data-lucide="x"></i> Cancel
+    </a>
+</div>
+
+<div style="max-width:580px;">
+    <div class="card">
+        <form method="POST">
+            {{ form.hidden_tag() }}
+
+            <div class="field">
+                {{ form.name.label }}
+                {{ form.name() }}
+                {% for error in form.name.errors %}<span class="msg">{{ error }}</span>{% endfor %}
+            </div>
+
+            <div class="field-row">
+                <div class="field">
+                    {{ form.start_date.label }}
+                    {{ form.start_date() }}
+                    {% for error in form.start_date.errors %}<span class="msg">{{ error }}</span>{% endfor %}
+                </div>
+                <div class="field">
+                    {{ form.end_date.label }}
+                    {{ form.end_date() }}
+                </div>
+            </div>
+
+            <div class="field" style="position:relative;">
+                {{ form.location.label }}
+                {{ form.location(placeholder="e.g. Pease Family Cabin, Midway UT", autocomplete="off", id="location-input") }}
+                <div id="location-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1.5px solid var(--vine);border-top:none;border-radius:0 0 var(--r-m) var(--r-m);z-index:200;max-height:220px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.08);"></div>
+            </div>
+
+            <div class="field">
+                {{ form.description.label }}
+                {{ form.description(rows=3) }}
+            </div>
+
+            <div class="field">
+                <label>Sections</label>
+                <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
+                    <label class="checkbox-row">
+                        {{ form.has_meals() }}
+                        <span>
+                            <strong>Meals</strong>
+                            <span style="color:var(--text-muted);font-size:13px;margin-left:6px;">Sign-up sheet for who's bringing what</span>
+                        </span>
+                    </label>
+                    <label class="checkbox-row">
+                        {{ form.has_assignments() }}
+                        <span>
+                            <strong>Assignments</strong>
+                            <span style="color:var(--text-muted);font-size:13px;margin-left:6px;">Task list members can claim</span>
+                        </span>
+                    </label>
+                    <label class="checkbox-row">
+                        {{ form.has_sleeping() }}
+                        <span>
+                            <strong>Sleeping Arrangements</strong>
+                            <span style="color:var(--text-muted);font-size:13px;margin-left:6px;">Rooms and spots assigned by admin</span>
+                        </span>
+                    </label>
+                </div>
+            </div>
+
+            <div style="display:flex;gap:10px;margin-top:8px;">
+                <button type="submit" class="btn btn-primary">
+                    <i data-lucide="check"></i> {% if event %}Save Changes{% else %}Create Event{% endif %}
+                </button>
+                <a href="{{ '/events/' ~ event.id if event else '/events' }}" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+(function () {
+    const input = document.getElementById('location-input');
+    const dropdown = document.getElementById('location-dropdown');
+    if (!input) return;
+
+    let timer, activeIndex = -1, items = [];
+
+    function formatAddress(p) {
+        const parts = [];
+        if (p.name && p.name !== p.street) parts.push(p.name);
+        if (p.housenumber && p.street) parts.push(p.housenumber + ' ' + p.street);
+        else if (p.street) parts.push(p.street);
+        if (p.city) parts.push(p.city);
+        if (p.state) parts.push(p.state);
+        if (p.country && p.country !== 'United States') parts.push(p.country);
+        return parts.join(', ');
+    }
+
+    function render(suggestions) {
+        dropdown.innerHTML = '';
+        items = suggestions;
+        activeIndex = -1;
+        if (!suggestions.length) { dropdown.style.display = 'none'; return; }
+        suggestions.forEach((label, i) => {
+            const el = document.createElement('div');
+            el.className = 'ac-item';
+            el.textContent = label;
+            el.addEventListener('mousedown', e => { e.preventDefault(); pick(i); });
+            dropdown.appendChild(el);
+        });
+        dropdown.style.display = 'block';
+    }
+
+    function pick(i) {
+        input.value = items[i];
+        dropdown.style.display = 'none';
+        activeIndex = -1;
+    }
+
+    function highlight(i) {
+        [...dropdown.children].forEach((el, j) => el.classList.toggle('active', j === i));
+    }
+
+    async function fetchSuggestions(q) {
+        try {
+            const r = await fetch('https://photon.komoot.io/api/?q=' + encodeURIComponent(q) + '&limit=6&lang=en');
+            const data = await r.json();
+            const labels = [...new Set(data.features.map(f => formatAddress(f.properties)).filter(Boolean))];
+            render(labels);
+        } catch { dropdown.style.display = 'none'; }
+    }
+
+    input.addEventListener('input', () => {
+        clearTimeout(timer);
+        const q = input.value.trim();
+        if (q.length < 3) { dropdown.style.display = 'none'; return; }
+        timer = setTimeout(() => fetchSuggestions(q), 300);
+    });
+
+    input.addEventListener('keydown', e => {
+        if (dropdown.style.display === 'none') return;
+        if (e.key === 'ArrowDown') { e.preventDefault(); activeIndex = Math.min(activeIndex + 1, items.length - 1); highlight(activeIndex); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); activeIndex = Math.max(activeIndex - 1, 0); highlight(activeIndex); }
+        else if (e.key === 'Enter' && activeIndex >= 0) { e.preventDefault(); pick(activeIndex); }
+        else if (e.key === 'Escape') { dropdown.style.display = 'none'; }
+    });
+
+    input.addEventListener('blur', () => setTimeout(() => { dropdown.style.display = 'none'; }, 150));
+})();
+</script>
+{% endblock %}

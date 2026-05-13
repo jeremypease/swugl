@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Events — Peavines{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <div class="eyebrow">Family</div>
+        <h1>Events</h1>
+    </div>
+    {% if current_user.is_admin %}
+    <a href="/events/add" class="btn btn-primary">
+        <i data-lucide="plus"></i> New Event
+    </a>
+    {% endif %}
+</div>
+
+{% if not upcoming and not past %}
+<div class="card" style="max-width:480px;">
+    <p style="color:var(--text-muted);">No events yet.{% if current_user.is_admin %} <a href="/events/add">Create the first one.</a>{% endif %}</p>
+</div>
+{% endif %}
+
+{% if upcoming %}
+<div style="display:flex;flex-direction:column;gap:12px;max-width:720px;">
+    {% for event in upcoming %}
+    <a href="/events/{{ event.id }}" class="event-card">
+        <div class="event-date-block">
+            <div class="event-month">{{ event.start_date.strftime('%b') }}</div>
+            <div class="event-day">{{ event.start_date.strftime('%-d') }}</div>
+        </div>
+        <div class="event-info">
+            <div class="event-name">{{ event.name }}</div>
+            <div class="event-meta">
+                {{ event.date_range_display() }}
+                {% if event.location %} · {{ event.location }}{% endif %}
+            </div>
+            <div class="event-sections">
+                {% if event.has_meals %}<span class="badge b-active"><span class="dot"></span>Meals</span>{% endif %}
+                {% if event.has_assignments %}<span class="badge b-admin"><span class="dot"></span>Tasks</span>{% endif %}
+                {% if event.has_sleeping %}<span class="badge b-pending"><span class="dot"></span>Sleeping</span>{% endif %}
+            </div>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if past %}
+<div style="margin-top:40px;">
+    <div style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;">Past Events</div>
+    <div style="display:flex;flex-direction:column;gap:12px;max-width:720px;">
+        {% for event in past %}
+        <a href="/events/{{ event.id }}" class="event-card" style="opacity:.7;">
+            <div class="event-date-block" style="background:var(--hairline);">
+                <div class="event-month">{{ event.start_date.strftime('%b') }}</div>
+                <div class="event-day">{{ event.start_date.strftime('%-d') }}</div>
+            </div>
+            <div class="event-info">
+                <div class="event-name">{{ event.name }}</div>
+                <div class="event-meta">
+                    {{ event.date_range_display() }}
+                    {% if event.location %} · {{ event.location }}{% endif %}
+                </div>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

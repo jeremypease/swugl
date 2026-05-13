@@ -30,6 +30,9 @@
             <a href="/profile" {% if request.path == '/profile' %}class="active"{% endif %}>
                 <i data-lucide="user"></i> My Profile
             </a>
+            <a href="/events" {% if request.path.startswith('/events') %}class="active"{% endif %}>
+                <i data-lucide="calendar"></i> Events
+            </a>
             <a href="/family/tree" {% if request.path == '/family/tree' %}class="active"{% endif %}>
                 <i data-lucide="git-branch"></i> Family Tree
             </a>

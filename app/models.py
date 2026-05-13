@@ -160,3 +160,88 @@ class User(UserMixin, db.Model):
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
+
+
+event_sleeping_assignments = db.Table('event_sleeping_assignments',
+    db.Column('spot_id', db.Integer, db.ForeignKey('event_sleeping_spots.id'), primary_key=True),
+    db.Column('person_id', db.Integer, db.ForeignKey('people.id'), primary_key=True)
+)
+
+
+class Event(db.Model):
+    __tablename__ = 'events'
+
+    id = db.Column(db.Integer, primary_key=True)
+    family_id = db.Column(db.Integer, db.ForeignKey('families.id'), nullable=False)
+    name = db.Column(db.String(150), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    location = db.Column(db.String(200), nullable=True)
+    start_date = db.Column(db.Date, nullable=False)
+    end_date = db.Column(db.Date, nullable=True)
+    has_meals = db.Column(db.Boolean, default=False)
+    has_assignments = db.Column(db.Boolean, default=False)
+    has_sleeping = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    meals = db.relationship('EventMeal', backref='event', cascade='all, delete-orphan', order_by='EventMeal.meal_date')
+    assignments = db.relationship('EventAssignment', backref='event', cascade='all, delete-orphan')
+    sleeping_spots = db.relationship('EventSleepingSpot', backref='event', cascade='all, delete-orphan')
+
+    def date_range_display(self):
+        if not self.end_date or self.end_date == self.start_date:
+            return self.start_date.strftime('%B %-d, %Y')
+        if self.start_date.year == self.end_date.year and self.start_date.month == self.end_date.month:
+            return f"{self.start_date.strftime('%B %-d')}–{self.end_date.strftime('%-d, %Y')}"
+        return f"{self.start_date.strftime('%B %-d')} – {self.end_date.strftime('%B %-d, %Y')}"
+
+
+class EventMeal(db.Model):
+    __tablename__ = 'event_meals'
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.Integer, db.ForeignKey('events.id'), nullable=False)
+    name = db.Column(db.String(150), nullable=False)
+    meal_date = db.Column(db.Date, nullable=True)
+    meal_time = db.Column(db.String(20), nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+
+    assigned_family_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=True)
+    assigned_family = db.relationship('Person', foreign_keys=[assigned_family_id])
+    items = db.relationship('EventMealItem', backref='meal', cascade='all, delete-orphan', order_by='EventMealItem.is_cleanup, EventMealItem.id')
+
+
+class EventMealItem(db.Model):
+    __tablename__ = 'event_meal_items'
+
+    id = db.Column(db.Integer, primary_key=True)
+    meal_id = db.Column(db.Integer, db.ForeignKey('event_meals.id'), nullable=False)
+    label = db.Column(db.String(150), nullable=False)
+    is_cleanup = db.Column(db.Boolean, default=False)
+    assigned_to_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=True)
+
+    assigned_to = db.relationship('Person')
+
+
+class EventAssignment(db.Model):
+    __tablename__ = 'event_assignments'
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.Integer, db.ForeignKey('events.id'), nullable=False)
+    title = db.Column(db.String(150), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    claimed_by_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=True)
+    is_done = db.Column(db.Boolean, default=False)
+
+    claimed_by = db.relationship('Person')
+
+
+class EventSleepingSpot(db.Model):
+    __tablename__ = 'event_sleeping_spots'
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.Integer, db.ForeignKey('events.id'), nullable=False)
+    name = db.Column(db.String(150), nullable=False)
+    capacity = db.Column(db.Integer, nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+
+    people = db.relationship('Person', secondary='event_sleeping_assignments')

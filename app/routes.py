@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app
 from flask_login import login_user, logout_user, login_required, current_user
-from .models import Family, User, Person, SpouseRelationship
-from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm, ForgotPasswordForm, ResetPasswordForm, AddPersonForm, RelativeForm, FamilySettingsForm, EditPersonForm
+from .models import Family, User, Person, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, EventSleepingSpot
+from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm, ForgotPasswordForm, ResetPasswordForm, AddPersonForm, RelativeForm, FamilySettingsForm, EditPersonForm, EventForm, EventMealForm, EventMealFamilyAssignForm, EventMealItemForm, EventMealAssignForm, EventAssignmentForm, EventSleepingSpotForm, EventSleepingAssignForm
 from .email import send_verification_email, send_pending_notification, send_approval_notification, send_spouse_confirmation_email, send_spouse_invitation_email, send_password_reset_email
 from datetime import date, datetime, timedelta
 from functools import wraps
@@ -887,3 +887,432 @@ def spouse_end():
         flash('Spouse relationship updated.', 'info')
         return redirect(url_for('main.profile'))
     return render_template('spouse_end.html', form=form, spouse=rel.get_spouse_of(person))
+
+
+# ── Events ────────────────────────────────────────────────────────────────────
+
+@main.route('/events')
+@login_required
+def events_list():
+    today = date.today()
+    all_events = Event.query.filter_by(family_id=current_user.family_id).order_by(Event.start_date).all()
+    upcoming = [e for e in all_events if e.start_date >= today]
+    past = [e for e in all_events if e.start_date < today]
+    past.reverse()
+    return render_template('events_list.html', upcoming=upcoming, past=past)
+
+
+@main.route('/events/add', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def event_add():
+    form = EventForm()
+    if form.validate_on_submit():
+        event = Event(
+            family_id=current_user.family_id,
+            name=form.name.data,
+            description=form.description.data or None,
+            location=form.location.data or None,
+            start_date=form.start_date.data,
+            end_date=form.end_date.data,
+            has_meals=form.has_meals.data,
+            has_assignments=form.has_assignments.data,
+            has_sleeping=form.has_sleeping.data,
+        )
+        db.session.add(event)
+        db.session.commit()
+        flash(f'{event.name} has been created.', 'info')
+        return redirect(url_for('main.event_detail', event_id=event.id))
+    return render_template('event_form.html', form=form, event=None)
+
+
+@main.route('/events/<int:event_id>')
+@login_required
+def event_detail(event_id):
+    event = db.session.get(Event, event_id)
+    if not event or event.family_id != current_user.family_id:
+        flash('Event not found.', 'error')
+        return redirect(url_for('main.events_list'))
+    all_people = Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
+    people_choices = [(0, '— Select —')] + [(p.id, p.get_display_name()) for p in all_people]
+
+    meal_form = EventMealForm()
+    meal_item_form = EventMealItemForm()
+    # Per-meal family-assign forms (admin only)
+    meal_family_forms = {}
+    for meal in event.meals:
+        f = EventMealFamilyAssignForm(prefix=f'meal_fam_{meal.id}')
+        f.assigned_family_id.choices = [(0, '— Select family —')] + [(p.id, p.get_display_name()) for p in all_people]
+        meal_family_forms[meal.id] = f
+    # Per-item assign forms (any member can assign anyone)
+    item_assign_forms = {}
+    for meal in event.meals:
+        for item in meal.items:
+            f = EventMealAssignForm(prefix=f'item_{item.id}')
+            f.person_id.choices = people_choices
+            item_assign_forms[item.id] = f
+
+    assign_form = EventAssignmentForm()
+    spot_form = EventSleepingSpotForm()
+    sleeping_assign_forms = {}
+    if current_user.is_admin:
+        eligible = all_people
+        for spot in event.sleeping_spots:
+            spot_assigned_ids = {p.id for p in spot.people}
+            available = [(p.id, p.get_display_name()) for p in eligible if p.id not in spot_assigned_ids]
+            f = EventSleepingAssignForm(prefix=f'spot_{spot.id}')
+            f.person_id.choices = [(0, '— Select —')] + available
+            sleeping_assign_forms[spot.id] = f
+
+    my_person = current_user.person
+    return render_template('event_detail.html',
+        event=event,
+        meal_form=meal_form,
+        meal_item_form=meal_item_form,
+        meal_family_forms=meal_family_forms,
+        item_assign_forms=item_assign_forms,
+        people_choices=people_choices,
+        assign_form=assign_form,
+        spot_form=spot_form,
+        sleeping_assign_forms=sleeping_assign_forms,
+        my_person=my_person,
+    )
+
+
+@main.route('/events/<int:event_id>/edit', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def event_edit(event_id):
+    event = db.session.get(Event, event_id)
+    if not event or event.family_id != current_user.family_id:
+        flash('Event not found.', 'error')
+        return redirect(url_for('main.events_list'))
+    form = EventForm(obj=event)
+    if form.validate_on_submit():
+        event.name = form.name.data
+        event.description = form.description.data or None
+        event.location = form.location.data or None
+        event.start_date = form.start_date.data
+        event.end_date = form.end_date.data
+        event.has_meals = form.has_meals.data
+        event.has_assignments = form.has_assignments.data
+        event.has_sleeping = form.has_sleeping.data
+        db.session.commit()
+        flash('Event updated.', 'info')
+        return redirect(url_for('main.event_detail', event_id=event.id))
+    return render_template('event_form.html', form=form, event=event)
+
+
+@main.route('/events/<int:event_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def event_delete(event_id):
+    event = db.session.get(Event, event_id)
+    if not event or event.family_id != current_user.family_id:
+        flash('Event not found.', 'error')
+        return redirect(url_for('main.events_list'))
+    db.session.delete(event)
+    db.session.commit()
+    flash(f'{event.name} has been deleted.', 'info')
+    return redirect(url_for('main.events_list'))
+
+
+# ── Meals ─────────────────────────────────────────────────────────────────────
+
+@main.route('/events/<int:event_id>/meals/add', methods=['POST'])
+@login_required
+@admin_required
+def event_meal_add(event_id):
+    event = db.session.get(Event, event_id)
+    if not event or event.family_id != current_user.family_id:
+        flash('Event not found.', 'error')
+        return redirect(url_for('main.events_list'))
+    form = EventMealForm()
+    if form.validate_on_submit():
+        meal = EventMeal(
+            event_id=event_id,
+            name=form.name.data,
+            meal_date=form.meal_date.data,
+            meal_time=form.meal_time.data or None,
+            notes=form.notes.data or None,
+        )
+        db.session.add(meal)
+        db.session.commit()
+        flash(f'{meal.name} added.', 'info')
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+@main.route('/events/<int:event_id>/meals/<int:meal_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def event_meal_delete(event_id, meal_id):
+    meal = db.session.get(EventMeal, meal_id)
+    if not meal or meal.event.family_id != current_user.family_id:
+        flash('Meal not found.', 'error')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    db.session.delete(meal)
+    db.session.commit()
+    flash('Meal removed.', 'info')
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+@main.route('/events/<int:event_id>/meals/<int:meal_id>/assign-family', methods=['POST'])
+@login_required
+@admin_required
+def event_meal_assign_family(event_id, meal_id):
+    meal = db.session.get(EventMeal, meal_id)
+    if not meal or meal.event.family_id != current_user.family_id:
+        flash('Meal not found.', 'error')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    all_people = Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
+    form = EventMealFamilyAssignForm(prefix=f'meal_fam_{meal_id}')
+    form.assigned_family_id.choices = [(0, '— Select family —')] + [(p.id, p.get_display_name()) for p in all_people]
+    if form.validate_on_submit():
+        pid = form.assigned_family_id.data
+        meal.assigned_family_id = pid if pid else None
+        db.session.commit()
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+@main.route('/events/<int:event_id>/meals/<int:meal_id>/unassign-family', methods=['POST'])
+@login_required
+@admin_required
+def event_meal_unassign_family(event_id, meal_id):
+    meal = db.session.get(EventMeal, meal_id)
+    if not meal or meal.event.family_id != current_user.family_id:
+        flash('Meal not found.', 'error')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    meal.assigned_family_id = None
+    db.session.commit()
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+@main.route('/events/<int:event_id>/meals/<int:meal_id>/items/add', methods=['POST'])
+@login_required
+@admin_required
+def event_meal_item_add(event_id, meal_id):
+    meal = db.session.get(EventMeal, meal_id)
+    if not meal or meal.event.family_id != current_user.family_id:
+        flash('Meal not found.', 'error')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    form = EventMealItemForm()
+    if form.validate_on_submit():
+        item = EventMealItem(
+            meal_id=meal_id,
+            label=form.label.data,
+            is_cleanup=form.is_cleanup.data,
+        )
+        db.session.add(item)
+        db.session.commit()
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+@main.route('/events/<int:event_id>/meals/<int:meal_id>/items/<int:item_id>/assign', methods=['POST'])
+@login_required
+def event_meal_item_assign(event_id, meal_id, item_id):
+    item = db.session.get(EventMealItem, item_id)
+    if not item or item.meal.event.family_id != current_user.family_id:
+        flash('Item not found.', 'error')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    all_people = Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
+    form = EventMealAssignForm(prefix=f'item_{item_id}')
+    form.person_id.choices = [(0, '— Select —')] + [(p.id, p.get_display_name()) for p in all_people]
+    if form.validate_on_submit() and form.person_id.data:
+        person = db.session.get(Person, form.person_id.data)
+        if person and person.family_id == current_user.family_id:
+            item.assigned_to_id = person.id
+            db.session.commit()
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+@main.route('/events/<int:event_id>/meals/<int:meal_id>/items/<int:item_id>/unassign', methods=['POST'])
+@login_required
+def event_meal_item_unassign(event_id, meal_id, item_id):
+    item = db.session.get(EventMealItem, item_id)
+    if not item or item.meal.event.family_id != current_user.family_id:
+        flash('Item not found.', 'error')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    if not current_user.is_admin:
+        flash('Only admins can unassign items.', 'error')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    item.assigned_to_id = None
+    db.session.commit()
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+@main.route('/events/<int:event_id>/meals/<int:meal_id>/items/<int:item_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def event_meal_item_delete(event_id, meal_id, item_id):
+    item = db.session.get(EventMealItem, item_id)
+    if not item or item.meal.event.family_id != current_user.family_id:
+        flash('Item not found.', 'error')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    db.session.delete(item)
+    db.session.commit()
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+# ── Assignments ───────────────────────────────────────────────────────────────
+
+@main.route('/events/<int:event_id>/assignments/add', methods=['POST'])
+@login_required
+@admin_required
+def event_assignment_add(event_id):
+    event = db.session.get(Event, event_id)
+    if not event or event.family_id != current_user.family_id:
+        flash('Event not found.', 'error')
+        return redirect(url_for('main.events_list'))
+    form = EventAssignmentForm()
+    if form.validate_on_submit():
+        a = EventAssignment(
+            event_id=event_id,
+            title=form.title.data,
+            description=form.description.data or None,
+        )
+        db.session.add(a)
+        db.session.commit()
+        flash(f'Task "{a.title}" added.', 'info')
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+@main.route('/events/<int:event_id>/assignments/<int:aid>/claim', methods=['POST'])
+@login_required
+def event_assignment_claim(event_id, aid):
+    a = db.session.get(EventAssignment, aid)
+    if not a or a.event.family_id != current_user.family_id:
+        flash('Task not found.', 'error')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    if not current_user.person:
+        flash('You need a family profile to claim tasks.', 'error')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    if a.claimed_by_id:
+        flash('That task is already claimed.', 'error')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    a.claimed_by_id = current_user.person.id
+    db.session.commit()
+    flash(f'You claimed "{a.title}".', 'info')
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+@main.route('/events/<int:event_id>/assignments/<int:aid>/unclaim', methods=['POST'])
+@login_required
+def event_assignment_unclaim(event_id, aid):
+    a = db.session.get(EventAssignment, aid)
+    if not a or a.event.family_id != current_user.family_id:
+        flash('Task not found.', 'error')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    is_own = current_user.person and a.claimed_by_id == current_user.person.id
+    if not is_own and not current_user.is_admin:
+        flash('You can only unclaim your own tasks.', 'error')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    a.claimed_by_id = None
+    a.is_done = False
+    db.session.commit()
+    flash(f'"{a.title}" is now unclaimed.', 'info')
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+@main.route('/events/<int:event_id>/assignments/<int:aid>/done', methods=['POST'])
+@login_required
+def event_assignment_done(event_id, aid):
+    a = db.session.get(EventAssignment, aid)
+    if not a or a.event.family_id != current_user.family_id:
+        flash('Task not found.', 'error')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    is_own = current_user.person and a.claimed_by_id == current_user.person.id
+    if not is_own and not current_user.is_admin:
+        flash('Only the person assigned can mark this done.', 'error')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    a.is_done = not a.is_done
+    db.session.commit()
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+@main.route('/events/<int:event_id>/assignments/<int:aid>/delete', methods=['POST'])
+@login_required
+@admin_required
+def event_assignment_delete(event_id, aid):
+    a = db.session.get(EventAssignment, aid)
+    if not a or a.event.family_id != current_user.family_id:
+        flash('Task not found.', 'error')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    db.session.delete(a)
+    db.session.commit()
+    flash('Task removed.', 'info')
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+# ── Sleeping ──────────────────────────────────────────────────────────────────
+
+@main.route('/events/<int:event_id>/sleeping/add-spot', methods=['POST'])
+@login_required
+@admin_required
+def event_sleeping_add_spot(event_id):
+    event = db.session.get(Event, event_id)
+    if not event or event.family_id != current_user.family_id:
+        flash('Event not found.', 'error')
+        return redirect(url_for('main.events_list'))
+    form = EventSleepingSpotForm()
+    if form.validate_on_submit():
+        spot = EventSleepingSpot(
+            event_id=event_id,
+            name=form.name.data,
+            capacity=form.capacity.data,
+            notes=form.notes.data or None,
+        )
+        db.session.add(spot)
+        db.session.commit()
+        flash(f'"{spot.name}" added.', 'info')
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+@main.route('/events/<int:event_id>/sleeping/<int:sid>/assign', methods=['POST'])
+@login_required
+@admin_required
+def event_sleeping_assign(event_id, sid):
+    spot = db.session.get(EventSleepingSpot, sid)
+    if not spot or spot.event.family_id != current_user.family_id:
+        flash('Spot not found.', 'error')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    form = EventSleepingAssignForm(prefix=f'spot_{sid}')
+    eligible = Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
+    spot_assigned_ids = {p.id for p in spot.people}
+    form.person_id.choices = [(0, '— Select —')] + [(p.id, p.get_display_name()) for p in eligible if p.id not in spot_assigned_ids]
+    if form.validate_on_submit() and form.person_id.data:
+        person = db.session.get(Person, form.person_id.data)
+        if person and person.family_id == current_user.family_id and person not in spot.people:
+            spot.people.append(person)
+            db.session.commit()
+            flash(f'{person.get_display_name()} assigned to {spot.name}.', 'info')
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+@main.route('/events/<int:event_id>/sleeping/<int:sid>/unassign/<int:pid>', methods=['POST'])
+@login_required
+@admin_required
+def event_sleeping_unassign(event_id, sid, pid):
+    spot = db.session.get(EventSleepingSpot, sid)
+    if not spot or spot.event.family_id != current_user.family_id:
+        flash('Spot not found.', 'error')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    person = db.session.get(Person, pid)
+    if person and person in spot.people:
+        spot.people.remove(person)
+        db.session.commit()
+        flash(f'{person.get_display_name()} removed from {spot.name}.', 'info')
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+@main.route('/events/<int:event_id>/sleeping/<int:sid>/delete', methods=['POST'])
+@login_required
+@admin_required
+def event_sleeping_delete_spot(event_id, sid):
+    spot = db.session.get(EventSleepingSpot, sid)
+    if not spot or spot.event.family_id != current_user.family_id:
+        flash('Spot not found.', 'error')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    db.session.delete(spot)
+    db.session.commit()
+    flash(f'"{spot.name}" removed.', 'info')
+    return redirect(url_for('main.event_detail', event_id=event_id))

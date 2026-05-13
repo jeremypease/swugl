@@ -1,5 +1,5 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, BooleanField, SubmitField, DateField, TextAreaField, SelectField
+from wtforms import StringField, PasswordField, BooleanField, SubmitField, DateField, TextAreaField, SelectField, IntegerField
 from wtforms.validators import DataRequired, Email, Length, EqualTo, Regexp, Optional
 
 class LoginForm(FlaskForm):
@@ -131,6 +131,52 @@ class RelativeForm(FlaskForm):
 class ForgotPasswordForm(FlaskForm):
     email = StringField('Email', validators=[DataRequired(), Email()])
     submit = SubmitField('Send Reset Link')
+
+class EventForm(FlaskForm):
+    name = StringField('Event Name', validators=[DataRequired(), Length(max=150)])
+    description = TextAreaField('Description')
+    location = StringField('Location', validators=[Optional(), Length(max=200)])
+    start_date = DateField('Start Date', validators=[DataRequired()])
+    end_date = DateField('End Date', validators=[Optional()])
+    has_meals = BooleanField('Meals')
+    has_assignments = BooleanField('Assignments')
+    has_sleeping = BooleanField('Sleeping Arrangements')
+    submit = SubmitField('Save Event')
+
+class EventMealForm(FlaskForm):
+    name = StringField('Meal Name', validators=[DataRequired(), Length(max=150)])
+    meal_date = DateField('Date', validators=[Optional()])
+    meal_time = StringField('Time', validators=[Optional(), Length(max=20)])
+    notes = TextAreaField('Notes')
+    submit = SubmitField('Add Meal')
+
+class EventMealFamilyAssignForm(FlaskForm):
+    assigned_family_id = SelectField('Assign to family', coerce=int)
+    submit = SubmitField('Assign')
+
+class EventMealItemForm(FlaskForm):
+    label = StringField('Item', validators=[DataRequired(), Length(max=150)])
+    is_cleanup = BooleanField('Cleanup task')
+    submit = SubmitField('Add Item')
+
+class EventMealAssignForm(FlaskForm):
+    person_id = SelectField('Assign to', coerce=int, validators=[DataRequired()])
+    submit = SubmitField('Assign')
+
+class EventAssignmentForm(FlaskForm):
+    title = StringField('Task', validators=[DataRequired(), Length(max=150)])
+    description = TextAreaField('Details')
+    submit = SubmitField('Add Task')
+
+class EventSleepingSpotForm(FlaskForm):
+    name = StringField('Room / Spot', validators=[DataRequired(), Length(max=150)])
+    capacity = IntegerField('Capacity', validators=[Optional()])
+    notes = TextAreaField('Notes')
+    submit = SubmitField('Add Spot')
+
+class EventSleepingAssignForm(FlaskForm):
+    person_id = SelectField('Person', coerce=int, validators=[DataRequired()])
+    submit = SubmitField('Assign')
 
 class ResetPasswordForm(FlaskForm):
     password = PasswordField('New Password', validators=[
