@@ -105,6 +105,25 @@ class AddPersonForm(FlaskForm):
     notes = TextAreaField('Notes')
     submit = SubmitField('Add Member')
 
+class EditPersonForm(FlaskForm):
+    name = StringField('Full Name', validators=[DataRequired(), Length(max=100)])
+    nickname = StringField('Nickname / Goes By', validators=[Optional(), Length(max=50)])
+    gender = SelectField('Gender', choices=[
+        ('', '-- Select --'),
+        ('Male', 'Male'),
+        ('Female', 'Female')
+    ])
+    birthday = DateField('Birthday', validators=[])
+    birthplace = StringField('Birthplace', validators=[Optional(), Length(max=100)])
+    maiden_name = StringField('Maiden Name', validators=[Optional(), Length(max=100)])
+    occupation = StringField('Occupation', validators=[Optional(), Length(max=100)])
+    email = StringField('Email', validators=[Optional(), Email()])
+    phone = StringField('Phone', validators=[Optional(), Length(max=20)])
+    deathday = DateField('Date of Passing', validators=[])
+    deathplace = StringField('Place of Passing', validators=[Optional(), Length(max=100)])
+    notes = TextAreaField('Notes')
+    submit = SubmitField('Save Changes')
+
 class RelativeForm(FlaskForm):
     relative_id = SelectField('Select', coerce=int, validators=[DataRequired()])
     submit = SubmitField('Add')

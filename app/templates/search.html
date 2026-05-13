@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Search — Peavines{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <div class="eyebrow">Family</div>
+        <h1>Search{% if q %}: "{{ q }}"{% endif %}</h1>
+    </div>
+</div>
+
+{% if not q %}
+<p style="color:var(--text-muted);">Type a name in the search bar above.</p>
+
+{% elif not results %}
+<div class="card" style="max-width:480px;">
+    <p style="color:var(--text-muted);">No family members found matching "{{ q }}".</p>
+</div>
+
+{% else %}
+<div class="card" style="max-width:640px;">
+    <div class="card-header">
+        <h3>Results</h3>
+        <span class="meta">{{ results|length }} found</span>
+    </div>
+    {% for person in results %}
+    <div class="member-row">
+        <div class="av av-md" style="background:var(--vine);">{{ person.name[0] }}</div>
+        <div>
+            <div class="name">
+                <a href="/person/{{ person.id }}">{{ person.name }}</a>
+                {% if person.nickname and person.nickname != person.name %}
+                <span class="nick">{{ person.nickname }}</span>
+                {% endif %}
+            </div>
+            <div class="meta">
+                {% if person.birthday %}b. {{ person.birthday.strftime('%B %-d, %Y') }}{% endif %}
+                {% if person.occupation %} · {{ person.occupation }}{% endif %}
+            </div>
+        </div>
+        {% if person.get_age() %}
+        <span style="font-size:13px;color:var(--text-muted);">Age {{ person.get_age() }}</span>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app
 from flask_login import login_user, logout_user, login_required, current_user
 from .models import Family, User, Person, SpouseRelationship
-from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm, ForgotPasswordForm, ResetPasswordForm, AddPersonForm, RelativeForm, FamilySettingsForm
+from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm, ForgotPasswordForm, ResetPasswordForm, AddPersonForm, RelativeForm, FamilySettingsForm, EditPersonForm
 from .email import send_verification_email, send_pending_notification, send_approval_notification, send_spouse_confirmation_email, send_spouse_invitation_email, send_password_reset_email
 from datetime import date, datetime, timedelta
 from functools import wraps
@@ -606,6 +606,53 @@ def person_detail(person_id):
         return redirect(url_for('main.index'))
     relationship = get_relationship(current_user.person, person) if current_user.person else None
     return render_template('profile.html', person=person, relationship=relationship)
+
+@main.route('/person/<int:person_id>/edit', methods=['GET', 'POST'])
+@login_required
+def person_edit(person_id):
+    person = db.session.get(Person, person_id)
+    if not person or person.family_id != current_user.family_id:
+        flash('Person not found.', 'error')
+        return redirect(url_for('main.index'))
+    can_edit = current_user.is_admin or (person.user and person.user == current_user)
+    if not can_edit:
+        flash('You do not have permission to edit this profile.', 'error')
+        return redirect(url_for('main.person_detail', person_id=person_id))
+    form = EditPersonForm(obj=person)
+    if form.validate_on_submit():
+        person.name = form.name.data.strip()
+        person.nickname = form.nickname.data or None
+        person.gender = form.gender.data or None
+        person.birthday = form.birthday.data
+        person.birthplace = format_birthplace(form.birthplace.data)
+        person.maiden_name = form.maiden_name.data or None
+        person.occupation = form.occupation.data or None
+        person.phone = format_phone(form.phone.data)
+        person.deathday = form.deathday.data
+        person.deathplace = form.deathplace.data or None
+        person.notes = form.notes.data or None
+        # Only update email if person has no login account (otherwise email = login email)
+        if not person.user:
+            person.email = form.email.data or None
+        db.session.commit()
+        flash('Profile updated.', 'info')
+        return redirect(url_for('main.person_detail', person_id=person_id))
+    return render_template('person_edit.html', form=form, person=person)
+
+@main.route('/search')
+@login_required
+def search():
+    q = request.args.get('q', '').strip()
+    results = []
+    if q:
+        results = Person.query.filter(
+            Person.family_id == current_user.family_id,
+            db.or_(
+                Person.name.ilike(f'%{q}%'),
+                Person.nickname.ilike(f'%{q}%'),
+            )
+        ).order_by(Person.name).all()
+    return render_template('search.html', q=q, results=results)
 
 @main.route('/person/<int:person_id>/link-spouse', methods=['GET', 'POST'])
 @login_required

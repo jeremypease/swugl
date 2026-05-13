@@ -12,9 +12,9 @@
         <div class="eyebrow">Profile</div>
         <h1>{{ person.get_display_name() }}</h1>
     </div>
-    {% if is_own_profile %}
-    <a href="/profile/edit" class="btn btn-secondary">
-        <i data-lucide="edit-2"></i> Edit my profile
+    {% if can_edit %}
+    <a href="/person/{{ person.id }}/edit" class="btn btn-secondary">
+        <i data-lucide="edit-2"></i> {% if is_own_profile %}Edit my profile{% else %}Edit profile{% endif %}
     </a>
     {% endif %}
 </div>
@@ -58,6 +58,9 @@
                 {% endif %}
                 {% if person.deathday %}
                 <dt>Passed</dt><dd>{{ person.deathday.strftime('%B %-d, %Y') }}</dd>
+                {% endif %}
+                {% if person.occupation %}
+                <dt>Occupation</dt><dd>{{ person.occupation }}</dd>
                 {% endif %}
                 {% if person.email %}
                 <dt>Email</dt><dd><a href="mailto:{{ person.email }}">{{ person.email }}</a></dd>

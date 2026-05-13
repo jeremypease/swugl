@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Edit {{ person.get_display_name() }} — Peavines{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <div class="eyebrow">{{ person.get_display_name() }}</div>
+        <h1>Edit Profile</h1>
+    </div>
+    <a href="/person/{{ person.id }}" class="btn btn-secondary">
+        <i data-lucide="x"></i> Cancel
+    </a>
+</div>
+
+<div style="max-width: 580px;">
+    <div class="card">
+        <form method="POST">
+            {{ form.hidden_tag() }}
+
+            <div class="field">
+                {{ form.name.label }}
+                {{ form.name() }}
+                {% for error in form.name.errors %}<span class="msg">{{ error }}</span>{% endfor %}
+            </div>
+
+            <div class="field-row">
+                <div class="field">
+                    {{ form.gender.label }}
+                    {{ form.gender() }}
+                </div>
+                <div class="field">
+                    {{ form.nickname.label }}
+                    {{ form.nickname() }}
+                </div>
+            </div>
+
+            <div class="field-row">
+                <div class="field">
+                    {{ form.birthday.label }}
+                    {{ form.birthday() }}
+                </div>
+                <div class="field">
+                    {{ form.birthplace.label }}
+                    {{ form.birthplace() }}
+                </div>
+            </div>
+
+            <div class="field-row">
+                <div class="field">
+                    {{ form.maiden_name.label }}
+                    {{ form.maiden_name() }}
+                </div>
+                <div class="field">
+                    {{ form.occupation.label }}
+                    {{ form.occupation() }}
+                </div>
+            </div>
+
+            <div class="field-row">
+                <div class="field">
+                    {{ form.phone.label }}
+                    {{ form.phone() }}
+                </div>
+                {% if not person.user %}
+                <div class="field">
+                    {{ form.email.label }}
+                    {{ form.email() }}
+                    {% for error in form.email.errors %}<span class="msg">{{ error }}</span>{% endfor %}
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="field-row">
+                <div class="field">
+                    {{ form.deathday.label }}
+                    {{ form.deathday() }}
+                </div>
+                <div class="field">
+                    {{ form.deathplace.label }}
+                    {{ form.deathplace() }}
+                </div>
+            </div>
+
+            <div class="field">
+                {{ form.notes.label }}
+                {{ form.notes(rows=4) }}
+            </div>
+
+            {% if person.user %}
+            <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
+                Email is managed through their login account and cannot be changed here.
+            </p>
+            {% endif %}
+
+            <div style="display:flex;gap:10px;margin-top:8px;">
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+                <a href="/person/{{ person.id }}" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
