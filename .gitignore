@@ -11,3 +11,6 @@ venv/
 
 # Secrets
 .env
+
+# Database
+instance/family.db
