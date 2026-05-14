@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app
 from flask_login import login_user, logout_user, login_required, current_user
-from .models import Family, User, Person, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, EventSleepingSpot
-from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm, ForgotPasswordForm, ResetPasswordForm, AddPersonForm, RelativeForm, FamilySettingsForm, EditPersonForm, EventForm, EventMealForm, EventMealFamilyAssignForm, EventMealItemForm, EventMealAssignForm, EventAssignmentForm, EventSleepingSpotForm, EventSleepingAssignForm
+from .models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, EventSleepingSpot
+from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm, ForgotPasswordForm, ResetPasswordForm, AddPersonForm, RelativeForm, AddParentForm, FamilySettingsForm, EditPersonForm, EventForm, EventMealForm, EventMealFamilyAssignForm, EventMealItemForm, EventMealAssignForm, EventAssignmentForm, EventSleepingSpotForm, EventSleepingAssignForm
 from .email import send_verification_email, send_pending_notification, send_approval_notification, send_spouse_confirmation_email, send_spouse_invitation_email, send_password_reset_email
 from datetime import date, datetime, timedelta
 from functools import wraps
@@ -345,9 +345,9 @@ def add_member():
         db.session.add(person)
         db.session.flush()
         if parent1:
-            parent1.children.append(person)
+            db.session.add(ParentRelationship(parent_id=parent1.id, child_id=person.id, role='parent'))
         if parent2:
-            parent2.children.append(person)
+            db.session.add(ParentRelationship(parent_id=parent2.id, child_id=person.id, role='parent'))
         db.session.commit()
         flash(f'{person.name} has been added to the family.', 'info')
         if next_page == 'tree':
@@ -371,16 +371,16 @@ def add_parent(person_id):
         p for p in Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
         if p.id != person.id and p.id not in existing_parent_ids
     ]
-    form = RelativeForm()
+    form = AddParentForm()
     form.relative_id.choices = [(0, '-- Select --')] + [(p.id, p.get_display_name()) for p in eligible]
     if form.validate_on_submit():
         parent_person = db.session.get(Person, form.relative_id.data)
         if not parent_person or parent_person.family_id != current_user.family_id:
             flash('Person not found.', 'error')
             return redirect(url_for('main.add_parent', person_id=person_id))
-        person.parents.append(parent_person)
+        db.session.add(ParentRelationship(parent_id=parent_person.id, child_id=person.id, role=form.role.data))
         db.session.commit()
-        flash(f'{parent_person.get_display_name()} added as a parent.', 'info')
+        flash(f'{parent_person.get_display_name()} added as {form.role.data.replace("_", " ")}.', 'info')
         return redirect(url_for('main.person_detail', person_id=person_id))
     return render_template('add_relative.html', form=form, subject=person, action='parent')
 
@@ -408,7 +408,7 @@ def add_child(person_id):
         if not child_person or child_person.family_id != current_user.family_id:
             flash('Person not found.', 'error')
             return redirect(url_for('main.add_child', person_id=person_id))
-        person.children.append(child_person)
+        db.session.add(ParentRelationship(parent_id=person.id, child_id=child_person.id, role='parent'))
         db.session.commit()
         flash(f'{child_person.get_display_name()} added as a child.', 'info')
         if next_page == 'tree':
@@ -428,8 +428,8 @@ def remove_parent(person_id, parent_id):
         flash('You do not have permission to edit this profile.', 'error')
         return redirect(url_for('main.person_detail', person_id=person_id))
     parent_person = db.session.get(Person, parent_id)
-    if parent_person and parent_person in person.parents:
-        person.parents.remove(parent_person)
+    if parent_person:
+        ParentRelationship.query.filter_by(parent_id=parent_person.id, child_id=person.id).delete()
         db.session.commit()
         flash(f'{parent_person.get_display_name()} removed as a parent.', 'info')
     return redirect(url_for('main.person_detail', person_id=person_id))
@@ -446,8 +446,8 @@ def remove_child(person_id, child_id):
         flash('You do not have permission to edit this profile.', 'error')
         return redirect(url_for('main.person_detail', person_id=person_id))
     child_person = db.session.get(Person, child_id)
-    if child_person and child_person in person.children:
-        person.children.remove(child_person)
+    if child_person:
+        ParentRelationship.query.filter_by(parent_id=person.id, child_id=child_person.id).delete()
         db.session.commit()
         flash(f'{child_person.get_display_name()} removed as a child.', 'info')
     return redirect(url_for('main.person_detail', person_id=person_id))

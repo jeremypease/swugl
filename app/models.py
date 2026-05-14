@@ -3,11 +3,30 @@ from flask_login import UserMixin
 from datetime import date, datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 
-# Junction table for parent-child relationships
-parent_child = db.Table('parent_child',
-    db.Column('parent_id', db.Integer, db.ForeignKey('people.id'), primary_key=True),
-    db.Column('child_id', db.Integer, db.ForeignKey('people.id'), primary_key=True)
-)
+PARENT_ROLES = [
+    ('father',          'Father'),
+    ('mother',          'Mother'),
+    ('stepfather',      'Step-Father'),
+    ('stepmother',      'Step-Mother'),
+    ('adoptive_father', 'Adoptive Father'),
+    ('adoptive_mother', 'Adoptive Mother'),
+    ('guardian',        'Guardian'),
+    ('parent',          'Parent'),
+]
+PARENT_ROLE_LABELS = dict(PARENT_ROLES)
+
+class ParentRelationship(db.Model):
+    __tablename__ = 'parent_relationships'
+    parent_id = db.Column(db.Integer, db.ForeignKey('people.id'), primary_key=True)
+    child_id  = db.Column(db.Integer, db.ForeignKey('people.id'), primary_key=True)
+    role      = db.Column(db.String(30), default='parent')
+
+    parent = db.relationship('Person', foreign_keys=[parent_id])
+    child  = db.relationship('Person', foreign_keys=[child_id])
+
+    @property
+    def role_display(self):
+        return PARENT_ROLE_LABELS.get(self.role, self.role.replace('_', ' ').title())
 
 class Family(db.Model):
     __tablename__ = 'families'
@@ -69,14 +88,17 @@ class Person(db.Model):
 
     family = db.relationship('Family', back_populates='people', foreign_keys='Person.family_id')
 
-    # Relationships
-    children = db.relationship(
-        'Person',
-        secondary=parent_child,
-        primaryjoin=id == parent_child.c.parent_id,
-        secondaryjoin=id == parent_child.c.child_id,
-        backref='parents'
-    )
+    # Parent/child via ParentRelationship
+    child_rels  = db.relationship('ParentRelationship', foreign_keys='ParentRelationship.parent_id', backref='parent_person', cascade='all, delete-orphan')
+    parent_rels = db.relationship('ParentRelationship', foreign_keys='ParentRelationship.child_id',  backref='child_person',  cascade='all, delete-orphan')
+
+    @property
+    def children(self):
+        return [r.child for r in self.child_rels]
+
+    @property
+    def parents(self):
+        return [r.parent for r in self.parent_rels]
 
     def get_active_spouse(self):
         """Return the confirmed active spouse if one exists."""

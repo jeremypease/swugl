@@ -99,7 +99,7 @@
                 {{ av(active_spouse, size='sm', color='var(--pea)') }}
                 <span class="name"><a href="/person/{{ active_spouse.id }}">{{ active_spouse.get_display_name() }}</a></span>
                 {% if is_own_profile %}
-                <a href="/spouse/end" class="btn btn-ghost btn-sm" style="color:var(--tomato);">End</a>
+                <a href="/spouse/end" class="btn btn-ghost btn-sm" style="color:var(--tomato);">Separate…</a>
                 {% endif %}
             </div>
             {% elif pending_request %}
@@ -120,14 +120,14 @@
             </div>
             {% endif %}
 
-            {% for parent in person.parents %}
+            {% for pr in person.parent_rels %}
             <div class="relation-row">
-                <span class="role">Parent</span>
-                {{ av(parent, size='sm', color='var(--vine)') }}
-                <span class="name"><a href="/person/{{ parent.id }}">{{ parent.get_display_name() }}</a></span>
-                {% if parent.birthday %}<span class="meta">b. {{ parent.birthday.strftime('%Y') }}</span>{% endif %}
+                <span class="role">{{ pr.role_display }}</span>
+                {{ av(pr.parent, size='sm', color='var(--vine)') }}
+                <span class="name"><a href="/person/{{ pr.parent.id }}">{{ pr.parent.get_display_name() }}</a></span>
+                {% if pr.parent.birthday %}<span class="meta">b. {{ pr.parent.birthday.strftime('%Y') }}</span>{% endif %}
                 {% if can_edit %}
-                <form method="POST" action="/person/{{ person.id }}/remove-parent/{{ parent.id }}" style="margin-left:auto;">
+                <form method="POST" action="/person/{{ person.id }}/remove-parent/{{ pr.parent.id }}" style="margin-left:auto;">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);">Remove</button>
                 </form>
@@ -168,7 +168,7 @@
             </div>
             {% endif %}
 
-            {% if not active_spouse and not pending_request and not person.parents and not person.children and not can_edit %}
+            {% if not active_spouse and not pending_request and not person.parent_rels and not person.child_rels and not can_edit %}
             <p style="color:var(--text-muted);font-size:14px;padding:8px 0;">No family connections recorded yet.</p>
             {% endif %}
         </div>

@@ -131,6 +131,20 @@ class RelativeForm(FlaskForm):
     relative_id = SelectField('Select', coerce=int, validators=[DataRequired()])
     submit = SubmitField('Add')
 
+class AddParentForm(FlaskForm):
+    relative_id = SelectField('Select Person', coerce=int, validators=[DataRequired()])
+    role = SelectField('Role', choices=[
+        ('father',          'Father'),
+        ('mother',          'Mother'),
+        ('stepfather',      'Step-Father'),
+        ('stepmother',      'Step-Mother'),
+        ('adoptive_father', 'Adoptive Father'),
+        ('adoptive_mother', 'Adoptive Mother'),
+        ('guardian',        'Guardian'),
+        ('parent',          'Parent'),
+    ], validators=[DataRequired()])
+    submit = SubmitField('Add')
+
 class ForgotPasswordForm(FlaskForm):
     email = StringField('Email', validators=[DataRequired(), Email()])
     submit = SubmitField('Send Reset Link')
