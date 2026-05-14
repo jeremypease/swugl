@@ -7,92 +7,78 @@
     <div>
         <div class="eyebrow">Family</div>
         <h1>{{ family.name }}</h1>
-        <p class="sub">{{ people|length }} member{{ 's' if people|length != 1 else '' }}</p>
+        <p class="sub">{{ member_count }} member{{ 's' if member_count != 1 else '' }}</p>
     </div>
 </div>
 
-<div class="two-col">
+<div style="display:flex;flex-direction:column;gap:20px;max-width:560px;">
 
-    <!-- Member list -->
     <div class="card">
         <div class="card-header">
-            <h3>Members</h3>
+            <h3>Upcoming Events</h3>
+            <a href="/events" class="meta" style="text-decoration:none;">View all →</a>
         </div>
-        {% if people %}
-            {% for person in people %}
-            <div class="member-row">
-                <div class="av av-md" style="background: var(--{{ ['vine','pea','sprout'][loop.index0 % 3] }});">
-                    {{ person.name[0] }}
+        {% if upcoming_events %}
+            {% for event in upcoming_events %}
+            <a href="/events/{{ event.id }}" style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);text-decoration:none;color:inherit;">
+                <div style="text-align:center;min-width:36px;">
+                    <div style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--text-muted);">{{ event.start_date.strftime('%b') }}</div>
+                    <div style="font-size:20px;font-weight:700;line-height:1;color:var(--vine);">{{ event.start_date.strftime('%-d') }}</div>
                 </div>
                 <div>
-                    <a href="/person/{{ person.id }}" style="text-decoration:none;">
-                        <span class="member-row name">{{ person.name }}</span>
-                        {% if person.nickname %}<span class="member-row nick">"{{ person.nickname }}"</span>{% endif %}
-                    </a>
-                    <div class="meta">
-                        {% if person.birthday %}{{ person.birthday.strftime('%B %-d, %Y') }}{% endif %}
-                        {% if person.get_active_spouse() %} · Spouse: {{ person.get_active_spouse().get_display_name() }}{% endif %}
-                    </div>
+                    <div style="font-weight:600;font-size:14px;">{{ event.name }}</div>
+                    {% if event.location %}<div class="meta">{{ event.location }}</div>{% endif %}
                 </div>
-                {% if person.birthday %}
-                <div style="font-size:13px;color:var(--text-muted);">Age {{ person.get_age() }}</div>
-                {% endif %}
-                {% if person.user == current_user %}
-                <span class="badge b-active"><span class="dot"></span>You</span>
-                {% endif %}
-            </div>
+            </a>
             {% endfor %}
         {% else %}
-            <div style="padding: 40px 0; text-align: center; color: var(--text-muted);">
-                <img src="{{ url_for('static', filename='assets/illustrations/peapod.svg') }}" alt="" style="height:64px;margin-bottom:16px;opacity:0.5;">
-                <p>No members yet. Invite your family to get started.</p>
-            </div>
+            <p style="color:var(--text-muted);font-size:14px;padding:8px 0;">No upcoming events.</p>
+            {% if current_user.is_admin %}
+            <a href="/events/add" class="btn btn-ghost btn-sm" style="margin-top:4px;"><i data-lucide="plus"></i> Add event</a>
+            {% endif %}
         {% endif %}
     </div>
 
-    <!-- Sidebar: upcoming birthdays -->
-    <div style="display:flex;flex-direction:column;gap:20px;">
-        <div class="card">
-            <div class="card-header">
-                <h3>Upcoming Birthdays</h3>
-                <span class="meta">Next 30 days</span>
-            </div>
-            {% if upcoming_birthdays %}
-                {% for person, bday, days in upcoming_birthdays %}
-                <div class="bday-row">
-                    <div class="bday-date">
-                        <span class="day">{{ bday.strftime('%-d') }}</span>
-                        <span class="mon">{{ bday.strftime('%b') }}</span>
-                    </div>
-                    <div>
-                        <div class="bday-row name">
-                            <a href="/person/{{ person.id }}">{{ person.get_display_name() }}</a>
-                        </div>
-                        <div class="bday-row age">
-                            Turning {{ person.get_age() + 1 }} ·
-                            {% if days == 0 %}Today!
-                            {% elif days == 1 %}Tomorrow
-                            {% else %}in {{ days }} days{% endif %}
-                        </div>
-                    </div>
-                    <span class="badge b-active" style="background:var(--berry-soft);color:var(--berry);border-radius:var(--r-pill);">🎂</span>
-                </div>
-                {% endfor %}
-            {% else %}
-                <p style="color:var(--text-muted);font-size:14px;padding:8px 0;">No birthdays in the next 30 days.</p>
-            {% endif %}
+    <div class="card">
+        <div class="card-header">
+            <h3>Upcoming Birthdays</h3>
+            <span class="meta">Next 30 days</span>
         </div>
-
-        <div class="card" style="border-left: 3px solid var(--pea);">
-            <p style="font-size:13px;color:var(--text-muted);margin-bottom:8px;">Quick links</p>
-            <div style="display:flex;flex-direction:column;gap:6px;">
-                <a href="/profile/edit" class="btn btn-secondary btn-sm" style="justify-content:flex-start;">
-                    <i data-lucide="edit-2"></i> Edit my profile
-                </a>
-                <a href="/spouse/add" class="btn btn-secondary btn-sm" style="justify-content:flex-start;">
-                    <i data-lucide="heart"></i> Add spouse
-                </a>
+        {% if upcoming_birthdays %}
+            {% for person, bday, days in upcoming_birthdays %}
+            <div class="bday-row">
+                <div class="bday-date">
+                    <span class="day">{{ bday.strftime('%-d') }}</span>
+                    <span class="mon">{{ bday.strftime('%b') }}</span>
+                </div>
+                <div>
+                    <div class="bday-row name">
+                        <a href="/person/{{ person.id }}">{{ person.get_display_name() }}</a>
+                    </div>
+                    <div class="bday-row age">
+                        Turning {{ person.get_age() + 1 }} ·
+                        {% if days == 0 %}Today!
+                        {% elif days == 1 %}Tomorrow
+                        {% else %}in {{ days }} days{% endif %}
+                    </div>
+                </div>
+                <span class="badge b-active" style="background:var(--berry-soft);color:var(--berry);border-radius:var(--r-pill);">🎂</span>
             </div>
+            {% endfor %}
+        {% else %}
+            <p style="color:var(--text-muted);font-size:14px;padding:8px 0;">No birthdays in the next 30 days.</p>
+        {% endif %}
+    </div>
+
+    <div class="card" style="border-left: 3px solid var(--pea);">
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:8px;">Quick links</p>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+            <a href="/profile/edit" class="btn btn-secondary btn-sm" style="justify-content:flex-start;">
+                <i data-lucide="edit-2"></i> Edit my profile
+            </a>
+            <a href="/spouse/add" class="btn btn-secondary btn-sm" style="justify-content:flex-start;">
+                <i data-lucide="heart"></i> Add spouse
+            </a>
         </div>
     </div>
 

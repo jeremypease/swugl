@@ -2,6 +2,7 @@
 
 {% block title %}Family Tree — Peavines{% endblock %}
 
+{% from "_macros.html" import av %}
 {% block content %}
 <div class="page-head">
     <div>
@@ -14,13 +15,13 @@
 <div class="tree-branch">
     <div class="tree-couple">
         <a href="/person/{{ node.person.id }}" class="tree-card">
-            <div class="av av-sm" style="background:var(--vine);">{{ node.person.name[0] }}</div>
+            {{ av(node.person, size='sm', color='var(--vine)') }}
             <span>{{ node.person.get_display_name() }}</span>
         </a>
         {% if node.spouse %}
         <span class="tree-connector">+</span>
         <a href="/person/{{ node.spouse.id }}" class="tree-card">
-            <div class="av av-sm" style="background:var(--pea);">{{ node.spouse.name[0] }}</div>
+            {{ av(node.spouse, size='sm', color='var(--pea)') }}
             <span>{{ node.spouse.get_display_name() }}</span>
         </a>
         {% endif %}
@@ -67,7 +68,7 @@
     <div style="display:flex;flex-wrap:wrap;gap:10px;padding-top:4px;">
         {% for person in extended %}
         <a href="/person/{{ person.id }}" class="tree-card">
-            <div class="av av-sm" style="background:var(--sprout);color:var(--vine-deep);">{{ person.name[0] }}</div>
+            {{ av(person, size='sm', color='var(--sprout)', text_color='var(--vine-deep)') }}
             <span>{{ person.get_display_name() }}</span>
         </a>
         {% endfor %}

@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 from . import db
 import secrets
 import re
+import os
 
 main = Blueprint('main', __name__)
 
@@ -155,6 +156,7 @@ def get_core_ids(node):
 @login_required
 def index():
     people = Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
+    member_count = len(people)
     today = date.today()
     upcoming_birthdays = []
     for person in people:
@@ -172,8 +174,11 @@ def index():
             if days <= 30:
                 upcoming_birthdays.append((person, bday, days))
     upcoming_birthdays.sort(key=lambda x: x[2])
-    return render_template('index.html', people=people, family=current_user.family,
-                           upcoming_birthdays=upcoming_birthdays)
+    upcoming_events = Event.query.filter_by(family_id=current_user.family_id).filter(
+        Event.start_date >= today
+    ).order_by(Event.start_date).limit(3).all()
+    return render_template('index.html', member_count=member_count, family=current_user.family,
+                           upcoming_birthdays=upcoming_birthdays, upcoming_events=upcoming_events)
 
 @main.route('/login', methods=['GET', 'POST'])
 def login():
@@ -653,6 +658,26 @@ def person_edit(person_id):
         # Only update email if person has no login account (otherwise email = login email)
         if not person.user:
             person.email = form.email.data or None
+        # Handle photo upload/removal
+        if form.remove_photo.data and person.photo_path:
+            old_path = os.path.join(current_app.root_path, 'static', person.photo_path)
+            if os.path.exists(old_path):
+                os.remove(old_path)
+            person.photo_path = None
+            person.photo_position = '50% 30%'
+        elif form.photo.data:
+            file = form.photo.data
+            ext = file.filename.rsplit('.', 1)[-1].lower()
+            upload_dir = os.path.join(current_app.root_path, 'static', 'uploads', 'photos')
+            os.makedirs(upload_dir, exist_ok=True)
+            filename = f'person_{person_id}.{ext}'
+            # Remove old photo if extension changed
+            if person.photo_path and person.photo_path != f'uploads/photos/{filename}':
+                old_path = os.path.join(current_app.root_path, 'static', person.photo_path)
+                if os.path.exists(old_path):
+                    os.remove(old_path)
+            file.save(os.path.join(upload_dir, filename))
+            person.photo_path = f'uploads/photos/{filename}'
         db.session.commit()
         flash('Profile updated.', 'info')
         return redirect(url_for('main.person_detail', person_id=person_id))

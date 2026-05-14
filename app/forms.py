@@ -1,5 +1,6 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, BooleanField, SubmitField, DateField, TextAreaField, SelectField, IntegerField
+from flask_wtf.file import FileField, FileAllowed
+from wtforms import StringField, PasswordField, BooleanField, SubmitField, DateField, TextAreaField, SelectField, IntegerField, HiddenField
 from wtforms.validators import DataRequired, Email, Length, EqualTo, Regexp, Optional
 
 class LoginForm(FlaskForm):
@@ -122,6 +123,8 @@ class EditPersonForm(FlaskForm):
     deathday = DateField('Date of Passing', validators=[Optional()])
     deathplace = StringField('Place of Passing', validators=[Optional(), Length(max=100)])
     notes = TextAreaField('Notes')
+    photo = FileField('Profile Photo', validators=[Optional(), FileAllowed(['jpg', 'jpeg', 'png', 'webp'], 'Images only.')])
+    remove_photo = BooleanField('Remove current photo')
     submit = SubmitField('Save Changes')
 
 class RelativeForm(FlaskForm):

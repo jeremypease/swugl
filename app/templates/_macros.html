@@ -1,0 +1,14 @@
+{% macro av(person, size='sm', color='var(--vine)', text_color=None) %}
+{% if person.photo_path %}
+<div class="av av-{{ size }}" style="background-image:url('{{ url_for('static', filename=person.photo_path) }}');"></div>
+{% else %}
+  {% if person.gender == 'Female' %}
+    {% set placeholder = url_for('static', filename='assets/avatar-female.svg') %}
+  {% elif person.gender == 'Male' %}
+    {% set placeholder = url_for('static', filename='assets/avatar-male.svg') %}
+  {% else %}
+    {% set placeholder = url_for('static', filename='assets/avatar-neutral.svg') %}
+  {% endif %}
+<div class="av av-{{ size }}" style="background:{{ color }};background-image:url('{{ placeholder }}');background-size:90%;background-position:center bottom;"></div>
+{% endif %}
+{% endmacro %}

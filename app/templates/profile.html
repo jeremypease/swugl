@@ -2,6 +2,7 @@
 
 {% block title %}{{ person.get_display_name() }} — Peavines{% endblock %}
 
+{% from "_macros.html" import av %}
 {% block content %}
 
 {% set is_own_profile = person.user == current_user %}
@@ -33,7 +34,7 @@
     <div>
         <div class="card profile-photo-card">
             <div class="photo" style="background: linear-gradient(135deg, var(--sprout) 0%, var(--vine) 100%); display:flex;align-items:center;justify-content:center;">
-                <div class="av av-xl" style="background: var(--vine-deep);">{{ person.name[0] }}</div>
+                {{ av(person, size='xl', color='var(--vine-deep)') }}
             </div>
             <div class="name">{{ person.name }}</div>
             {% if person.get_age() %}
@@ -95,7 +96,7 @@
             {% if active_spouse %}
             <div class="relation-row">
                 <span class="role">Spouse</span>
-                <div class="av av-sm" style="background:var(--pea);">{{ active_spouse.name[0] }}</div>
+                {{ av(active_spouse, size='sm', color='var(--pea)') }}
                 <span class="name"><a href="/person/{{ active_spouse.id }}">{{ active_spouse.get_display_name() }}</a></span>
                 {% if is_own_profile %}
                 <a href="/spouse/end" class="btn btn-ghost btn-sm" style="color:var(--tomato);">End</a>
@@ -122,7 +123,7 @@
             {% for parent in person.parents %}
             <div class="relation-row">
                 <span class="role">Parent</span>
-                <div class="av av-sm" style="background:var(--vine);">{{ parent.name[0] }}</div>
+                {{ av(parent, size='sm', color='var(--vine)') }}
                 <span class="name"><a href="/person/{{ parent.id }}">{{ parent.get_display_name() }}</a></span>
                 {% if parent.birthday %}<span class="meta">b. {{ parent.birthday.strftime('%Y') }}</span>{% endif %}
                 {% if can_edit %}
@@ -146,7 +147,7 @@
             {% for child in person.children %}
             <div class="relation-row">
                 <span class="role">Child</span>
-                <div class="av av-sm" style="background:var(--sprout);color:var(--vine-deep);">{{ child.name[0] }}</div>
+                {{ av(child, size='sm', color='var(--sprout)', text_color='var(--vine-deep)') }}
                 <span class="name"><a href="/person/{{ child.id }}">{{ child.get_display_name() }}</a></span>
                 {% if child.birthday %}<span class="meta">b. {{ child.birthday.strftime('%Y') }}</span>{% endif %}
                 {% if can_edit %}

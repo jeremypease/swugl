@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- head -->
+  <circle cx="50" cy="34" r="18" fill="rgba(255,255,255,0.55)"/>
+  <!-- shoulders / body -->
+  <path d="M14 95 Q14 68 50 68 Q86 68 86 95Z" fill="rgba(255,255,255,0.55)"/>
+</svg>

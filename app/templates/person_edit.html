@@ -12,7 +12,7 @@
 
 <div style="max-width: 580px;">
     <div class="card">
-        <form method="POST">
+        <form id="edit-form" method="POST" enctype="multipart/form-data">
             {{ form.hidden_tag() }}
 
             <div class="field">
@@ -80,6 +80,39 @@
             </div>
 
             <div class="field">
+                <label>Profile Photo</label>
+
+                {% if person.photo_path %}
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+                    {% from "_macros.html" import av %}
+                    {{ av(person, size='lg') }}
+                    <div>
+                        <div style="font-size:13px;color:var(--text-muted);margin-bottom:6px;">Current photo</div>
+                        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+                            {{ form.remove_photo() }} Remove photo
+                        </label>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- File picker -->
+                {{ form.photo(id='photo-file-input', accept="image/jpeg,image/png,image/webp", style="display:none") }}
+                <label for="photo-file-input" class="btn btn-secondary btn-sm" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
+                    <i data-lucide="upload"></i> {% if person.photo_path %}Replace photo{% else %}Upload photo{% endif %}
+                </label>
+                {% for error in form.photo.errors %}<span class="msg">{{ error }}</span>{% endfor %}
+
+                <!-- Crop UI — shown after file selected -->
+                <div id="crop-wrap" style="display:none;margin-top:16px;">
+                    <div style="width:160px;height:160px;border-radius:50%;overflow:hidden;border:2px solid var(--border);cursor:grab;">
+                        <canvas id="crop-canvas" width="160" height="160"></canvas>
+                    </div>
+                    <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">Drag to reposition · adjustments are baked in on save</div>
+                </div>
+                <canvas id="final-canvas" width="400" height="400" style="display:none;"></canvas>
+            </div>
+
+            <div class="field">
                 {{ form.notes.label }}
                 {{ form.notes(rows=4) }}
             </div>
@@ -97,4 +130,99 @@
         </form>
     </div>
 </div>
+
+<script>
+(function () {
+    const fileInput  = document.getElementById('photo-file-input');
+    const cropWrap   = document.getElementById('crop-wrap');
+    const cropCanvas = document.getElementById('crop-canvas');
+    const finalCanvas = document.getElementById('final-canvas');
+    const form = document.getElementById('edit-form');
+    const ctx  = cropCanvas.getContext('2d');
+    const fctx = finalCanvas.getContext('2d');
+
+    const PREVIEW = 160, OUTPUT = 400;
+    let img = null, scaledW = 0, scaledH = 0;
+    let offsetX = 0, offsetY = 0;
+    let dragging = false, lastX, lastY;
+
+    function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+    function render() {
+        ctx.clearRect(0, 0, PREVIEW, PREVIEW);
+        ctx.drawImage(img,
+            (PREVIEW - scaledW) / 2 + offsetX,
+            (PREVIEW - scaledH) / 2 + offsetY,
+            scaledW, scaledH);
+    }
+
+    fileInput.addEventListener('change', e => {
+        const file = e.target.files[0];
+        if (!file) { cropWrap.style.display = 'none'; img = null; return; }
+        img = new Image();
+        img.onload = () => {
+            const s = Math.max(PREVIEW / img.naturalWidth, PREVIEW / img.naturalHeight);
+            scaledW = img.naturalWidth * s;
+            scaledH = img.naturalHeight * s;
+            offsetX = 0;
+            offsetY = 0;
+            render();
+            cropWrap.style.display = 'block';
+        };
+        img.src = URL.createObjectURL(file);
+    });
+
+    cropCanvas.addEventListener('mousedown', e => {
+        if (!img) return;
+        dragging = true; lastX = e.clientX; lastY = e.clientY;
+        cropCanvas.style.cursor = 'grabbing';
+        e.preventDefault();
+    });
+    cropCanvas.addEventListener('touchstart', e => {
+        if (!img) return;
+        dragging = true; lastX = e.touches[0].clientX; lastY = e.touches[0].clientY;
+        e.preventDefault();
+    }, { passive: false });
+
+    document.addEventListener('mousemove', e => {
+        if (!dragging) return;
+        const dx = e.clientX - lastX, dy = e.clientY - lastY;
+        lastX = e.clientX; lastY = e.clientY;
+        offsetX = clamp(offsetX + dx, -(scaledW - PREVIEW) / 2, (scaledW - PREVIEW) / 2);
+        offsetY = clamp(offsetY + dy, -(scaledH - PREVIEW) / 2, (scaledH - PREVIEW) / 2);
+        render();
+    });
+    document.addEventListener('touchmove', e => {
+        if (!dragging) return;
+        const dx = e.touches[0].clientX - lastX, dy = e.touches[0].clientY - lastY;
+        lastX = e.touches[0].clientX; lastY = e.touches[0].clientY;
+        offsetX = clamp(offsetX + dx, -(scaledW - PREVIEW) / 2, (scaledW - PREVIEW) / 2);
+        offsetY = clamp(offsetY + dy, -(scaledH - PREVIEW) / 2, (scaledH - PREVIEW) / 2);
+        render();
+    }, { passive: false });
+
+    document.addEventListener('mouseup',  () => { dragging = false; cropCanvas.style.cursor = 'grab'; });
+    document.addEventListener('touchend', () => { dragging = false; });
+
+    form.addEventListener('submit', e => {
+        if (!img) return; // no new file selected — submit normally
+        e.preventDefault();
+
+        // Render the crop at full output resolution
+        const ratio = OUTPUT / PREVIEW;
+        fctx.clearRect(0, 0, OUTPUT, OUTPUT);
+        fctx.drawImage(img,
+            ((PREVIEW - scaledW) / 2 + offsetX) * ratio,
+            ((PREVIEW - scaledH) / 2 + offsetY) * ratio,
+            scaledW * ratio, scaledH * ratio);
+
+        finalCanvas.toBlob(blob => {
+            const dt = new DataTransfer();
+            dt.items.add(new File([blob], 'photo.jpg', { type: 'image/jpeg' }));
+            fileInput.files = dt.files;
+            form.submit(); // native submit, bypasses listener
+        }, 'image/jpeg', 0.92);
+    });
+}());
+</script>
 {% endblock %}

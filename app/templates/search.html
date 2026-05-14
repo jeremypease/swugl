@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import av %}
 
 {% block title %}Search — Peavines{% endblock %}
 
@@ -26,7 +27,7 @@
     </div>
     {% for person in results %}
     <div class="member-row">
-        <div class="av av-md" style="background:var(--vine);">{{ person.name[0] }}</div>
+        {{ av(person, size='md', color='var(--vine)') }}
         <div>
             <div class="name">
                 <a href="/person/{{ person.id }}">{{ person.name }}</a>

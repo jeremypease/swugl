@@ -64,6 +64,7 @@ class Person(db.Model):
     email = db.Column(db.String(120))
     phone = db.Column(db.String(20))
     photo_path = db.Column(db.String(200))
+    photo_position = db.Column(db.String(20), default='50% 30%')
     notes = db.Column(db.Text)
 
     family = db.relationship('Family', back_populates='people', foreign_keys='Person.family_id')

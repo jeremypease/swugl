@@ -14,3 +14,6 @@ venv/
 
 # Database
 instance/family.db
+
+# Uploads
+app/static/uploads/
