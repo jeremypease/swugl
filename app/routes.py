@@ -156,7 +156,21 @@ def get_core_ids(node):
 @login_required
 def members():
     people = Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
-    return render_template('members.html', people=people, family=current_user.family)
+    today = date.today()
+    bday_days = {}
+    for p in people:
+        if p.birthday:
+            try:
+                bday = p.birthday.replace(year=today.year)
+            except ValueError:
+                bday = p.birthday.replace(year=today.year, day=28)
+            if bday < today:
+                try:
+                    bday = p.birthday.replace(year=today.year + 1)
+                except ValueError:
+                    bday = p.birthday.replace(year=today.year + 1, day=28)
+            bday_days[p.id] = (bday - today).days
+    return render_template('members.html', people=people, family=current_user.family, bday_days=bday_days)
 
 @main.route('/')
 @login_required
@@ -183,8 +197,21 @@ def index():
     upcoming_events = Event.query.filter_by(family_id=current_user.family_id).filter(
         Event.start_date >= today
     ).order_by(Event.start_date).limit(3).all()
+    # Profile completeness nudge
+    profile_nudge = []
+    me = current_user.person
+    if me:
+        if not me.photo_path:
+            profile_nudge.append(('photo', 'Add a profile photo'))
+        if not me.birthday:
+            profile_nudge.append(('birthday', 'Add your birthday'))
+        if not me.gender:
+            profile_nudge.append(('gender', 'Set your gender'))
+        if not me.birthplace:
+            profile_nudge.append(('birthplace', 'Add your birthplace'))
     return render_template('index.html', member_count=member_count, family=current_user.family,
-                           upcoming_birthdays=upcoming_birthdays, upcoming_events=upcoming_events)
+                           upcoming_birthdays=upcoming_birthdays, upcoming_events=upcoming_events,
+                           profile_nudge=profile_nudge, me=me)
 
 @main.route('/login', methods=['GET', 'POST'])
 def login():

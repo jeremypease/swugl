@@ -8,7 +8,7 @@
     <div>
         <div class="eyebrow">{{ family.name }}</div>
         <h1>Members</h1>
-        <p class="sub">{{ people|length }} member{{ 's' if people|length != 1 else '' }}</p>
+        <p class="sub" id="result-count">{{ people|length }} member{{ 's' if people|length != 1 else '' }}</p>
     </div>
     {% if current_user.is_admin %}
     <a href="/admin/add-member" class="btn btn-primary">
@@ -17,17 +17,61 @@
     {% endif %}
 </div>
 
-<div style="margin-bottom:20px;">
-    <input id="member-search" type="search" placeholder="Filter by name…"
-           style="max-width:320px;width:100%;"
-           oninput="filterMembers(this.value)">
+<!-- Filters -->
+<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
+
+    <!-- Row 1: search + sort -->
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        <input id="member-search" type="search" placeholder="Search by name…"
+               style="width:220px;" oninput="applyFilters()">
+        <select id="sort-select" onchange="applyFilters()" style="width:auto;">
+            <option value="az">A – Z</option>
+            <option value="za">Z – A</option>
+            <option value="youngest">Youngest first</option>
+            <option value="oldest">Oldest first</option>
+        </select>
+    </div>
+
+    <!-- Row 2: toggle filters -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <div class="filter-group">
+            <button class="filter-btn active" data-filter="gender" data-value="">All</button>
+            <button class="filter-btn" data-filter="gender" data-value="Male">Male</button>
+            <button class="filter-btn" data-filter="gender" data-value="Female">Female</button>
+        </div>
+        <div class="filter-group">
+            <button class="filter-btn active" data-filter="status" data-value="">All</button>
+            <button class="filter-btn" data-filter="status" data-value="living">Living</button>
+            <button class="filter-btn" data-filter="status" data-value="deceased">Deceased</button>
+        </div>
+        <div class="filter-group">
+            <button class="filter-btn active" data-filter="photo" data-value="">All</button>
+            <button class="filter-btn" data-filter="photo" data-value="true">With photo</button>
+            <button class="filter-btn" data-filter="photo" data-value="false">Without photo</button>
+        </div>
+        <button class="filter-btn" id="upcoming-btn" onclick="toggleUpcoming(this)">
+            🎂 Upcoming birthdays
+        </button>
+    </div>
+
+    <!-- Row 3: last name initials -->
+    <div id="initial-row" style="display:flex;gap:4px;flex-wrap:wrap;"></div>
+
 </div>
 
-<div id="member-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:16px;">
+<!-- Grid -->
+<div id="member-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:16px;">
     {% for person in people %}
+    {% set last_initial = person.name.split()[-1][0].upper() %}
     <a href="/person/{{ person.id }}"
        class="member-card"
-       data-name="{{ person.name|lower }}{% if person.nickname %} {{ person.nickname|lower }}{% endif %}"
+       data-name="{{ (person.name ~ ' ' ~ (person.nickname or ''))|lower }}"
+       data-last-initial="{{ last_initial }}"
+       data-age="{{ person.get_age() or '' }}"
+       data-gender="{{ person.gender or '' }}"
+       data-deceased="{{ 'true' if person.deathday else 'false' }}"
+       data-bday-days="{{ bday_days.get(person.id, -1) }}"
+       data-has-photo="{{ 'true' if person.photo_path else 'false' }}"
        style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:20px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-card);text-decoration:none;color:inherit;transition:box-shadow 0.15s,border-color 0.15s;">
         {{ av(person, size='lg') }}
         <div style="text-align:center;">
@@ -43,30 +87,134 @@
             {% if person.deathday %}
             <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">† {{ person.deathday.strftime('%Y') }}</div>
             {% endif %}
+            {% if bday_days.get(person.id, -1) >= 0 and bday_days.get(person.id) <= 90 %}
+            <div style="font-size:11px;color:var(--berry);margin-top:3px;">
+                🎂 {% if bday_days[person.id] == 0 %}Today!{% elif bday_days[person.id] == 1 %}Tomorrow{% else %}in {{ bday_days[person.id] }} days{% endif %}
+            </div>
+            {% endif %}
         </div>
     </a>
     {% endfor %}
 </div>
 
-<p id="no-results" style="display:none;color:var(--text-muted);margin-top:24px;">No members match that name.</p>
+<p id="no-results" style="display:none;color:var(--text-muted);margin-top:24px;">No members match these filters.</p>
 
 <style>
-.member-card:hover {
-    border-color: var(--vine);
-    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+.member-card:hover { border-color:var(--vine); box-shadow:0 4px 16px rgba(0,0,0,0.08); }
+.filter-group { display:flex; border:1px solid var(--border); border-radius:var(--r-pill); overflow:hidden; }
+.filter-group .filter-btn { border:none; border-radius:0; border-right:1px solid var(--border); }
+.filter-group .filter-btn:last-child { border-right:none; }
+.filter-btn {
+    padding:5px 12px; font-size:13px; cursor:pointer;
+    background:var(--surface); color:var(--text-muted);
+    border:1px solid var(--border); border-radius:var(--r-pill);
+    transition:background 0.1s, color 0.1s;
+    white-space:nowrap;
 }
+.filter-btn.active { background:var(--vine); color:#fff; border-color:var(--vine); }
+.initial-btn {
+    min-width:28px; height:28px; padding:0 6px; font-size:12px; font-weight:600;
+    cursor:pointer; background:var(--surface); color:var(--text-muted);
+    border:1px solid var(--border); border-radius:var(--r-sm);
+    transition:background 0.1s, color 0.1s;
+}
+.initial-btn.active { background:var(--vine); color:#fff; border-color:var(--vine); }
 </style>
 
 <script>
-function filterMembers(q) {
-    const term = q.toLowerCase().trim();
-    let visible = 0;
-    document.querySelectorAll('.member-card').forEach(card => {
-        const match = !term || card.dataset.name.includes(term);
-        card.style.display = match ? '' : 'none';
-        if (match) visible++;
+const cards = Array.from(document.querySelectorAll('.member-card'));
+let activeFilters = { gender: '', status: '', photo: '', upcoming: false };
+let activeInitial = '';
+
+// Build initial buttons from available last-name initials
+(function buildInitials() {
+    const seen = new Set();
+    cards.forEach(c => seen.add(c.dataset.lastInitial));
+    const initials = Array.from(seen).sort();
+    if (initials.length <= 1) return;
+    const row = document.getElementById('initial-row');
+    const allBtn = document.createElement('button');
+    allBtn.className = 'initial-btn active';
+    allBtn.textContent = 'All';
+    allBtn.onclick = () => setInitial('', allBtn);
+    row.appendChild(allBtn);
+    initials.forEach(letter => {
+        const btn = document.createElement('button');
+        btn.className = 'initial-btn';
+        btn.textContent = letter;
+        btn.onclick = () => setInitial(letter, btn);
+        row.appendChild(btn);
     });
-    document.getElementById('no-results').style.display = visible === 0 ? '' : 'none';
+})();
+
+function setInitial(letter, btn) {
+    activeInitial = letter;
+    document.querySelectorAll('.initial-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    applyFilters();
+}
+
+// Toggle filter buttons within a group
+document.querySelectorAll('.filter-btn[data-filter]').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const group = btn.dataset.filter;
+        document.querySelectorAll(`.filter-btn[data-filter="${group}"]`).forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        activeFilters[group] = btn.dataset.value;
+        applyFilters();
+    });
+});
+
+function toggleUpcoming(btn) {
+    activeFilters.upcoming = !activeFilters.upcoming;
+    btn.classList.toggle('active', activeFilters.upcoming);
+    applyFilters();
+}
+
+function applyFilters() {
+    const q = document.getElementById('member-search').value.toLowerCase().trim();
+    const sort = document.getElementById('sort-select').value;
+
+    let visible = cards.filter(card => {
+        if (q && !card.dataset.name.includes(q)) return false;
+        if (activeInitial && card.dataset.lastInitial !== activeInitial) return false;
+        if (activeFilters.gender && card.dataset.gender !== activeFilters.gender) return false;
+        if (activeFilters.status === 'living'   && card.dataset.deceased === 'true')  return false;
+        if (activeFilters.status === 'deceased' && card.dataset.deceased !== 'true')  return false;
+        if (activeFilters.photo && card.dataset.hasPhoto !== activeFilters.photo) return false;
+        if (activeFilters.upcoming) {
+            const d = parseInt(card.dataset.bdayDays);
+            if (d < 0 || d > 90) return false;
+        }
+        return true;
+    });
+
+    // Sort — upcoming birthday filter overrides to days-until order
+    visible.sort((a, b) => {
+        if (activeFilters.upcoming) {
+            return parseInt(a.dataset.bdayDays) - parseInt(b.dataset.bdayDays);
+        }
+        if (sort === 'youngest') {
+            const ag = parseInt(a.dataset.age) || 999, bg = parseInt(b.dataset.age) || 999;
+            return ag - bg;
+        }
+        if (sort === 'oldest') {
+            const ag = parseInt(a.dataset.age) || -1, bg = parseInt(b.dataset.age) || -1;
+            return bg - ag;
+        }
+        const na = a.dataset.name, nb = b.dataset.name;
+        return sort === 'za' ? nb.localeCompare(na) : na.localeCompare(nb);
+    });
+
+    // Hide all, show + reorder visible
+    cards.forEach(c => c.style.display = 'none');
+    const grid = document.getElementById('member-grid');
+    visible.forEach(c => { c.style.display = ''; grid.appendChild(c); });
+
+    const count = visible.length;
+    document.getElementById('result-count').textContent =
+        count + ' member' + (count !== 1 ? 's' : '');
+    document.getElementById('no-results').style.display = count === 0 ? '' : 'none';
 }
 </script>
 {% endblock %}
