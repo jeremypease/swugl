@@ -30,6 +30,9 @@
             <a href="/profile" {% if request.path == '/profile' %}class="active"{% endif %}>
                 <i data-lucide="user"></i> My Profile
             </a>
+            <a href="/members" {% if request.path == '/members' %}class="active"{% endif %}>
+                <i data-lucide="users"></i> Members
+            </a>
             <a href="/events" {% if request.path.startswith('/events') %}class="active"{% endif %}>
                 <i data-lucide="calendar"></i> Events
             </a>

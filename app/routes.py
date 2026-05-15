@@ -152,6 +152,12 @@ def get_core_ids(node):
         ids |= get_core_ids(child)
     return ids
 
+@main.route('/members')
+@login_required
+def members():
+    people = Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
+    return render_template('members.html', people=people, family=current_user.family)
+
 @main.route('/')
 @login_required
 def index():
