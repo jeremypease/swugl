@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, send_file
 from flask_login import login_user, logout_user, login_required, current_user
-from .models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, EventSleepingSpot, Announcement, Album, Photo
-from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm, ForgotPasswordForm, ResetPasswordForm, AddPersonForm, RelativeForm, AddParentForm, FamilySettingsForm, EditPersonForm, EventForm, EventMealForm, EventMealFamilyAssignForm, EventMealItemForm, EventMealAssignForm, EventAssignmentForm, EventSleepingSpotForm, EventSleepingAssignForm, GENDER_CHOICES_DEFAULT, GENDER_CHOICES_EXPANDED, PRONOUN_CHOICES, AnnouncementForm, AlbumForm, PhotoUploadForm
+from .models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, ASSIGNMENT_CATEGORIES, EventRSVP, EventSleepingSpot, Announcement, Album, Photo
+from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm, ForgotPasswordForm, ResetPasswordForm, AddPersonForm, RelativeForm, AddParentForm, FamilySettingsForm, EditPersonForm, EventForm, EventMealForm, EventMealFamilyAssignForm, EventMealItemForm, EventMealSelfSignupForm, EventMealAssignForm, EventAssignmentForm, EventAssignmentAdminAssignForm, EventSleepingSpotForm, EventSleepingAssignForm, GENDER_CHOICES_DEFAULT, GENDER_CHOICES_EXPANDED, PRONOUN_CHOICES, AnnouncementForm, AlbumForm, PhotoUploadForm
 from .email import send_verification_email, send_pending_notification, send_approval_notification, send_spouse_confirmation_email, send_spouse_invitation_email, send_password_reset_email, send_member_invitation_email
 from datetime import date, datetime, timedelta
 from functools import wraps
@@ -411,9 +411,10 @@ def add_member():
                 if same_last and (same_first or close_first or bday_match):
                     similar.append(p)
             if similar:
+                link_spouse_for = request.args.get('link_spouse_for', type=int)
                 return render_template('add_member.html', form=form, parent1=parent1,
                                        parent2=parent2, next_page=next_page, similar=similar,
-                                       purpose=purpose)
+                                       purpose=purpose, link_spouse_for=link_spouse_for)
         person = Person(
             name=f"{first} {last}",
             family_id=current_user.family_id,
@@ -437,8 +438,13 @@ def add_member():
         flash(f'{person.name} has been added to the family.', 'info')
         if next_page == 'tree':
             return redirect(url_for('main.family_tree'))
+        link_spouse_for = request.form.get('link_spouse_for', type=int) or request.args.get('link_spouse_for', type=int)
+        if link_spouse_for:
+            return redirect(url_for('main.admin_link_spouse', person_id=link_spouse_for))
         return redirect(url_for('main.person_detail', person_id=person.id))
-    return render_template('add_member.html', form=form, parent1=parent1, parent2=parent2, next_page=next_page, purpose=purpose)
+    link_spouse_for = request.args.get('link_spouse_for', type=int)
+    return render_template('add_member.html', form=form, parent1=parent1, parent2=parent2,
+                           next_page=next_page, purpose=purpose, link_spouse_for=link_spouse_for)
 
 @main.route('/person/<int:person_id>/add-parent', methods=['GET', 'POST'])
 @login_required
@@ -1036,6 +1042,7 @@ def person_edit(person_id):
         person.maiden_name = form.maiden_name.data or None
         person.occupation = form.occupation.data or None
         person.phone = format_phone(form.phone.data)
+        person.address = form.address.data or None
         person.deathday = form.deathday.data
         person.deathplace = form.deathplace.data or None
         person.notes = form.notes.data or None
@@ -1343,19 +1350,19 @@ def event_detail(event_id):
         flash('Event not found.', 'error')
         return redirect(url_for('main.events_list'))
     all_people = Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
-    people_choices = [(0, '— Select —')] + [(p.id, p.get_display_name()) for p in all_people]
+    dir_people = [p for p in all_people if p.in_directory]
+    people_choices = [(0, '— Select —')] + [(p.id, p.get_display_name()) for p in dir_people]
 
     meal_form = EventMealForm()
     meal_item_form = EventMealItemForm()
     # Per-meal family-assign forms (admin only) — deduplicated couples, directory members only
-    dir_people = [p for p in all_people if p.in_directory]
     couple_people = [p for p in dir_people if not p.get_active_spouse() or p.id < p.get_active_spouse().id]
     meal_family_forms = {}
     for meal in event.meals:
         f = EventMealFamilyAssignForm(prefix=f'meal_fam_{meal.id}')
         f.assigned_family_id.choices = [(0, '— None —')] + [(p.id, p.get_couple_name()) for p in couple_people]
         meal_family_forms[meal.id] = f
-    # Per-item assign forms (any member can assign anyone)
+    # Per-item assign forms — directory members only
     item_assign_forms = {}
     for meal in event.meals:
         for item in meal.items:
@@ -1364,18 +1371,54 @@ def event_detail(event_id):
             item_assign_forms[item.id] = f
 
     assign_form = EventAssignmentForm()
+    # Per-assignment admin-assign forms — directory members only
+    assign_admin_forms = {}
+    if current_user.is_admin:
+        for a in event.assignments:
+            f = EventAssignmentAdminAssignForm(prefix=f'a_{a.id}')
+            f.person_id.choices = people_choices
+            assign_admin_forms[a.id] = f
+
     spot_form = EventSleepingSpotForm()
     sleeping_assign_forms = {}
     if current_user.is_admin:
-        eligible = all_people
         for spot in event.sleeping_spots:
             spot_assigned_ids = {p.id for p in spot.people}
-            available = [(p.id, p.get_display_name()) for p in eligible if p.id not in spot_assigned_ids]
+            available = [(p.id, p.get_display_name()) for p in all_people if p.in_directory and p.id not in spot_assigned_ids]
             f = EventSleepingAssignForm(prefix=f'spot_{spot.id}')
             f.person_id.choices = [(0, '— Select —')] + available
             sleeping_assign_forms[spot.id] = f
 
+    self_signup_form = EventMealSelfSignupForm()
     my_person = current_user.person
+    event_form = EventForm(obj=event)
+
+    # RSVP data
+    rsvp_map = {r.person_id: r.status for r in event.rsvps}
+    # Household = self + spouse + minor children (under 18, or unknown age)
+    household = []
+    if my_person:
+        household.append(my_person)
+        spouse = my_person.get_active_spouse()
+        if spouse:
+            household.append(spouse)
+        child_ids = set()
+        for rel in my_person.child_rels:
+            child_ids.add(rel.child_id)
+        if spouse:
+            for rel in spouse.child_rels:
+                child_ids.add(rel.child_id)
+        unmarried_children = sorted(
+            [p for p in all_people if p.id in child_ids and _in_parent_household(p)],
+            key=lambda p: p.get_display_name()
+        )
+        household.extend(unmarried_children)
+
+    # Build grouped RSVP summary: one entry per household unit
+    rsvp_groups = _build_rsvp_groups(event, all_people)
+    # Full family groups for admin/contributor view
+    family_groups = _build_family_groups(all_people, rsvp_map) if (current_user.is_admin or current_user.is_delegate) else []
+
     return render_template('event_detail.html',
         event=event,
         meal_form=meal_form,
@@ -1384,9 +1427,17 @@ def event_detail(event_id):
         item_assign_forms=item_assign_forms,
         people_choices=people_choices,
         assign_form=assign_form,
+        assign_admin_forms=assign_admin_forms,
+        self_signup_form=self_signup_form,
         spot_form=spot_form,
         sleeping_assign_forms=sleeping_assign_forms,
         my_person=my_person,
+        event_form=event_form,
+        assignment_categories=ASSIGNMENT_CATEGORIES,
+        rsvp_map=rsvp_map,
+        household=household,
+        rsvp_groups=rsvp_groups,
+        family_groups=family_groups,
     )
 
 
@@ -1444,6 +1495,200 @@ def event_enable_section(event_id):
         event.has_sleeping = True
     db.session.commit()
     return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+@main.route('/events/<int:event_id>/disable-section', methods=['POST'])
+@login_required
+@admin_required
+def event_disable_section(event_id):
+    event = db.session.get(Event, event_id)
+    if not event or event.family_id != current_user.family_id:
+        return redirect(url_for('main.events_list'))
+    section = request.form.get('section')
+    if section == 'meals':
+        event.has_meals = False
+    elif section == 'assignments':
+        event.has_assignments = False
+    elif section == 'sleeping':
+        event.has_sleeping = False
+    db.session.commit()
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+# ── RSVPs ─────────────────────────────────────────────────────────────────────
+
+@main.route('/events/<int:event_id>/rsvp', methods=['POST'])
+@login_required
+def event_rsvp(event_id):
+    event = db.session.get(Event, event_id)
+    if not event or event.family_id != current_user.family_id:
+        return redirect(url_for('main.events_list'))
+    person_id = request.form.get('person_id', type=int)
+    status = request.form.get('status')
+    if not person_id or status not in ('yes', 'no', 'maybe'):
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    # Verify this person belongs to the family
+    person = db.session.get(Person, person_id)
+    if not person or person.family_id != current_user.family_id:
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    # Only allow editing RSVPs for your own household (admin can edit anyone)
+    if not current_user.is_admin:
+        household_ids = _get_household_ids(current_user.person)
+        if person_id not in household_ids:
+            return redirect(url_for('main.event_detail', event_id=event_id))
+    rsvp = EventRSVP.query.filter_by(event_id=event_id, person_id=person_id).first()
+    if rsvp:
+        rsvp.status = status
+    else:
+        rsvp = EventRSVP(event_id=event_id, person_id=person_id, status=status)
+        db.session.add(rsvp)
+    db.session.commit()
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+def _get_household_ids(person):
+    """Return set of person IDs that a user can RSVP for (self + spouse + unmarried children)."""
+    if not person:
+        return set()
+    ids = {person.id}
+    spouse = person.get_active_spouse()
+    if spouse:
+        ids.add(spouse.id)
+    for rel in person.child_rels:
+        child = rel.child
+        if child and _in_parent_household(child):
+            ids.add(child.id)
+    if spouse:
+        for rel in spouse.child_rels:
+            child = rel.child
+            if child and _in_parent_household(child):
+                ids.add(child.id)
+    return ids
+
+
+def _in_parent_household(person):
+    """True if person has no active spouse — unmarried children belong to their parent's household."""
+    return person.get_active_spouse() is None
+
+
+def _build_family_groups(all_people, rsvp_map):
+    """
+    Full family list for admin/contributor RSVP view — every directory household,
+    whether or not they've responded. Each group has adults + expandable children.
+    """
+    dir_people = [p for p in all_people if p.in_directory]
+
+    # Map child_id -> parent people (so we can skip children when building heads)
+    child_parent_map = {}
+    for p in dir_people:
+        for rel in p.child_rels:
+            child = rel.child
+            if child and child.in_directory and _in_parent_household(child):
+                child_parent_map.setdefault(child.id, []).append(p)
+
+    seen = set()
+    groups = []
+
+    for p in sorted(dir_people, key=lambda x: x.get_display_name()):
+        if p.id in seen:
+            continue
+        # Skip unmarried children of directory members — they appear under parents
+        if p.id in child_parent_map:
+            seen.add(p.id)
+            continue
+
+        seen.add(p.id)
+        adults = [(p, rsvp_map.get(p.id))]
+
+        spouse = p.get_active_spouse()
+        if spouse and spouse.in_directory and spouse.id not in seen:
+            adults.append((spouse, rsvp_map.get(spouse.id)))
+            seen.add(spouse.id)
+
+        # Collect unmarried children from both partners
+        child_ids = set()
+        for rel in p.child_rels:
+            if rel.child and rel.child.in_directory and _in_parent_household(rel.child):
+                child_ids.add(rel.child_id)
+        if spouse:
+            for rel in spouse.child_rels:
+                if rel.child and rel.child.in_directory and _in_parent_household(rel.child):
+                    child_ids.add(rel.child_id)
+
+        children = sorted(
+            [(pp, rsvp_map.get(pp.id)) for pp in dir_people if pp.id in child_ids],
+            key=lambda x: x[0].get_display_name()
+        )
+        for child, _ in children:
+            seen.add(child.id)
+
+        label = p.get_couple_name() if (spouse and spouse.in_directory) else p.get_display_name()
+        groups.append(dict(label=label, adults=adults, children=children))
+
+    return groups
+
+
+def _build_rsvp_groups(event, all_people):
+    """
+    Group RSVPs by household unit for the summary display.
+    Returns list of dicts: {label, yes: [names], maybe: [names], no: [names], total}
+    One entry per household (couple unit or lone adult), ordered by most-going first.
+    """
+    people_map = {p.id: p for p in all_people}
+    rsvp_map = {r.person_id: r.status for r in event.rsvps}
+    seen = set()
+    groups = []
+
+    # Process in alphabetical order so output is stable
+    responded = sorted(
+        [r for r in event.rsvps],
+        key=lambda r: r.person.get_display_name()
+    )
+
+    for rsvp in responded:
+        person = rsvp.person
+        if person.id in seen or not person.in_directory:
+            continue
+
+        # Gather the full household IDs
+        hh_ids = _get_household_ids(person)
+        # Also include household of spouse to avoid duplicates
+        spouse = person.get_active_spouse()
+        if spouse:
+            hh_ids |= _get_household_ids(spouse)
+
+        # Mark all as seen
+        seen |= hh_ids
+
+        # Collect responses within this household
+        yes_names, maybe_names, no_names = [], [], []
+        for pid in hh_ids:
+            p = people_map.get(pid)
+            if not p or not p.in_directory:
+                continue
+            s = rsvp_map.get(pid)
+            if s == 'yes':
+                yes_names.append(p.get_display_name())
+            elif s == 'maybe':
+                maybe_names.append(p.get_display_name())
+            elif s == 'no':
+                no_names.append(p.get_display_name())
+
+        if not (yes_names or maybe_names or no_names):
+            continue
+
+        # Label: couple name or single name
+        if spouse and spouse.in_directory:
+            label = person.get_couple_name()
+        else:
+            label = person.get_display_name()
+
+        groups.append(dict(label=label, yes=sorted(yes_names),
+                           maybe=sorted(maybe_names), no=sorted(no_names)))
+
+    # Sort: groups with most "yes" first
+    groups.sort(key=lambda g: (-len(g['yes']), -len(g['maybe']), g['label']))
+    return groups
 
 
 # ── Meals ─────────────────────────────────────────────────────────────────────
@@ -1530,7 +1775,27 @@ def event_meal_item_add(event_id, meal_id):
         item = EventMealItem(
             meal_id=meal_id,
             label=form.label.data,
+            quantity=form.quantity.data or None,
             is_cleanup=form.is_cleanup.data,
+        )
+        db.session.add(item)
+        db.session.commit()
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+@main.route('/events/<int:event_id>/meals/<int:meal_id>/self-signup', methods=['POST'])
+@login_required
+def event_meal_self_signup(event_id, meal_id):
+    meal = db.session.get(EventMeal, meal_id)
+    if not meal or meal.event.family_id != current_user.family_id:
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    form = EventMealSelfSignupForm()
+    if form.validate_on_submit() and current_user.person:
+        item = EventMealItem(
+            meal_id=meal_id,
+            label=form.label.data,
+            is_cleanup=False,
+            assigned_to_id=current_user.person.id,
         )
         db.session.add(item)
         db.session.commit()
@@ -1599,6 +1864,8 @@ def event_assignment_add(event_id):
             event_id=event_id,
             title=form.title.data,
             description=form.description.data or None,
+            category=form.category.data or None,
+            due_date=form.due_date.data or None,
         )
         db.session.add(a)
         db.session.commit()
@@ -1673,6 +1940,24 @@ def event_assignment_delete(event_id, aid):
     return redirect(url_for('main.event_detail', event_id=event_id))
 
 
+@main.route('/events/<int:event_id>/assignments/<int:aid>/assign', methods=['POST'])
+@login_required
+@admin_required
+def event_assignment_admin_assign(event_id, aid):
+    a = db.session.get(EventAssignment, aid)
+    if not a or a.event.family_id != current_user.family_id:
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    all_people = Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
+    form = EventAssignmentAdminAssignForm(prefix=f'a_{aid}')
+    form.person_id.choices = [(0, '— Select —')] + [(p.id, p.get_display_name()) for p in all_people]
+    if form.validate_on_submit():
+        pid = form.person_id.data
+        a.claimed_by_id = pid if pid else None
+        a.is_done = False
+        db.session.commit()
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
 # ── Sleeping ──────────────────────────────────────────────────────────────────
 
 @main.route('/events/<int:event_id>/sleeping/add-spot', methods=['POST'])
@@ -1712,9 +1997,12 @@ def event_sleeping_assign(event_id, sid):
     if form.validate_on_submit() and form.person_id.data:
         person = db.session.get(Person, form.person_id.data)
         if person and person.family_id == current_user.family_id and person not in spot.people:
-            spot.people.append(person)
-            db.session.commit()
-            flash(f'{person.get_display_name()} assigned to {spot.name}.', 'info')
+            if spot.capacity and len(spot.people) >= spot.capacity:
+                flash(f'"{spot.name}" is at capacity ({spot.capacity}).', 'error')
+            else:
+                spot.people.append(person)
+                db.session.commit()
+                flash(f'{person.get_display_name()} assigned to {spot.name}.', 'info')
     return redirect(url_for('main.event_detail', event_id=event_id))
 
 

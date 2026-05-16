@@ -12,6 +12,17 @@
 
 <div style="max-width: 580px;">
     <div class="card">
+        {% if form.errors %}
+        <div class="flash f-error" style="margin-bottom:16px;">
+            <i data-lucide="alert-circle" style="width:16px;height:16px;flex-shrink:0;"></i>
+            <div>
+                <strong>Please fix the following:</strong>
+                {% for field in form %}{% for error in field.errors %}
+                <div>{{ field.label.text }}: {{ error }}</div>
+                {% endfor %}{% endfor %}
+            </div>
+        </div>
+        {% endif %}
         <form id="edit-form" method="POST" enctype="multipart/form-data">
             {{ form.hidden_tag() }}
 
@@ -82,6 +93,11 @@
                     {% for error in form.email.errors %}<span class="msg">{{ error }}</span>{% endfor %}
                 </div>
                 {% endif %}
+            </div>
+
+            <div class="field">
+                {{ form.address.label }}
+                {{ form.address() }}
             </div>
 
             <div class="field-row">

@@ -134,14 +134,15 @@ class AddPersonForm(FlaskForm):
 class EditPersonForm(FlaskForm):
     name = StringField('Full Name', validators=[DataRequired(), Length(max=100)])
     nickname = StringField('Nickname / Goes By', validators=[Optional(), Length(max=50)])
-    gender = SelectField('Gender', choices=GENDER_CHOICES_DEFAULT)
-    pronouns = SelectField('Pronouns', choices=PRONOUN_CHOICES)
+    gender = SelectField('Gender', choices=GENDER_CHOICES_DEFAULT, validate_choice=False)
+    pronouns = SelectField('Pronouns', choices=PRONOUN_CHOICES, validate_choice=False)
     birthday = DateField('Birthday', validators=[Optional()])
     birthplace = StringField('Birthplace', validators=[Optional(), Length(max=100)])
     maiden_name = StringField('Maiden Name', validators=[Optional(), Length(max=100)])
     occupation = StringField('Occupation', validators=[Optional(), Length(max=100)])
     email = StringField('Email', validators=[Optional(), Email()])
     phone = StringField('Phone', validators=[Optional(), Length(max=20)])
+    address = StringField('Home Address', validators=[Optional(), Length(max=200)])
     deathday = DateField('Date of Passing', validators=[Optional()])
     deathplace = StringField('Place of Passing', validators=[Optional(), Length(max=100)])
     notes = TextAreaField('Notes')
@@ -195,8 +196,13 @@ class EventMealFamilyAssignForm(FlaskForm):
 
 class EventMealItemForm(FlaskForm):
     label = StringField('Item', validators=[DataRequired(), Length(max=150)])
+    quantity = IntegerField('Qty needed', validators=[Optional()])
     is_cleanup = BooleanField('Cleanup task')
     submit = SubmitField('Add Item')
+
+class EventMealSelfSignupForm(FlaskForm):
+    label = StringField('What will you bring?', validators=[DataRequired(), Length(max=150)])
+    submit = SubmitField('Sign Up')
 
 class EventMealAssignForm(FlaskForm):
     person_id = SelectField('Assign to', coerce=int, validators=[DataRequired()])
@@ -205,7 +211,13 @@ class EventMealAssignForm(FlaskForm):
 class EventAssignmentForm(FlaskForm):
     title = StringField('Task', validators=[DataRequired(), Length(max=150)])
     description = TextAreaField('Details')
+    category = SelectField('Category', choices=[('', '— General —'), ('Setup', 'Setup'), ('Cleanup', 'Cleanup'), ('Food', 'Food'), ('Errands', 'Errands'), ('Other', 'Other')], validators=[Optional()])
+    due_date = DateField('Due date', validators=[Optional()])
     submit = SubmitField('Add Task')
+
+class EventAssignmentAdminAssignForm(FlaskForm):
+    person_id = SelectField('Assign to', coerce=int, validators=[Optional()])
+    submit = SubmitField('Assign')
 
 class EventSleepingSpotForm(FlaskForm):
     name = StringField('Room / Spot', validators=[DataRequired(), Length(max=150)])

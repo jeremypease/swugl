@@ -104,6 +104,9 @@
                 {% if person.phone %}
                 <dt>Phone</dt><dd>{{ person.phone }}</dd>
                 {% endif %}
+                {% if person.address %}
+                <dt>Address</dt><dd>{{ person.address }}</dd>
+                {% endif %}
             </dl>
         </div>
     </div>
@@ -190,9 +193,12 @@
             </div>
             {% endfor %}
 
-            {% for child in person.children %}
+            {# Sort oldest to youngest; no-birthday children go last #}
+            {% set children_with_bday = person.children | selectattr('birthday') | sort(attribute='birthday') | list %}
+            {% set children_no_bday  = person.children | rejectattr('birthday') | list %}
+            {% for child in children_with_bday + children_no_bday %}
             <div class="relation-row">
-                <span class="role">{% if child.gender == 'Male' %}Son{% elif child.gender == 'Female' %}Daughter{% else %}Child{% endif %}</span>
+                <span class="role">{% if child.gender in ('Male', 'Transgender Male') %}Son{% elif child.gender in ('Female', 'Transgender Female') %}Daughter{% else %}Child{% endif %}</span>
                 {{ av(child, size='sm', color='var(--sprout)', text_color='var(--vine-deep)') }}
                 <span class="name"><a href="/person/{{ child.id }}">{{ child.get_display_name() }}</a></span>
                 {% if child.birthday %}<span class="meta">b. {{ child.birthday.strftime('%Y') }}</span>{% endif %}

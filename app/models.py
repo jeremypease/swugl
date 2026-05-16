@@ -93,6 +93,7 @@ class Person(db.Model):
     occupation = db.Column(db.String(100))
     email = db.Column(db.String(120))
     phone = db.Column(db.String(20))
+    address = db.Column(db.String(200))
     photo_path = db.Column(db.String(200))
     photo_position = db.Column(db.String(20), default='50% 30%')
     notes = db.Column(db.Text)
@@ -241,6 +242,7 @@ class Event(db.Model):
     meals = db.relationship('EventMeal', backref='event', cascade='all, delete-orphan', order_by='EventMeal.meal_date')
     assignments = db.relationship('EventAssignment', backref='event', cascade='all, delete-orphan')
     sleeping_spots = db.relationship('EventSleepingSpot', backref='event', cascade='all, delete-orphan')
+    rsvps = db.relationship('EventRSVP', backref='event', cascade='all, delete-orphan')
 
     def date_range_display(self):
         if not self.end_date or self.end_date == self.start_date:
@@ -271,11 +273,27 @@ class EventMealItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     meal_id = db.Column(db.Integer, db.ForeignKey('event_meals.id'), nullable=False)
     label = db.Column(db.String(150), nullable=False)
+    quantity = db.Column(db.Integer, nullable=True)
     is_cleanup = db.Column(db.Boolean, default=False)
     assigned_to_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=True)
 
     assigned_to = db.relationship('Person')
 
+
+ASSIGNMENT_CATEGORIES = ['General', 'Setup', 'Cleanup', 'Food', 'Errands', 'Other']
+
+
+class EventRSVP(db.Model):
+    __tablename__ = 'event_rsvps'
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.Integer, db.ForeignKey('events.id'), nullable=False)
+    person_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=False)
+    status = db.Column(db.String(10), nullable=False, default='yes')  # 'yes', 'no', 'maybe'
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    person = db.relationship('Person')
+    __table_args__ = (db.UniqueConstraint('event_id', 'person_id'),)
 
 class EventAssignment(db.Model):
     __tablename__ = 'event_assignments'
@@ -284,6 +302,8 @@ class EventAssignment(db.Model):
     event_id = db.Column(db.Integer, db.ForeignKey('events.id'), nullable=False)
     title = db.Column(db.String(150), nullable=False)
     description = db.Column(db.Text, nullable=True)
+    category = db.Column(db.String(50), nullable=True)
+    due_date = db.Column(db.Date, nullable=True)
     claimed_by_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=True)
     is_done = db.Column(db.Boolean, default=False)
 

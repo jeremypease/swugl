@@ -84,14 +84,21 @@
 
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-            <div style="padding: 16px 40px 0;">
+            <div id="flash-container" style="padding: 16px 40px 0;">
                 {% for category, message in messages %}
-                <div class="flash {% if category == 'error' %}f-error{% elif category == 'info' %}f-info{% else %}f-warn{% endif %}">
+                <div class="flash {% if category == 'error' %}f-error{% elif category == 'info' %}f-info{% else %}f-warn{% endif %} flash-animate">
                     <i data-lucide="{% if category == 'error' %}alert-circle{% elif category == 'info' %}info{% else %}alert-triangle{% endif %}" style="width:16px;height:16px;flex-shrink:0;"></i>
                     {{ message }}
                 </div>
                 {% endfor %}
             </div>
+            <script>
+            document.getElementById('flash-container').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            setTimeout(function() {
+                var flashes = document.querySelectorAll('.flash-animate');
+                flashes.forEach(function(f) { f.style.transition = 'opacity 0.5s'; f.style.opacity = '0'; });
+            }, 4000);
+            </script>
             {% endif %}
         {% endwith %}
 

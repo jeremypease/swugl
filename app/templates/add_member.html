@@ -54,6 +54,7 @@
     <div class="card">
         <form id="add-member-form" method="POST" action="/admin/add-member?{% if parent1 %}parent1_id={{ parent1.id }}&amp;{% endif %}{% if parent2 %}parent2_id={{ parent2.id }}&amp;{% endif %}{% if next_page %}next={{ next_page }}&amp;{% endif %}{% if purpose %}purpose={{ purpose }}{% endif %}">
             {{ form.hidden_tag() }}
+            {% if link_spouse_for %}<input type="hidden" name="link_spouse_for" value="{{ link_spouse_for }}">{% endif %}
 
             <div class="field-row">
                 <div class="field">
