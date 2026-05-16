@@ -82,6 +82,19 @@ def send_password_reset_email(user, reset_url):
     """
     return send_email(user.email, subject, html_content)
 
+def send_member_invitation_email(inviting_name, person_first_name, family_name, to_email, url):
+    subject = f"You've been invited to join {family_name} on Pease Vine"
+    html_content = f"""
+    <h2>You're invited to Pease Vine!</h2>
+    <p>Hi {person_first_name},</p>
+    <p>{inviting_name} has added you to the {family_name} family on Pease Vine
+    and would like to invite you to join.</p>
+    <p>Click the link below to create your account:</p>
+    <p><a href="{url}">Accept Invitation &amp; Register</a></p>
+    <p>This link will expire in 7 days.</p>
+    """
+    return send_email(to_email, subject, html_content)
+
 def send_spouse_invitation_email(inviting_person, to_email, url):
     subject = "You've been invited to join Pease Vine"
     html_content = f"""

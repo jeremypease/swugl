@@ -37,6 +37,7 @@ class Family(db.Model):
 
     patriarch_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=True)
     matriarch_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=True)
+    has_lgbtq_options = db.Column(db.Boolean, default=False, nullable=False)
 
     people = db.relationship('Person', back_populates='family', foreign_keys='Person.family_id')
     users = db.relationship('User', back_populates='family', foreign_keys='User.family_id')
@@ -51,6 +52,8 @@ class SpouseRelationship(db.Model):
     person1_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=False)
     person2_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=False)
     status = db.Column(db.String(20), default='active')  # active, deceased, divorced, separated, annulled
+    role_for_person1 = db.Column(db.String(20), default='spouse')  # husband, wife, spouse, partner
+    role_for_person2 = db.Column(db.String(20), default='spouse')
     marriage_date = db.Column(db.Date)
     end_date = db.Column(db.Date)
     confirmed = db.Column(db.Boolean, default=False)
@@ -61,10 +64,18 @@ class SpouseRelationship(db.Model):
     person2 = db.relationship('Person', foreign_keys=[person2_id], backref='spouse_relationships_as_p2')
 
     def get_spouse_of(self, person):
-        """Return the other person in this relationship."""
         if self.person1_id == person.id:
             return self.person2
         return self.person1
+
+    def get_role_for(self, person):
+        return self.role_for_person1 if self.person1_id == person.id else self.role_for_person2
+
+    def set_role_for(self, person, role):
+        if self.person1_id == person.id:
+            self.role_for_person1 = role
+        else:
+            self.role_for_person2 = role
 
 class Person(db.Model):
     __tablename__ = 'people'
@@ -85,6 +96,8 @@ class Person(db.Model):
     photo_path = db.Column(db.String(200))
     photo_position = db.Column(db.String(20), default='50% 30%')
     notes = db.Column(db.Text)
+    pronouns = db.Column(db.String(50))
+    in_directory = db.Column(db.Boolean, default=True, nullable=False)
 
     family = db.relationship('Family', back_populates='people', foreign_keys='Person.family_id')
 
@@ -107,6 +120,12 @@ class Person(db.Model):
                 return rel.get_spouse_of(self)
         return None
 
+    def get_active_spouse_relationship(self):
+        for rel in self.spouse_relationships_as_p1 + self.spouse_relationships_as_p2:
+            if rel.status == 'active' and rel.confirmed:
+                return rel
+        return None
+
     def get_pending_spouse_request(self):
         """Return any unconfirmed spouse relationship."""
         for rel in self.spouse_relationships_as_p1 + self.spouse_relationships_as_p2:
@@ -118,7 +137,10 @@ class Person(db.Model):
     user = db.relationship('User', back_populates='person', uselist=False)
 
     def get_display_name(self):
-        return self.nickname if self.nickname else self.name
+        if self.nickname:
+            last = self.name.split()[-1]
+            return f"{self.nickname} {last}"
+        return self.name
 
     def get_age(self):
         if not self.birthday:

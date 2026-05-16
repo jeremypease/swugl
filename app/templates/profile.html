@@ -13,11 +13,39 @@
         <div class="eyebrow">Profile</div>
         <h1>{{ person.get_display_name() }}</h1>
     </div>
-    {% if can_edit %}
-    <a href="/person/{{ person.id }}/edit" class="btn btn-secondary">
-        <i data-lucide="edit-2"></i> {% if is_own_profile %}Edit my profile{% else %}Edit profile{% endif %}
-    </a>
-    {% endif %}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        {% if can_edit %}
+        <a href="/person/{{ person.id }}/edit" class="btn btn-secondary">
+            <i data-lucide="edit-2"></i> {% if is_own_profile %}Edit my profile{% else %}Edit profile{% endif %}
+        </a>
+        {% endif %}
+        {% set can_invite = (current_user.is_admin or current_user.is_delegate) and not person.user and not person.deathday and (not person.get_age() or person.get_age() > 12) %}
+        {% if can_invite %}
+        {% if person.email %}
+        <form method="POST" action="/person/{{ person.id }}/invite">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-secondary">
+                <i data-lucide="mail"></i> Invite to join
+            </button>
+        </form>
+        {% else %}
+        <a href="/person/{{ person.id }}/edit" class="btn btn-secondary" title="Add an email address first">
+            <i data-lucide="mail"></i> Invite to join
+        </a>
+        {% endif %}
+        {% endif %}
+        {% if current_user.is_admin and not is_own_profile %}
+        <form method="POST" action="/admin/toggle-directory/{{ person.id }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-ghost btn-sm"
+                    style="color:{% if person.in_directory %}var(--text-muted){% else %}var(--vine){% endif %};"
+                    title="{% if person.in_directory %}Remove from member directory{% else %}Add to member directory{% endif %}">
+                <i data-lucide="{% if person.in_directory %}eye-off{% else %}eye{% endif %}"></i>
+                {% if person.in_directory %}Hide from directory{% else %}Show in directory{% endif %}
+            </button>
+        </form>
+        {% endif %}
+    </div>
 </div>
 
 {% set pending = person.get_pending_spouse_request() %}
@@ -33,9 +61,13 @@
     <!-- Left: photo + key facts -->
     <div>
         <div class="card profile-photo-card">
+            {% if person.photo_path %}
+            <div class="photo" style="background-image:url('{{ url_for('static', filename=person.photo_path) }}');background-size:cover;background-position:center;"></div>
+            {% else %}
             <div class="photo" style="background: linear-gradient(135deg, var(--sprout) 0%, var(--vine) 100%); display:flex;align-items:center;justify-content:center;">
                 {{ av(person, size='xl', color='var(--vine-deep)') }}
             </div>
+            {% endif %}
             <div class="name">{{ person.name }}</div>
             {% if person.get_age() %}
             <div class="age">Age {{ person.get_age() }}{% if person.deathday %} · Passed away{% endif %}</div>
@@ -47,6 +79,9 @@
                 {% endif %}
                 {% if person.gender %}
                 <dt>Gender</dt><dd>{{ person.gender }}</dd>
+                {% endif %}
+                {% if person.pronouns %}
+                <dt>Pronouns</dt><dd>{{ person.pronouns }}</dd>
                 {% endif %}
                 {% if person.birthday %}
                 <dt>Birthday</dt><dd>{{ person.birthday.strftime('%B %-d, %Y') }}</dd>
@@ -94,12 +129,26 @@
             </div>
 
             {% if active_spouse %}
+            {% set active_sr = person.get_active_spouse_relationship() %}
+            {% set current_spouse_role = active_sr.get_role_for(person) if active_sr else 'spouse' %}
             <div class="relation-row">
-                <span class="role">Spouse</span>
+                {% if can_edit %}
+                <form method="POST" action="/person/{{ person.id }}/set-spouse-role" style="margin:0;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <select name="role" onchange="this.form.submit()" style="font-size:12px;padding:2px 4px;color:var(--text-muted);border:1px solid var(--border);border-radius:var(--r-sm);background:transparent;cursor:pointer;">
+                        {% for value, label in spouse_roles %}
+                        <option value="{{ value }}" {% if current_spouse_role == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+                {% else %}
+                {% set spouse_label = 'Wife' if active_spouse.gender == 'Female' else ('Husband' if active_spouse.gender == 'Male' else 'Spouse') %}
+                <span class="role">{{ spouse_label }}</span>
+                {% endif %}
                 {{ av(active_spouse, size='sm', color='var(--pea)') }}
                 <span class="name"><a href="/person/{{ active_spouse.id }}">{{ active_spouse.get_display_name() }}</a></span>
                 {% if is_own_profile %}
-                <a href="/spouse/end" class="btn btn-ghost btn-sm" style="color:var(--tomato);">Separate…</a>
+                <a href="/spouse/end" class="btn btn-ghost btn-sm" style="color:var(--tomato);margin-left:auto;">Separate…</a>
                 {% endif %}
             </div>
             {% elif pending_request %}
@@ -113,16 +162,22 @@
                     {% endif %}
                 </span>
             </div>
-            {% elif is_own_profile %}
-            <div class="relation-row">
-                <span class="role">Spouse</span>
-                <a href="/spouse/add" class="btn btn-ghost btn-sm"><i data-lucide="plus"></i> Add spouse</a>
-            </div>
             {% endif %}
 
             {% for pr in person.parent_rels %}
             <div class="relation-row">
+                {% if can_edit %}
+                <form method="POST" action="/person/{{ person.id }}/set-parent-role/{{ pr.parent.id }}" style="margin:0;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <select name="role" onchange="this.form.submit()" style="font-size:12px;padding:2px 4px;color:var(--text-muted);border:1px solid var(--border);border-radius:var(--r-sm);background:transparent;cursor:pointer;">
+                        {% for value, label in parent_roles %}
+                        <option value="{{ value }}" {% if pr.role == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+                {% else %}
                 <span class="role">{{ pr.role_display }}</span>
+                {% endif %}
                 {{ av(pr.parent, size='sm', color='var(--vine)') }}
                 <span class="name"><a href="/person/{{ pr.parent.id }}">{{ pr.parent.get_display_name() }}</a></span>
                 {% if pr.parent.birthday %}<span class="meta">b. {{ pr.parent.birthday.strftime('%Y') }}</span>{% endif %}
@@ -135,18 +190,9 @@
             </div>
             {% endfor %}
 
-            {% if can_edit %}
-            <div class="relation-row">
-                <span class="role">Parent</span>
-                <a href="/person/{{ person.id }}/add-parent" class="btn btn-ghost btn-sm">
-                    <i data-lucide="plus"></i> Add parent
-                </a>
-            </div>
-            {% endif %}
-
             {% for child in person.children %}
             <div class="relation-row">
-                <span class="role">Child</span>
+                <span class="role">{% if child.gender == 'Male' %}Son{% elif child.gender == 'Female' %}Daughter{% else %}Child{% endif %}</span>
                 {{ av(child, size='sm', color='var(--sprout)', text_color='var(--vine-deep)') }}
                 <span class="name"><a href="/person/{{ child.id }}">{{ child.get_display_name() }}</a></span>
                 {% if child.birthday %}<span class="meta">b. {{ child.birthday.strftime('%Y') }}</span>{% endif %}
@@ -159,17 +205,19 @@
             </div>
             {% endfor %}
 
+            {% if not active_spouse and not pending_request and not person.parent_rels and not person.child_rels and not can_edit %}
+            <p style="color:var(--text-muted);font-size:14px;padding:8px 0;">No family connections recorded yet.</p>
+            {% endif %}
+
             {% if can_edit %}
-            <div class="relation-row">
-                <span class="role">Child</span>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:12px;margin-top:4px;border-top:1px solid var(--hairline);">
+                <a href="/person/{{ person.id }}/add-parent" class="btn btn-ghost btn-sm">
+                    <i data-lucide="plus"></i> Add parent
+                </a>
                 <a href="/person/{{ person.id }}/add-child" class="btn btn-ghost btn-sm">
                     <i data-lucide="plus"></i> Add child
                 </a>
             </div>
-            {% endif %}
-
-            {% if not active_spouse and not pending_request and not person.parent_rels and not person.child_rels and not can_edit %}
-            <p style="color:var(--text-muted);font-size:14px;padding:8px 0;">No family connections recorded yet.</p>
             {% endif %}
         </div>
 

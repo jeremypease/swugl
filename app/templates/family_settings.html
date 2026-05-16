@@ -36,7 +36,22 @@
                 </div>
             </div>
 
-            <div style="display:flex;gap:10px;margin-top:8px;">
+            <div class="card" style="margin-top:20px;margin-bottom:4px;background:var(--surface-alt,var(--surface));border:1px solid var(--border);">
+                <div class="card-header" style="padding-bottom:8px;">
+                    <h3 style="font-size:15px;">Optional Features</h3>
+                </div>
+                <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:4px 0;">
+                    {{ form.has_lgbtq_options(style="width:16px;height:16px;margin-top:2px;flex-shrink:0;cursor:pointer;") }}
+                    <div>
+                        <div style="font-weight:600;font-size:14px;">{{ form.has_lgbtq_options.label.text }}</div>
+                        <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">
+                            Adds expanded gender identities (Non-binary, Genderfluid, etc.) and a pronouns field to all member profiles.
+                        </div>
+                    </div>
+                </label>
+            </div>
+
+            <div style="display:flex;gap:10px;margin-top:16px;">
                 <button type="submit" class="btn btn-primary">Save</button>
                 <a href="/admin/users" class="btn btn-secondary">Cancel</a>
             </div>

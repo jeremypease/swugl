@@ -13,17 +13,46 @@
     </a>
 </div>
 
-{% if parent1 or parent2 %}
+{% if parent1 %}
 <div class="flash f-info" style="max-width:580px;margin-bottom:16px;">
     <i data-lucide="info" style="width:16px;height:16px;flex-shrink:0;"></i>
-    Adding child of
-    <strong>{% if parent1 %}{{ parent1.get_display_name() }}{% endif %}{% if parent1 and parent2 %} &amp; {% endif %}{% if parent2 %}{{ parent2.get_display_name() }}{% endif %}</strong>
+    Adding child of <strong>{{ parent1.get_display_name() }}</strong>
+    {% if parent2 %}
+    <label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-weight:400;cursor:pointer;">
+        <input type="checkbox" name="include_parent2" value="1" checked
+               form="add-member-form" style="width:15px;height:15px;cursor:pointer;">
+        Also link <strong style="margin:0 3px;">{{ parent2.get_display_name() }}</strong> as a parent
+    </label>
+    {% endif %}
+</div>
+{% endif %}
+
+{% if similar %}
+<div class="card" style="max-width:580px;margin-bottom:20px;border-left:3px solid var(--honey);">
+    <div class="card-header">
+        <h3>⚠️ Possible duplicate</h3>
+    </div>
+    <p style="font-size:14px;color:var(--text-muted);margin-bottom:12px;">
+        The following existing member{{ 's' if similar|length > 1 else '' }} may already be this person. Please check before adding.
+    </p>
+    {% for p in similar %}
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
+        <div style="flex:1;font-size:14px;">
+            <a href="/person/{{ p.id }}" target="_blank" style="font-weight:600;">{{ p.get_display_name() }}</a>
+            {% if p.birthday %}<span style="color:var(--text-muted);margin-left:8px;">b. {{ p.birthday.strftime('%B %-d, %Y') }}</span>{% endif %}
+        </div>
+        <a href="/person/{{ p.id }}" target="_blank" class="btn btn-ghost btn-sm">View profile →</a>
+    </div>
+    {% endfor %}
+    <button type="button" class="btn btn-secondary" style="margin-top:16px;" onclick="proceedAnyway()">
+        Not a duplicate — add anyway
+    </button>
 </div>
 {% endif %}
 
 <div style="max-width: 580px;">
     <div class="card">
-        <form method="POST" action="/admin/add-member{% if parent1 or parent2 or next_page %}?{% if parent1 %}parent1_id={{ parent1.id }}{% endif %}{% if parent2 %}&amp;parent2_id={{ parent2.id }}{% endif %}{% if next_page %}&amp;next={{ next_page }}{% endif %}{% endif %}">
+        <form id="add-member-form" method="POST" action="/admin/add-member?{% if parent1 %}parent1_id={{ parent1.id }}&amp;{% endif %}{% if parent2 %}parent2_id={{ parent2.id }}&amp;{% endif %}{% if next_page %}next={{ next_page }}&amp;{% endif %}{% if purpose %}purpose={{ purpose }}{% endif %}">
             {{ form.hidden_tag() }}
 
             <div class="field-row">
@@ -73,7 +102,7 @@
                 </div>
             </div>
 
-            <div class="field">
+            <div class="field" id="maiden-name-field">
                 {{ form.maiden_name.label }}
                 {{ form.maiden_name() }}
             </div>
@@ -92,4 +121,27 @@
         </form>
     </div>
 </div>
+
+<script>
+(function() {
+    const gender = document.getElementById('gender');
+    const field  = document.getElementById('maiden-name-field');
+    function update() { field.style.display = gender.value === 'Male' ? 'none' : ''; }
+    if (gender) { gender.addEventListener('change', update); update(); }
+})();
+</script>
+
+{% if similar %}
+<script>
+function proceedAnyway() {
+    const form = document.getElementById('add-member-form');
+    const inp = document.createElement('input');
+    inp.type = 'hidden';
+    inp.name = 'confirm_duplicate';
+    inp.value = '1';
+    form.appendChild(inp);
+    form.submit();
+}
+</script>
+{% endif %}
 {% endblock %}

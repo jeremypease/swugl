@@ -66,6 +66,7 @@
                 <th>Email</th>
                 <th>Account</th>
                 <th>Role</th>
+                <th></th>
             </tr>
         </thead>
         <tbody>
@@ -96,7 +97,7 @@
                         {% if person.user.is_admin %}
                         <span class="badge b-admin"><span class="dot"></span>Admin</span>
                         {% elif person.user.is_delegate %}
-                        <span class="badge b-delegate"><span class="dot"></span>Delegate</span>
+                        <span class="badge b-delegate"><span class="dot"></span>Contributor</span>
                         {% else %}
                         <span style="color:var(--text-muted);font-size:13px;">Member</span>
                         {% endif %}
@@ -104,9 +105,71 @@
                     <span style="color:var(--text-muted);font-size:13px;">—</span>
                     {% endif %}
                 </td>
+                <td>
+                    {% if person.user and person.user.status == 'approved' and person.user.id != current_user.id %}
+                    <form method="POST" action="/admin/set-role/{{ person.user.id }}" style="display:flex;gap:6px;align-items:center;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <select name="role" style="font-size:12px;padding:3px 6px;">
+                            <option value=""      {% if not person.user.is_admin and not person.user.is_delegate %}selected{% endif %}>Member</option>
+                            <option value="contributor" {% if person.user.is_delegate %}selected{% endif %}>Contributor</option>
+                            <option value="admin" {% if person.user.is_admin %}selected{% endif %}>Admin</option>
+                        </select>
+                        <button type="submit" class="btn btn-ghost btn-sm">Set</button>
+                    </form>
+                    {% endif %}
+                </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
 </div>
+
+{% if non_directory %}
+<div class="card" style="margin-top: 24px;">
+    <div class="card-header">
+        <h3>Not in directory</h3>
+        <span class="meta">{{ non_directory|length }} person{{ 's' if non_directory|length != 1 else '' }}</span>
+    </div>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">
+        These people are part of the family tree but hidden from the member directory. Check the box to include them.
+    </p>
+    <table class="tbl">
+        <thead>
+            <tr>
+                <th style="width:36px;">Include</th>
+                <th>Name</th>
+                <th>Connected as</th>
+                <th>Birthday</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for person in non_directory %}
+            <tr>
+                <td>
+                    <form method="POST" action="/admin/toggle-directory/{{ person.id }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-ghost btn-sm" title="Add to directory"
+                                style="padding:2px 6px;font-size:18px;line-height:1;">☐</button>
+                    </form>
+                </td>
+                <td>
+                    <div class="av av-sm" style="background:var(--vine);display:inline-flex;margin-right:8px;vertical-align:middle;">{{ person.name[0] }}</div>
+                    <a href="/person/{{ person.id }}" style="color:inherit;">{{ person.get_display_name() }}</a>
+                </td>
+                <td style="font-size:13px;color:var(--text-muted);">
+                    {% if person.child_rels %}
+                        Parent of {% for r in person.child_rels %}{{ r.child.get_display_name() }}{% if not loop.last %}, {% endif %}{% endfor %}
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+                <td style="font-size:13px;color:var(--text-muted);">
+                    {{ person.birthday.strftime('%Y') if person.birthday else '—' }}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
 {% endblock %}

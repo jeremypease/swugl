@@ -1,3 +1,31 @@
+GENDER_CHOICES_DEFAULT = [
+    ('', '-- Select --'),
+    ('Male', 'Male'),
+    ('Female', 'Female'),
+]
+
+GENDER_CHOICES_EXPANDED = [
+    ('', '-- Select --'),
+    ('Male', 'Male'),
+    ('Female', 'Female'),
+    ('Non-binary', 'Non-binary'),
+    ('Genderqueer', 'Genderqueer'),
+    ('Genderfluid', 'Genderfluid'),
+    ('Transgender Male', 'Transgender Male'),
+    ('Transgender Female', 'Transgender Female'),
+    ('Intersex', 'Intersex'),
+    ('Prefer not to say', 'Prefer not to say'),
+]
+
+PRONOUN_CHOICES = [
+    ('', '-- Select --'),
+    ('He/Him', 'He/Him'),
+    ('She/Her', 'She/Her'),
+    ('They/Them', 'They/Them'),
+    ('Ze/Zir', 'Ze/Zir'),
+    ('Any', 'Any'),
+]
+
 from flask_wtf import FlaskForm
 from flask_wtf.file import FileField, FileAllowed
 from wtforms import StringField, PasswordField, BooleanField, SubmitField, DateField, TextAreaField, SelectField, IntegerField, HiddenField
@@ -87,6 +115,7 @@ class FamilySettingsForm(FlaskForm):
     family_name = StringField('Family Name', validators=[DataRequired(), Length(max=100)])
     patriarch_id = SelectField('Patriarch', coerce=int)
     matriarch_id = SelectField('Matriarch', coerce=int)
+    has_lgbtq_options = BooleanField('Enable expanded gender & pronoun options')
     submit = SubmitField('Save')
 
 class AddPersonForm(FlaskForm):
@@ -94,11 +123,7 @@ class AddPersonForm(FlaskForm):
     last_name = StringField('Last Name', validators=[DataRequired(), Length(2, 50)])
     email = StringField('Email', validators=[Optional(), Email()])
     phone = StringField('Phone', validators=[Optional()])
-    gender = SelectField('Gender', choices=[
-        ('', '-- Select --'),
-        ('Male', 'Male'),
-        ('Female', 'Female')
-    ])
+    gender = SelectField('Gender', choices=GENDER_CHOICES_DEFAULT)
     birthday = DateField('Birthday', validators=[])
     birthplace = StringField('Birthplace', validators=[Optional(), Length(max=100)])
     nickname = StringField('Nickname', validators=[Optional(), Length(max=50)])
@@ -109,11 +134,8 @@ class AddPersonForm(FlaskForm):
 class EditPersonForm(FlaskForm):
     name = StringField('Full Name', validators=[DataRequired(), Length(max=100)])
     nickname = StringField('Nickname / Goes By', validators=[Optional(), Length(max=50)])
-    gender = SelectField('Gender', choices=[
-        ('', '-- Select --'),
-        ('Male', 'Male'),
-        ('Female', 'Female')
-    ])
+    gender = SelectField('Gender', choices=GENDER_CHOICES_DEFAULT)
+    pronouns = SelectField('Pronouns', choices=PRONOUN_CHOICES)
     birthday = DateField('Birthday', validators=[Optional()])
     birthplace = StringField('Birthplace', validators=[Optional(), Length(max=100)])
     maiden_name = StringField('Maiden Name', validators=[Optional(), Length(max=100)])

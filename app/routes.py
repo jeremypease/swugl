@@ -1,8 +1,8 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app
 from flask_login import login_user, logout_user, login_required, current_user
 from .models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, EventSleepingSpot
-from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm, ForgotPasswordForm, ResetPasswordForm, AddPersonForm, RelativeForm, AddParentForm, FamilySettingsForm, EditPersonForm, EventForm, EventMealForm, EventMealFamilyAssignForm, EventMealItemForm, EventMealAssignForm, EventAssignmentForm, EventSleepingSpotForm, EventSleepingAssignForm
-from .email import send_verification_email, send_pending_notification, send_approval_notification, send_spouse_confirmation_email, send_spouse_invitation_email, send_password_reset_email
+from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm, ForgotPasswordForm, ResetPasswordForm, AddPersonForm, RelativeForm, AddParentForm, FamilySettingsForm, EditPersonForm, EventForm, EventMealForm, EventMealFamilyAssignForm, EventMealItemForm, EventMealAssignForm, EventAssignmentForm, EventSleepingSpotForm, EventSleepingAssignForm, GENDER_CHOICES_DEFAULT, GENDER_CHOICES_EXPANDED, PRONOUN_CHOICES
+from .email import send_verification_email, send_pending_notification, send_approval_notification, send_spouse_confirmation_email, send_spouse_invitation_email, send_password_reset_email, send_member_invitation_email
 from datetime import date, datetime, timedelta
 from functools import wraps
 from urllib.parse import urlparse
@@ -12,6 +12,11 @@ import re
 import os
 
 main = Blueprint('main', __name__)
+
+def _default_parent_role(person):
+    if person.gender == 'Male':   return 'father'
+    if person.gender == 'Female': return 'mother'
+    return 'parent'
 
 def format_phone(raw):
     if not raw:
@@ -40,6 +45,15 @@ def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not current_user.is_authenticated or not current_user.is_admin:
+            flash('You do not have permission to access that page.', 'error')
+            return redirect(url_for('main.index'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+def contributor_or_admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or not (current_user.is_admin or current_user.is_delegate):
             flash('You do not have permission to access that page.', 'error')
             return redirect(url_for('main.index'))
         return f(*args, **kwargs)
@@ -155,7 +169,7 @@ def get_core_ids(node):
 @main.route('/members')
 @login_required
 def members():
-    people = Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
+    people = Person.query.filter_by(family_id=current_user.family_id, in_directory=True).order_by(Person.name).all()
     today = date.today()
     bday_days = {}
     for p in people:
@@ -350,11 +364,12 @@ def register_invited(token):
 
 @main.route('/admin/add-member', methods=['GET', 'POST'])
 @login_required
-@admin_required
+@contributor_or_admin_required
 def add_member():
     parent1_id = request.args.get('parent1_id', type=int)
     parent2_id = request.args.get('parent2_id', type=int)
     next_page = request.args.get('next')
+    purpose = request.args.get('purpose')  # 'parent' = adding someone from outside the family
     parent1 = db.session.get(Person, parent1_id) if parent1_id else None
     parent2 = db.session.get(Person, parent2_id) if parent2_id else None
     if parent1 and parent1.family_id != current_user.family_id:
@@ -362,9 +377,36 @@ def add_member():
     if parent2 and parent2.family_id != current_user.family_id:
         parent2 = None
     form = AddPersonForm()
+    form.gender.choices = GENDER_CHOICES_EXPANDED if current_user.family.has_lgbtq_options else GENDER_CHOICES_DEFAULT
     if form.validate_on_submit():
+        first = form.first_name.data.strip()
+        last  = form.last_name.data.strip()
+        # Duplicate check — skip if user already confirmed
+        if not request.form.get('confirm_duplicate'):
+            existing = Person.query.filter_by(family_id=current_user.family_id).all()
+            similar = []
+            for p in existing:
+                parts = p.name.lower().split()
+                p_last  = parts[-1] if parts else ''
+                p_first = parts[0]  if parts else ''
+                same_last  = p_last  == last.lower()
+                same_first = p_first == first.lower()
+                close_first = (
+                    len(p_first) >= 2 and len(first) >= 2 and
+                    p_first[:3] == first.lower()[:3]
+                )
+                bday_match = (
+                    form.birthday.data and p.birthday and
+                    form.birthday.data == p.birthday
+                )
+                if same_last and (same_first or close_first or bday_match):
+                    similar.append(p)
+            if similar:
+                return render_template('add_member.html', form=form, parent1=parent1,
+                                       parent2=parent2, next_page=next_page, similar=similar,
+                                       purpose=purpose)
         person = Person(
-            name=f"{form.first_name.data} {form.last_name.data}",
+            name=f"{first} {last}",
             family_id=current_user.family_id,
             email=form.email.data or None,
             phone=format_phone(form.phone.data),
@@ -374,19 +416,20 @@ def add_member():
             nickname=form.nickname.data or None,
             maiden_name=form.maiden_name.data or None,
             notes=form.notes.data or None,
+            in_directory=(purpose != 'parent'),
         )
         db.session.add(person)
         db.session.flush()
         if parent1:
-            db.session.add(ParentRelationship(parent_id=parent1.id, child_id=person.id, role='parent'))
-        if parent2:
-            db.session.add(ParentRelationship(parent_id=parent2.id, child_id=person.id, role='parent'))
+            db.session.add(ParentRelationship(parent_id=parent1.id, child_id=person.id, role=_default_parent_role(parent1)))
+        if parent2 and request.form.get('include_parent2'):
+            db.session.add(ParentRelationship(parent_id=parent2.id, child_id=person.id, role=_default_parent_role(parent2)))
         db.session.commit()
         flash(f'{person.name} has been added to the family.', 'info')
         if next_page == 'tree':
             return redirect(url_for('main.family_tree'))
         return redirect(url_for('main.person_detail', person_id=person.id))
-    return render_template('add_member.html', form=form, parent1=parent1, parent2=parent2, next_page=next_page)
+    return render_template('add_member.html', form=form, parent1=parent1, parent2=parent2, next_page=next_page, purpose=purpose)
 
 @main.route('/person/<int:person_id>/add-parent', methods=['GET', 'POST'])
 @login_required
@@ -441,7 +484,7 @@ def add_child(person_id):
         if not child_person or child_person.family_id != current_user.family_id:
             flash('Person not found.', 'error')
             return redirect(url_for('main.add_child', person_id=person_id))
-        db.session.add(ParentRelationship(parent_id=person.id, child_id=child_person.id, role='parent'))
+        db.session.add(ParentRelationship(parent_id=person.id, child_id=child_person.id, role=_default_parent_role(person)))
         db.session.commit()
         flash(f'{child_person.get_display_name()} added as a child.', 'info')
         if next_page == 'tree':
@@ -465,6 +508,46 @@ def remove_parent(person_id, parent_id):
         ParentRelationship.query.filter_by(parent_id=parent_person.id, child_id=person.id).delete()
         db.session.commit()
         flash(f'{parent_person.get_display_name()} removed as a parent.', 'info')
+    return redirect(url_for('main.person_detail', person_id=person_id))
+
+SPOUSE_ROLES = [('husband', 'Husband'), ('wife', 'Wife'), ('spouse', 'Spouse'), ('partner', 'Partner')]
+
+@main.route('/person/<int:person_id>/set-spouse-role', methods=['POST'])
+@login_required
+def set_spouse_role(person_id):
+    person = db.session.get(Person, person_id)
+    if not person or person.family_id != current_user.family_id:
+        return redirect(url_for('main.index'))
+    can_edit = current_user.is_admin or (person.user and person.user == current_user)
+    if not can_edit:
+        return redirect(url_for('main.person_detail', person_id=person_id))
+    role = request.form.get('role', 'spouse')
+    valid = {r for r, _ in SPOUSE_ROLES}
+    if role not in valid:
+        role = 'spouse'
+    sr = person.get_active_spouse_relationship()
+    if sr:
+        sr.set_role_for(person, role)
+        db.session.commit()
+    return redirect(url_for('main.person_detail', person_id=person_id))
+
+@main.route('/person/<int:person_id>/set-parent-role/<int:parent_id>', methods=['POST'])
+@login_required
+def set_parent_role(person_id, parent_id):
+    person = db.session.get(Person, person_id)
+    if not person or person.family_id != current_user.family_id:
+        return redirect(url_for('main.index'))
+    can_edit = current_user.is_admin or (person.user and person.user == current_user)
+    if not can_edit:
+        return redirect(url_for('main.person_detail', person_id=person_id))
+    role = request.form.get('role', 'parent')
+    valid_roles = {r for r, _ in PARENT_ROLES}
+    if role not in valid_roles:
+        role = 'parent'
+    pr = ParentRelationship.query.filter_by(parent_id=parent_id, child_id=person_id).first()
+    if pr:
+        pr.role = role
+        db.session.commit()
     return redirect(url_for('main.person_detail', person_id=person_id))
 
 @main.route('/person/<int:person_id>/remove-child/<int:child_id>', methods=['POST'])
@@ -499,10 +582,12 @@ def family_settings():
         form.family_name.data = family.name
         form.patriarch_id.data = family.patriarch_id or 0
         form.matriarch_id.data = family.matriarch_id or 0
+        form.has_lgbtq_options.data = family.has_lgbtq_options
     if form.validate_on_submit():
         family.name = form.family_name.data
         family.patriarch_id = form.patriarch_id.data or None
         family.matriarch_id = form.matriarch_id.data or None
+        family.has_lgbtq_options = form.has_lgbtq_options.data
         db.session.commit()
         flash('Family settings saved.', 'info')
         return redirect(url_for('main.family_settings'))
@@ -591,7 +676,8 @@ def reset_password(token):
 def admin_users():
     pending = User.query.filter_by(status='pending', family_id=current_user.family_id).all()
     people = Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
-    return render_template('admin_users.html', pending=pending, people=people)
+    non_directory = Person.query.filter_by(family_id=current_user.family_id, in_directory=False).order_by(Person.name).all()
+    return render_template('admin_users.html', pending=pending, people=people, non_directory=non_directory)
 
 @main.route('/admin/approve/<int:user_id>', methods=['POST'])
 @login_required
@@ -623,6 +709,80 @@ def reject_user(user_id):
     flash(f'{user.get_full_name()} has been rejected.', 'info')
     return redirect(url_for('main.admin_users'))
 
+@main.route('/admin/set-role/<int:user_id>', methods=['POST'])
+@login_required
+@admin_required
+def set_role(user_id):
+    user = db.session.get(User, user_id)
+    if not user or user.family_id != current_user.family_id or user.id == current_user.id:
+        flash('Invalid request.', 'error')
+        return redirect(url_for('main.admin_users'))
+    role = request.form.get('role')
+    user.is_admin = (role == 'admin')
+    user.is_delegate = (role == 'contributor')
+    db.session.commit()
+    flash(f'{user.get_full_name()} is now a {role or "member"}.', 'info')
+    return redirect(url_for('main.admin_users'))
+
+@main.route('/admin/toggle-directory/<int:person_id>', methods=['POST'])
+@login_required
+@admin_required
+def toggle_directory(person_id):
+    person = db.session.get(Person, person_id)
+    if not person or person.family_id != current_user.family_id:
+        flash('Person not found.', 'error')
+        return redirect(url_for('main.admin_users'))
+    person.in_directory = not person.in_directory
+    db.session.commit()
+    return redirect(url_for('main.admin_users'))
+
+@main.route('/person/<int:person_id>/invite', methods=['POST'])
+@login_required
+@contributor_or_admin_required
+def invite_person(person_id):
+    person = db.session.get(Person, person_id)
+    if not person or person.family_id != current_user.family_id:
+        flash('Person not found.', 'error')
+        return redirect(url_for('main.index'))
+    if person.user:
+        flash(f'{person.get_display_name()} already has an account.', 'error')
+        return redirect(url_for('main.person_detail', person_id=person_id))
+    if person.deathday:
+        flash('Cannot invite a deceased person.', 'error')
+        return redirect(url_for('main.person_detail', person_id=person_id))
+    email = (person.email or request.form.get('email', '')).strip()
+    if not email:
+        flash('Add an email address to this person before sending an invitation.', 'error')
+        return redirect(url_for('main.person_edit', person_id=person_id))
+    if User.query.filter_by(email=email).first():
+        flash('An account with that email address already exists.', 'error')
+        return redirect(url_for('main.person_detail', person_id=person_id))
+    names = person.name.strip().split()
+    first = names[0]
+    last = ' '.join(names[1:]) if len(names) > 1 else ''
+    token = secrets.token_urlsafe(32)
+    invited_user = User(
+        family_id=current_user.family_id,
+        email=email,
+        first_name=first,
+        last_name=last,
+        password_hash='',
+        status='invited',
+        invitation_token=token,
+        invitation_token_expiry=datetime.utcnow() + timedelta(days=7),
+        person_id=person.id,
+    )
+    db.session.add(invited_user)
+    db.session.commit()
+    inviting_name = current_user.person.get_display_name() if current_user.person else current_user.get_full_name()
+    if current_app.config.get('MAIL_ENABLED'):
+        send_member_invitation_email(
+            inviting_name, first, current_user.family.name,
+            email, url_for('main.register_invited', token=token, _external=True)
+        )
+    flash(f'Invitation sent to {email}.', 'info')
+    return redirect(url_for('main.person_detail', person_id=person_id))
+
 @main.route('/profile')
 @login_required
 def profile():
@@ -630,7 +790,7 @@ def profile():
     if not person:
         flash('No profile found. Please contact the admin.', 'error')
         return redirect(url_for('main.index'))
-    return render_template('profile.html', person=person, relationship=None)
+    return render_template('profile.html', person=person, relationship=None, parent_roles=PARENT_ROLES, spouse_roles=SPOUSE_ROLES)
 
 @main.route('/profile/edit', methods=['GET', 'POST'])
 @login_required
@@ -662,7 +822,7 @@ def person_detail(person_id):
         flash('Person not found.', 'error')
         return redirect(url_for('main.index'))
     relationship = get_relationship(current_user.person, person) if current_user.person else None
-    return render_template('profile.html', person=person, relationship=relationship)
+    return render_template('profile.html', person=person, relationship=relationship, parent_roles=PARENT_ROLES, spouse_roles=SPOUSE_ROLES)
 
 @main.route('/person/<int:person_id>/edit', methods=['GET', 'POST'])
 @login_required
@@ -675,11 +835,14 @@ def person_edit(person_id):
     if not can_edit:
         flash('You do not have permission to edit this profile.', 'error')
         return redirect(url_for('main.person_detail', person_id=person_id))
+    lgbtq = current_user.family.has_lgbtq_options
     form = EditPersonForm(obj=person)
+    form.gender.choices = GENDER_CHOICES_EXPANDED if lgbtq else GENDER_CHOICES_DEFAULT
     if form.validate_on_submit():
         person.name = form.name.data.strip()
         person.nickname = form.nickname.data or None
         person.gender = form.gender.data or None
+        person.pronouns = form.pronouns.data or None
         person.birthday = form.birthday.data
         person.birthplace = format_birthplace(form.birthplace.data)
         person.maiden_name = form.maiden_name.data or None
@@ -714,7 +877,7 @@ def person_edit(person_id):
         db.session.commit()
         flash('Profile updated.', 'info')
         return redirect(url_for('main.person_detail', person_id=person_id))
-    return render_template('person_edit.html', form=form, person=person)
+    return render_template('person_edit.html', form=form, person=person, lgbtq=lgbtq)
 
 @main.route('/search')
 @login_required

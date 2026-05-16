@@ -26,11 +26,27 @@
                     {{ form.gender.label }}
                     {{ form.gender() }}
                 </div>
+                {% if lgbtq %}
+                <div class="field">
+                    {{ form.pronouns.label }}
+                    {{ form.pronouns() }}
+                </div>
+                {% else %}
                 <div class="field">
                     {{ form.nickname.label }}
                     {{ form.nickname() }}
                 </div>
+                {% endif %}
             </div>
+            {% if lgbtq %}
+            <div class="field-row">
+                <div class="field">
+                    {{ form.nickname.label }}
+                    {{ form.nickname() }}
+                </div>
+                <div class="field"></div>
+            </div>
+            {% endif %}
 
             <div class="field-row">
                 <div class="field">
@@ -44,7 +60,7 @@
             </div>
 
             <div class="field-row">
-                <div class="field">
+                <div class="field" id="maiden-name-field">
                     {{ form.maiden_name.label }}
                     {{ form.maiden_name() }}
                 </div>
@@ -132,6 +148,13 @@
 </div>
 
 <script>
+(function() {
+    const gender = document.getElementById('gender');
+    const field  = document.getElementById('maiden-name-field');
+    function update() { field.style.display = gender && gender.value === 'Male' ? 'none' : ''; }
+    if (gender) { gender.addEventListener('change', update); update(); }
+})();
+
 (function () {
     const fileInput  = document.getElementById('photo-file-input');
     const cropWrap   = document.getElementById('crop-wrap');
