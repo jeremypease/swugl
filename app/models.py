@@ -142,6 +142,16 @@ class Person(db.Model):
             return f"{self.nickname} {last}"
         return self.name
 
+    def get_couple_name(self):
+        """Return 'First & SpouseFirst Last' if active spouse exists, else display name."""
+        spouse = self.get_active_spouse()
+        my_first = self.nickname if self.nickname else self.name.split()[0]
+        last = self.name.split()[-1]
+        if spouse:
+            sp_first = spouse.nickname if spouse.nickname else spouse.name.split()[0]
+            return f"{my_first} & {sp_first} {last}"
+        return self.get_display_name()
+
     def get_age(self):
         if not self.birthday:
             return None

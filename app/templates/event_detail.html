@@ -75,22 +75,21 @@
                 {% if meal.meal_date %}<span style="font-size:13px;color:var(--text-muted);">{{ meal.meal_date.strftime('%B %-d') }}</span>{% endif %}
                 {% if meal.meal_time %}<span style="font-size:13px;color:var(--text-muted);">{{ meal.meal_time }}</span>{% endif %}
 
-                {# Family assignment display #}
+                {# Host family #}
                 {% if meal.assigned_family %}
-                <span class="badge b-active" style="margin-left:4px;">
-                    <span class="dot"></span>{{ meal.assigned_family.get_display_name() }}'s family
-                </span>
+                <span style="font-size:13px;color:var(--text-muted);">Host: <strong>{{ meal.assigned_family.get_couple_name() }}</strong></span>
                 {% if current_user.is_admin %}
                 <form method="POST" action="/events/{{ event.id }}/meals/{{ meal.id }}/unassign-family">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" class="btn btn-ghost btn-sm">Clear family</button>
+                    <button type="submit" class="btn btn-ghost btn-sm">Clear</button>
                 </form>
                 {% endif %}
                 {% elif current_user.is_admin %}
                 <form method="POST" action="/events/{{ event.id }}/meals/{{ meal.id }}/assign-family" style="display:flex;gap:4px;align-items:center;">
                     {{ meal_family_forms[meal.id].hidden_tag() }}
+                    <span style="font-size:13px;color:var(--text-muted);white-space:nowrap;">Host family:</span>
                     {{ meal_family_forms[meal.id].assigned_family_id(style="font-size:13px;padding:3px 6px;") }}
-                    <button type="submit" class="btn btn-ghost btn-sm">Assign family</button>
+                    <button type="submit" class="btn btn-ghost btn-sm">Set</button>
                 </form>
                 {% endif %}
 
@@ -167,9 +166,13 @@
 </div>
 
 {% elif current_user.is_admin %}
-<div style="font-size:13px;color:var(--text-muted);">
-    <a href="/events/{{ event.id }}/edit">+ Enable Meals</a>
-</div>
+<form method="POST" action="/events/{{ event.id }}/enable-section">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="section" value="meals">
+    <button type="submit" class="btn btn-ghost btn-sm" style="font-size:13px;color:var(--text-muted);padding:0;">
+        <i data-lucide="plus" style="width:13px;height:13px;"></i> Enable Meals
+    </button>
+</form>
 {% endif %}
 
 
@@ -255,9 +258,13 @@
 </div>
 
 {% elif current_user.is_admin %}
-<div style="font-size:13px;color:var(--text-muted);">
-    <a href="/events/{{ event.id }}/edit">+ Enable Assignments</a>
-</div>
+<form method="POST" action="/events/{{ event.id }}/enable-section">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="section" value="assignments">
+    <button type="submit" class="btn btn-ghost btn-sm" style="font-size:13px;color:var(--text-muted);padding:0;">
+        <i data-lucide="plus" style="width:13px;height:13px;"></i> Enable Assignments
+    </button>
+</form>
 {% endif %}
 
 
@@ -339,9 +346,13 @@
 </div>
 
 {% elif current_user.is_admin %}
-<div style="font-size:13px;color:var(--text-muted);">
-    <a href="/events/{{ event.id }}/edit">+ Enable Sleeping Arrangements</a>
-</div>
+<form method="POST" action="/events/{{ event.id }}/enable-section">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="section" value="sleeping">
+    <button type="submit" class="btn btn-ghost btn-sm" style="font-size:13px;color:var(--text-muted);padding:0;">
+        <i data-lucide="plus" style="width:13px;height:13px;"></i> Enable Sleeping Arrangements
+    </button>
+</form>
 {% endif %}
 
 </div>

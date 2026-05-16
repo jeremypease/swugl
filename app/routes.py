@@ -1347,11 +1347,13 @@ def event_detail(event_id):
 
     meal_form = EventMealForm()
     meal_item_form = EventMealItemForm()
-    # Per-meal family-assign forms (admin only)
+    # Per-meal family-assign forms (admin only) — deduplicated couples, directory members only
+    dir_people = [p for p in all_people if p.in_directory]
+    couple_people = [p for p in dir_people if not p.get_active_spouse() or p.id < p.get_active_spouse().id]
     meal_family_forms = {}
     for meal in event.meals:
         f = EventMealFamilyAssignForm(prefix=f'meal_fam_{meal.id}')
-        f.assigned_family_id.choices = [(0, '— Select family —')] + [(p.id, p.get_display_name()) for p in all_people]
+        f.assigned_family_id.choices = [(0, '— None —')] + [(p.id, p.get_couple_name()) for p in couple_people]
         meal_family_forms[meal.id] = f
     # Per-item assign forms (any member can assign anyone)
     item_assign_forms = {}
@@ -1426,6 +1428,24 @@ def event_delete(event_id):
     return redirect(url_for('main.events_list'))
 
 
+@main.route('/events/<int:event_id>/enable-section', methods=['POST'])
+@login_required
+@admin_required
+def event_enable_section(event_id):
+    event = db.session.get(Event, event_id)
+    if not event or event.family_id != current_user.family_id:
+        return redirect(url_for('main.events_list'))
+    section = request.form.get('section')
+    if section == 'meals':
+        event.has_meals = True
+    elif section == 'assignments':
+        event.has_assignments = True
+    elif section == 'sleeping':
+        event.has_sleeping = True
+    db.session.commit()
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
 # ── Meals ─────────────────────────────────────────────────────────────────────
 
 @main.route('/events/<int:event_id>/meals/add', methods=['POST'])
@@ -1474,8 +1494,9 @@ def event_meal_assign_family(event_id, meal_id):
         flash('Meal not found.', 'error')
         return redirect(url_for('main.event_detail', event_id=event_id))
     all_people = Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
+    couple_people = [p for p in all_people if p.in_directory and (not p.get_active_spouse() or p.id < p.get_active_spouse().id)]
     form = EventMealFamilyAssignForm(prefix=f'meal_fam_{meal_id}')
-    form.assigned_family_id.choices = [(0, '— Select family —')] + [(p.id, p.get_display_name()) for p in all_people]
+    form.assigned_family_id.choices = [(0, '— None —')] + [(p.id, p.get_couple_name()) for p in couple_people]
     if form.validate_on_submit():
         pid = form.assigned_family_id.data
         meal.assigned_family_id = pid if pid else None
