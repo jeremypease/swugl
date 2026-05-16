@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Albums — {{ current_user.family.name }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <div class="eyebrow">{{ current_user.family.name }}</div>
+        <h1>Photo Albums</h1>
+    </div>
+    {% if current_user.is_admin or current_user.is_delegate %}
+    <button class="btn btn-primary" onclick="document.getElementById('new-album-modal').style.display='flex'">
+        <i data-lucide="plus"></i> New Album
+    </button>
+    {% endif %}
+</div>
+
+{% if albums %}
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:20px;">
+    {% for album in albums %}
+    <a href="/albums/{{ album.id }}" style="text-decoration:none;color:inherit;">
+        <div style="border-radius:var(--r-card);overflow:hidden;background:var(--surface);border:1px solid var(--border);transition:box-shadow 0.15s,border-color 0.15s;" class="album-card">
+            <div style="height:160px;background:var(--border);overflow:hidden;position:relative;">
+                {% if album.cover %}
+                <img src="{{ url_for('static', filename=album.cover.path) }}"
+                     style="width:100%;height:100%;object-fit:cover;" loading="lazy">
+                {% else %}
+                <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-muted);">
+                    <i data-lucide="image" style="width:40px;height:40px;opacity:0.3;"></i>
+                </div>
+                {% endif %}
+                <div style="position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,0.55);color:#fff;font-size:12px;padding:2px 8px;border-radius:99px;">
+                    {{ album.photo_count }} photo{{ 's' if album.photo_count != 1 else '' }}
+                </div>
+            </div>
+            <div style="padding:12px 14px;">
+                <div style="font-weight:600;font-size:14px;margin-bottom:2px;">{{ album.name }}</div>
+                <div style="font-size:12px;color:var(--text-muted);">
+                    {% if album.event %}{{ album.event.name }}{% elif album.year %}{{ album.year }}{% else %}{{ album.created_at.strftime('%b %Y') }}{% endif %}
+                </div>
+            </div>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<p style="color:var(--text-muted);margin-top:8px;">No albums yet.</p>
+{% endif %}
+
+<style>.album-card:hover { border-color:var(--vine); box-shadow:0 4px 16px rgba(0,0,0,0.08); }</style>
+
+{% if current_user.is_admin or current_user.is_delegate %}
+<!-- New Album Modal -->
+<div id="new-album-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;align-items:center;justify-content:center;padding:20px;">
+    <div class="card" style="width:100%;max-width:480px;max-height:90vh;overflow-y:auto;">
+        <div class="card-header">
+            <h3>New Album</h3>
+            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('new-album-modal').style.display='none'">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <form method="POST" action="/albums/add">
+            {{ form.hidden_tag() }}
+            <div class="field">
+                {{ form.name.label }}
+                {{ form.name(placeholder="e.g. Summer Reunion 2025") }}
+                {% for e in form.name.errors %}<span class="msg">{{ e }}</span>{% endfor %}
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    {{ form.year.label }}
+                    {{ form.year(placeholder="e.g. 2025") }}
+                </div>
+                <div class="field">
+                    {{ form.event_id.label }}
+                    {{ form.event_id() }}
+                </div>
+            </div>
+            <div class="field">
+                {{ form.description.label }}
+                {{ form.description(rows=3) }}
+            </div>
+            <div style="display:flex;gap:10px;margin-top:8px;">
+                <button type="submit" class="btn btn-primary"><i data-lucide="plus"></i> Create</button>
+                <button type="button" class="btn btn-secondary"
+                        onclick="document.getElementById('new-album-modal').style.display='none'">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

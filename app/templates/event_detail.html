@@ -346,6 +346,46 @@
 
 </div>
 
+<!-- Albums linked to this event -->
+{% if event.albums or current_user.is_admin or current_user.is_delegate %}
+<div class="card" style="margin-top:24px;">
+    <div class="card-header">
+        <h3>Photos</h3>
+        {% if current_user.is_admin or current_user.is_delegate %}
+        <a href="/albums" class="btn btn-ghost btn-sm" onclick="sessionStorage.setItem('newAlbumEvent','{{ event.id }}')">
+            <i data-lucide="plus"></i> New Album
+        </a>
+        {% endif %}
+    </div>
+    {% if event.albums %}
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-top:8px;">
+        {% for album in event.albums %}
+        <a href="/albums/{{ album.id }}" style="text-decoration:none;color:inherit;">
+            <div style="border-radius:var(--r-sm);overflow:hidden;border:1px solid var(--border);">
+                <div style="height:110px;background:var(--border);overflow:hidden;">
+                    {% if album.cover %}
+                    <img src="{{ url_for('static', filename=album.cover.path) }}"
+                         style="width:100%;height:100%;object-fit:cover;" loading="lazy">
+                    {% else %}
+                    <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">
+                        <i data-lucide="image" style="width:28px;height:28px;opacity:0.3;"></i>
+                    </div>
+                    {% endif %}
+                </div>
+                <div style="padding:8px 10px;">
+                    <div style="font-weight:600;font-size:13px;">{{ album.name }}</div>
+                    <div style="font-size:12px;color:var(--text-muted);">{{ album.photo_count }} photo{{ 's' if album.photo_count != 1 else '' }}</div>
+                </div>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p style="font-size:14px;color:var(--text-muted);padding:8px 0;">No photo albums yet for this event.</p>
+    {% endif %}
+</div>
+{% endif %}
+
 <script>
 function toggleForm(id) {
     const el = document.getElementById(id);

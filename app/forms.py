@@ -217,6 +217,24 @@ class EventSleepingAssignForm(FlaskForm):
     person_id = SelectField('Person', coerce=int, validators=[DataRequired()])
     submit = SubmitField('Assign')
 
+class AlbumForm(FlaskForm):
+    name = StringField('Album Name', validators=[DataRequired(), Length(max=150)])
+    description = TextAreaField('Description', validators=[Optional()])
+    year = IntegerField('Year', validators=[Optional()])
+    event_id = SelectField('Link to Event', coerce=int, validators=[Optional()])
+    submit = SubmitField('Create Album')
+
+class PhotoUploadForm(FlaskForm):
+    photos = FileField('Photos', validators=[Optional()])
+    caption = StringField('Caption', validators=[Optional(), Length(max=300)])
+    submit = SubmitField('Upload')
+
+class AnnouncementForm(FlaskForm):
+    title = StringField('Title', validators=[DataRequired(), Length(max=150)])
+    body = TextAreaField('Message', validators=[DataRequired()])
+    pinned = BooleanField('Pin to top')
+    submit = SubmitField('Post')
+
 class ResetPasswordForm(FlaskForm):
     password = PasswordField('New Password', validators=[
         DataRequired(),

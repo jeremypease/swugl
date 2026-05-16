@@ -33,6 +33,12 @@
             <a href="/members" {% if request.path == '/members' %}class="active"{% endif %}>
                 <i data-lucide="users"></i> Members
             </a>
+            <a href="/announcements" {% if request.path.startswith('/announcements') %}class="active"{% endif %}>
+                <i data-lucide="megaphone"></i> Announcements
+            </a>
+            <a href="/albums" {% if request.path.startswith('/albums') %}class="active"{% endif %}>
+                <i data-lucide="image"></i> Albums
+            </a>
             <a href="/events" {% if request.path.startswith('/events') %}class="active"{% endif %}>
                 <i data-lucide="calendar"></i> Events
             </a>

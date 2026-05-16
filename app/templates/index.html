@@ -39,6 +39,31 @@
     </div>
     {% endif %}
 
+    {% if home_announcements %}
+    <div class="card">
+        <div class="card-header">
+            <h3>Announcements</h3>
+            <a href="/announcements" class="meta" style="text-decoration:none;">View all →</a>
+        </div>
+        {% for a in home_announcements %}
+        <div style="padding:12px 0;{% if not loop.last %}border-bottom:1px solid var(--border);{% endif %}">
+            {% if a.pinned %}
+            <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--vine);">
+                <i data-lucide="pin" style="width:10px;height:10px;"></i> Pinned ·
+            </span>
+            {% endif %}
+            <a href="/announcements" style="font-weight:600;font-size:14px;color:inherit;text-decoration:none;">{{ a.title }}</a>
+            <div style="font-size:13px;color:var(--text-muted);margin-top:2px;">
+                {% if a.author %}{{ a.author.get_display_name() }} · {% endif %}{{ a.created_at.strftime('%b %-d') }}
+            </div>
+            <p style="font-size:13px;line-height:1.55;margin-top:6px;color:var(--text-muted);">
+                {{ a.body[:160] }}{% if a.body|length > 160 %}…{% endif %}
+            </p>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     <div class="card">
         <div class="card-header">
             <h3>Upcoming Events</h3>

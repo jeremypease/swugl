@@ -290,3 +290,58 @@ class EventSleepingSpot(db.Model):
     notes = db.Column(db.Text, nullable=True)
 
     people = db.relationship('Person', secondary='event_sleeping_assignments')
+
+
+class Announcement(db.Model):
+    __tablename__ = 'announcements'
+
+    id = db.Column(db.Integer, primary_key=True)
+    family_id = db.Column(db.Integer, db.ForeignKey('families.id'), nullable=False)
+    author_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=True)
+    title = db.Column(db.String(150), nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    pinned = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    author = db.relationship('Person')
+
+
+class Album(db.Model):
+    __tablename__ = 'albums'
+
+    id = db.Column(db.Integer, primary_key=True)
+    family_id = db.Column(db.Integer, db.ForeignKey('families.id'), nullable=False)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=True)
+    name = db.Column(db.String(150), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    year = db.Column(db.Integer, nullable=True)
+    event_id = db.Column(db.Integer, db.ForeignKey('events.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    created_by = db.relationship('Person')
+    event = db.relationship('Event', backref='albums')
+    photos = db.relationship('Photo', backref='album', cascade='all, delete-orphan',
+                             order_by='Photo.created_at')
+
+    @property
+    def cover(self):
+        return self.photos[0] if self.photos else None
+
+    @property
+    def photo_count(self):
+        return len(self.photos)
+
+
+class Photo(db.Model):
+    __tablename__ = 'photos'
+
+    id = db.Column(db.Integer, primary_key=True)
+    album_id = db.Column(db.Integer, db.ForeignKey('albums.id'), nullable=False)
+    family_id = db.Column(db.Integer, db.ForeignKey('families.id'), nullable=False)
+    uploaded_by_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=True)
+    path = db.Column(db.String(300), nullable=False)
+    caption = db.Column(db.String(300), nullable=True)
+    taken_date = db.Column(db.Date, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    uploaded_by = db.relationship('Person')

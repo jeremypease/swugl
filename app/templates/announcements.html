@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% from "_macros.html" import av %}
+
+{% block title %}Announcements — {{ current_user.family.name }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <div class="eyebrow">{{ current_user.family.name }}</div>
+        <h1>Announcements</h1>
+    </div>
+</div>
+
+{% if current_user.is_admin or current_user.is_delegate %}
+<div class="card" style="max-width:640px;margin-bottom:24px;">
+    <div class="card-header"><h3>Post an announcement</h3></div>
+    <form method="POST" action="/announcements/add">
+        {{ form.hidden_tag() }}
+        <div class="field">
+            {{ form.title.label }}
+            {{ form.title(placeholder="Title") }}
+            {% for e in form.title.errors %}<span class="msg">{{ e }}</span>{% endfor %}
+        </div>
+        <div class="field">
+            {{ form.body.label }}
+            {{ form.body(rows=4, placeholder="What would you like to share with the family?") }}
+            {% for e in form.body.errors %}<span class="msg">{{ e }}</span>{% endfor %}
+        </div>
+        {% if current_user.is_admin %}
+        <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;margin-bottom:12px;">
+            {{ form.pinned(style="width:15px;height:15px;cursor:pointer;") }}
+            Pin this announcement to the top
+        </label>
+        {% endif %}
+        <button type="submit" class="btn btn-primary">
+            <i data-lucide="send"></i> Post
+        </button>
+    </form>
+</div>
+{% endif %}
+
+{% if announcements %}
+<div style="display:flex;flex-direction:column;gap:16px;max-width:640px;">
+    {% for a in announcements %}
+    <div class="card" style="{% if a.pinned %}border-left:3px solid var(--vine);{% endif %}">
+        <div class="card-header" style="align-items:flex-start;">
+            <div>
+                {% if a.pinned %}
+                <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--vine);margin-bottom:4px;display:block;">
+                    <i data-lucide="pin" style="width:11px;height:11px;"></i> Pinned
+                </span>
+                {% endif %}
+                <h3 style="margin:0;">{{ a.title }}</h3>
+                <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">
+                    {% if a.author %}{{ av(a.author, size='xs', color='var(--vine)') }} {{ a.author.get_display_name() }} · {% endif %}
+                    {{ a.created_at.strftime('%B %-d, %Y') }}
+                </div>
+            </div>
+            <div style="display:flex;gap:6px;margin-left:auto;flex-shrink:0;">
+                {% if current_user.is_admin %}
+                <form method="POST" action="/announcements/{{ a.id }}/pin">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-ghost btn-sm" title="{{ 'Unpin' if a.pinned else 'Pin' }}">
+                        <i data-lucide="pin" style="width:14px;height:14px;{% if a.pinned %}color:var(--vine);{% endif %}"></i>
+                    </button>
+                </form>
+                {% endif %}
+                {% if current_user.is_admin or (current_user.person and a.author_id == current_user.person.id) %}
+                <form method="POST" action="/announcements/{{ a.id }}/delete"
+                      onsubmit="return confirm('Delete this announcement?')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);">
+                        <i data-lucide="trash-2" style="width:14px;height:14px;"></i>
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+        <p style="font-size:15px;line-height:1.65;white-space:pre-wrap;margin-top:8px;">{{ a.body }}</p>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p style="color:var(--text-muted);margin-top:8px;">No announcements yet.</p>
+{% endif %}
+{% endblock %}

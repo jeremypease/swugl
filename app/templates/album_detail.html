@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block title %}{{ album.name }} — Peavines{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <div class="eyebrow"><a href="/albums" style="color:inherit;text-decoration:none;">Albums</a></div>
+        <h1>{{ album.name }}</h1>
+        {% if album.description %}<p class="sub">{{ album.description }}</p>{% endif %}
+        <p class="sub" style="margin-top:4px;">
+            {% if album.event %}<a href="/events/{{ album.event.id }}" style="color:var(--vine);">{{ album.event.name }}</a> · {% endif %}
+            {% if album.year %}{{ album.year }} · {% endif %}
+            {{ album.photo_count }} photo{{ 's' if album.photo_count != 1 else '' }}
+        </p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        {% if album.photos %}
+        <a href="/albums/{{ album.id }}/download" class="btn btn-secondary">
+            <i data-lucide="download"></i> Download All
+        </a>
+        {% endif %}
+        {% if current_user.is_admin %}
+        <form method="POST" action="/albums/{{ album.id }}/delete"
+              onsubmit="return confirm('Delete this entire album and all its photos?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);">
+                <i data-lucide="trash-2"></i> Delete Album
+            </button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Upload form -->
+<div class="card" style="max-width:600px;margin-bottom:24px;">
+    <div class="card-header"><h3>Upload Photos</h3></div>
+    <form method="POST" action="/albums/{{ album.id }}/upload" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="field">
+            <label>Photos <span style="color:var(--text-muted);font-weight:400;">(JPG, PNG, WEBP, GIF, HEIC)</span></label>
+            <input type="file" name="photos" multiple accept=".jpg,.jpeg,.png,.webp,.gif,.heic"
+                   onchange="updateFileLabel(this)"
+                   style="display:block;width:100%;padding:10px;border:2px dashed var(--border);border-radius:var(--r-sm);cursor:pointer;background:var(--surface);">
+            <div id="file-label" style="font-size:12px;color:var(--text-muted);margin-top:4px;"></div>
+        </div>
+        <div class="field">
+            <label>Caption <span style="color:var(--text-muted);font-weight:400;">(optional, applies to all uploaded photos)</span></label>
+            <input type="text" name="caption" placeholder="e.g. Family reunion BBQ" style="width:100%;">
+        </div>
+        <button type="submit" class="btn btn-primary">
+            <i data-lucide="upload"></i> Upload
+        </button>
+    </form>
+</div>
+
+<!-- Photo grid -->
+{% if album.photos %}
+<div id="photo-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;">
+    {% for photo in album.photos %}
+    <div class="photo-thumb" style="position:relative;aspect-ratio:1;overflow:hidden;border-radius:var(--r-sm);background:var(--border);cursor:pointer;"
+         onclick="openLightbox({{ loop.index0 }})">
+        <img src="{{ url_for('static', filename=photo.path) }}"
+             style="width:100%;height:100%;object-fit:cover;transition:transform 0.2s;"
+             loading="lazy">
+        {% if photo.caption %}
+        <div style="position:absolute;bottom:0;left:0;right:0;padding:6px 8px;background:linear-gradient(transparent,rgba(0,0,0,0.6));color:#fff;font-size:12px;line-height:1.3;">
+            {{ photo.caption }}
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Lightbox -->
+<div id="lightbox" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:300;flex-direction:column;align-items:center;justify-content:center;">
+    <!-- Top bar -->
+    <div style="position:absolute;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:linear-gradient(rgba(0,0,0,0.6),transparent);">
+        <div id="lb-counter" style="color:rgba(255,255,255,0.7);font-size:13px;"></div>
+        <div style="display:flex;gap:8px;">
+            <a id="lb-download" href="#" download class="btn btn-ghost btn-sm" style="color:#fff;border-color:rgba(255,255,255,0.3);">
+                <i data-lucide="download" style="width:14px;height:14px;"></i> Download
+            </a>
+            {% if current_user.is_admin %}
+            <form id="lb-delete-form" method="POST" style="display:inline"
+                  onsubmit="return confirm('Delete this photo?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);border-color:rgba(255,255,255,0.3);">
+                    <i data-lucide="trash-2" style="width:14px;height:14px;"></i>
+                </button>
+            </form>
+            {% endif %}
+            <button class="btn btn-ghost btn-sm" onclick="closeLightbox()" style="color:#fff;border-color:rgba(255,255,255,0.3);">
+                <i data-lucide="x" style="width:14px;height:14px;"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Image -->
+    <img id="lb-img" src="" style="max-width:90vw;max-height:80vh;object-fit:contain;border-radius:4px;">
+
+    <!-- Caption + uploader -->
+    <div id="lb-meta" style="text-align:center;margin-top:12px;color:rgba(255,255,255,0.8);font-size:13px;max-width:600px;"></div>
+
+    <!-- Arrows -->
+    <button onclick="prevPhoto()" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.15);border:none;border-radius:50%;width:44px;height:44px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;">‹</button>
+    <button onclick="nextPhoto()" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.15);border:none;border-radius:50%;width:44px;height:44px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;">›</button>
+</div>
+
+<script>
+const photos = [
+    {% for photo in album.photos %}
+    {
+        src: "{{ url_for('static', filename=photo.path) }}",
+        caption: {{ photo.caption | tojson }},
+        uploader: {{ (photo.uploaded_by.get_display_name() if photo.uploaded_by else None) | tojson }},
+        downloadUrl: "{{ url_for('static', filename=photo.path) }}",
+        deleteUrl: "/albums/{{ album.id }}/photos/{{ photo.id }}/delete",
+    },
+    {% endfor %}
+];
+
+let current = 0;
+
+function openLightbox(idx) {
+    current = idx;
+    showPhoto();
+    document.getElementById('lightbox').style.display = 'flex';
+    document.addEventListener('keydown', lbKeyHandler);
+}
+
+function closeLightbox() {
+    document.getElementById('lightbox').style.display = 'none';
+    document.removeEventListener('keydown', lbKeyHandler);
+}
+
+function showPhoto() {
+    const p = photos[current];
+    document.getElementById('lb-img').src = p.src;
+    document.getElementById('lb-counter').textContent = (current + 1) + ' / ' + photos.length;
+    document.getElementById('lb-download').href = p.downloadUrl;
+    document.getElementById('lb-download').download = p.src.split('/').pop();
+    const meta = [];
+    if (p.caption) meta.push(p.caption);
+    if (p.uploader) meta.push('Uploaded by ' + p.uploader);
+    document.getElementById('lb-meta').textContent = meta.join(' · ');
+    const deleteForm = document.getElementById('lb-delete-form');
+    if (deleteForm) deleteForm.action = p.deleteUrl;
+}
+
+function prevPhoto() { current = (current - 1 + photos.length) % photos.length; showPhoto(); }
+function nextPhoto() { current = (current + 1) % photos.length; showPhoto(); }
+
+function lbKeyHandler(e) {
+    if (e.key === 'ArrowLeft')  prevPhoto();
+    if (e.key === 'ArrowRight') nextPhoto();
+    if (e.key === 'Escape')     closeLightbox();
+}
+
+document.getElementById('lightbox').addEventListener('click', function(e) {
+    if (e.target === this) closeLightbox();
+});
+
+function updateFileLabel(input) {
+    const label = document.getElementById('file-label');
+    if (input.files.length === 0) { label.textContent = ''; return; }
+    label.textContent = input.files.length + ' file' + (input.files.length !== 1 ? 's' : '') + ' selected';
+}
+</script>
+{% else %}
+<p style="color:var(--text-muted);margin-top:8px;">No photos yet — upload some above.</p>
+{% endif %}
+
+<style>
+.photo-thumb img:hover { transform: scale(1.04); }
+</style>
+{% endblock %}

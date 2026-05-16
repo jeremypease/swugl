@@ -1,7 +1,7 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app
+from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, send_file
 from flask_login import login_user, logout_user, login_required, current_user
-from .models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, EventSleepingSpot
-from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm, ForgotPasswordForm, ResetPasswordForm, AddPersonForm, RelativeForm, AddParentForm, FamilySettingsForm, EditPersonForm, EventForm, EventMealForm, EventMealFamilyAssignForm, EventMealItemForm, EventMealAssignForm, EventAssignmentForm, EventSleepingSpotForm, EventSleepingAssignForm, GENDER_CHOICES_DEFAULT, GENDER_CHOICES_EXPANDED, PRONOUN_CHOICES
+from .models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, EventSleepingSpot, Announcement, Album, Photo
+from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm, ForgotPasswordForm, ResetPasswordForm, AddPersonForm, RelativeForm, AddParentForm, FamilySettingsForm, EditPersonForm, EventForm, EventMealForm, EventMealFamilyAssignForm, EventMealItemForm, EventMealAssignForm, EventAssignmentForm, EventSleepingSpotForm, EventSleepingAssignForm, GENDER_CHOICES_DEFAULT, GENDER_CHOICES_EXPANDED, PRONOUN_CHOICES, AnnouncementForm, AlbumForm, PhotoUploadForm
 from .email import send_verification_email, send_pending_notification, send_approval_notification, send_spouse_confirmation_email, send_spouse_invitation_email, send_password_reset_email, send_member_invitation_email
 from datetime import date, datetime, timedelta
 from functools import wraps
@@ -10,6 +10,9 @@ from . import db
 import secrets
 import re
 import os
+import uuid
+import zipfile
+import io
 
 main = Blueprint('main', __name__)
 
@@ -223,9 +226,15 @@ def index():
             profile_nudge.append(('gender', 'Set your gender'))
         if not me.birthplace:
             profile_nudge.append(('birthplace', 'Add your birthplace'))
+    pinned = Announcement.query.filter_by(family_id=current_user.family_id, pinned=True)\
+        .order_by(Announcement.created_at.desc()).all()
+    recent = Announcement.query.filter_by(family_id=current_user.family_id, pinned=False)\
+        .order_by(Announcement.created_at.desc()).limit(3).all()
+    home_announcements = pinned + recent
     return render_template('index.html', member_count=member_count, family=current_user.family,
                            upcoming_birthdays=upcoming_birthdays, upcoming_events=upcoming_events,
-                           profile_nudge=profile_nudge, me=me)
+                           profile_nudge=profile_nudge, me=me,
+                           home_announcements=home_announcements)
 
 @main.route('/login', methods=['GET', 'POST'])
 def login():
@@ -669,6 +678,185 @@ def reset_password(token):
         flash('Password reset successfully. You can now sign in.', 'info')
         return redirect(url_for('main.login'))
     return render_template('reset_password.html', form=form)
+
+ALLOWED_PHOTO_EXTS = {'jpg', 'jpeg', 'png', 'webp', 'gif', 'heic'}
+
+def _save_photo_file(file, album_id):
+    ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else 'jpg'
+    if ext not in ALLOWED_PHOTO_EXTS:
+        return None
+    upload_dir = os.path.join(current_app.root_path, 'static', 'uploads', 'albums', str(album_id))
+    os.makedirs(upload_dir, exist_ok=True)
+    filename = f'{uuid.uuid4().hex}.{ext}'
+    file.save(os.path.join(upload_dir, filename))
+    return f'uploads/albums/{album_id}/{filename}'
+
+@main.route('/albums')
+@login_required
+def albums():
+    all_albums = Album.query.filter_by(family_id=current_user.family_id)\
+        .order_by(Album.created_at.desc()).all()
+    form = AlbumForm()
+    events = Event.query.filter_by(family_id=current_user.family_id).order_by(Event.start_date.desc()).all()
+    form.event_id.choices = [(0, '-- None --')] + [(e.id, e.name) for e in events]
+    return render_template('albums_list.html', albums=all_albums, form=form)
+
+@main.route('/albums/add', methods=['POST'])
+@login_required
+@contributor_or_admin_required
+def add_album():
+    events = Event.query.filter_by(family_id=current_user.family_id).all()
+    form = AlbumForm()
+    form.event_id.choices = [(0, '-- None --')] + [(e.id, e.name) for e in events]
+    if form.validate_on_submit():
+        album = Album(
+            family_id=current_user.family_id,
+            created_by_id=current_user.person.id if current_user.person else None,
+            name=form.name.data.strip(),
+            description=form.description.data or None,
+            year=form.year.data or None,
+            event_id=form.event_id.data or None,
+        )
+        db.session.add(album)
+        db.session.commit()
+        flash(f'Album "{album.name}" created.', 'info')
+        return redirect(url_for('main.album_detail', album_id=album.id))
+    return redirect(url_for('main.albums'))
+
+@main.route('/albums/<int:album_id>')
+@login_required
+def album_detail(album_id):
+    album = db.session.get(Album, album_id)
+    if not album or album.family_id != current_user.family_id:
+        flash('Album not found.', 'error')
+        return redirect(url_for('main.albums'))
+    upload_form = PhotoUploadForm()
+    return render_template('album_detail.html', album=album, upload_form=upload_form)
+
+@main.route('/albums/<int:album_id>/upload', methods=['POST'])
+@login_required
+def upload_photos(album_id):
+    album = db.session.get(Album, album_id)
+    if not album or album.family_id != current_user.family_id:
+        return redirect(url_for('main.albums'))
+    files = request.files.getlist('photos')
+    caption = request.form.get('caption', '').strip() or None
+    count = 0
+    for file in files:
+        if file and file.filename:
+            path = _save_photo_file(file, album_id)
+            if path:
+                photo = Photo(
+                    album_id=album_id,
+                    family_id=current_user.family_id,
+                    uploaded_by_id=current_user.person.id if current_user.person else None,
+                    path=path,
+                    caption=caption,
+                )
+                db.session.add(photo)
+                count += 1
+    if count:
+        db.session.commit()
+        flash(f'{count} photo{"s" if count != 1 else ""} uploaded.', 'info')
+    return redirect(url_for('main.album_detail', album_id=album_id))
+
+@main.route('/albums/<int:album_id>/download')
+@login_required
+def download_album(album_id):
+    album = db.session.get(Album, album_id)
+    if not album or album.family_id != current_user.family_id:
+        return redirect(url_for('main.albums'))
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for photo in album.photos:
+            abs_path = os.path.join(current_app.root_path, 'static', photo.path)
+            if os.path.exists(abs_path):
+                zf.write(abs_path, os.path.basename(abs_path))
+    buf.seek(0)
+    safe_name = ''.join(c if c.isalnum() or c in ' -_' else '_' for c in album.name)
+    return send_file(buf, mimetype='application/zip',
+                     as_attachment=True, download_name=f'{safe_name}.zip')
+
+@main.route('/albums/<int:album_id>/photos/<int:photo_id>/delete', methods=['POST'])
+@login_required
+def delete_photo(album_id, photo_id):
+    photo = db.session.get(Photo, photo_id)
+    if not photo or photo.family_id != current_user.family_id:
+        return redirect(url_for('main.album_detail', album_id=album_id))
+    can_delete = current_user.is_admin or (current_user.person and photo.uploaded_by_id == current_user.person.id)
+    if can_delete:
+        abs_path = os.path.join(current_app.root_path, 'static', photo.path)
+        if os.path.exists(abs_path):
+            os.remove(abs_path)
+        db.session.delete(photo)
+        db.session.commit()
+        flash('Photo deleted.', 'info')
+    return redirect(url_for('main.album_detail', album_id=album_id))
+
+@main.route('/albums/<int:album_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def delete_album(album_id):
+    album = db.session.get(Album, album_id)
+    if not album or album.family_id != current_user.family_id:
+        return redirect(url_for('main.albums'))
+    for photo in album.photos:
+        abs_path = os.path.join(current_app.root_path, 'static', photo.path)
+        if os.path.exists(abs_path):
+            os.remove(abs_path)
+    db.session.delete(album)
+    db.session.commit()
+    flash('Album deleted.', 'info')
+    return redirect(url_for('main.albums'))
+
+@main.route('/announcements')
+@login_required
+def announcements():
+    items = Announcement.query.filter_by(family_id=current_user.family_id)\
+        .order_by(Announcement.pinned.desc(), Announcement.created_at.desc()).all()
+    form = AnnouncementForm()
+    return render_template('announcements.html', announcements=items, form=form)
+
+@main.route('/announcements/add', methods=['POST'])
+@login_required
+@contributor_or_admin_required
+def add_announcement():
+    form = AnnouncementForm()
+    if form.validate_on_submit():
+        a = Announcement(
+            family_id=current_user.family_id,
+            author_id=current_user.person.id if current_user.person else None,
+            title=form.title.data.strip(),
+            body=form.body.data.strip(),
+            pinned=form.pinned.data and current_user.is_admin,
+        )
+        db.session.add(a)
+        db.session.commit()
+        flash('Announcement posted.', 'info')
+    return redirect(url_for('main.announcements'))
+
+@main.route('/announcements/<int:ann_id>/pin', methods=['POST'])
+@login_required
+@admin_required
+def pin_announcement(ann_id):
+    a = db.session.get(Announcement, ann_id)
+    if a and a.family_id == current_user.family_id:
+        a.pinned = not a.pinned
+        db.session.commit()
+    return redirect(url_for('main.announcements'))
+
+@main.route('/announcements/<int:ann_id>/delete', methods=['POST'])
+@login_required
+def delete_announcement(ann_id):
+    a = db.session.get(Announcement, ann_id)
+    if not a or a.family_id != current_user.family_id:
+        return redirect(url_for('main.announcements'))
+    can_delete = current_user.is_admin or (current_user.person and a.author_id == current_user.person.id)
+    if can_delete:
+        db.session.delete(a)
+        db.session.commit()
+        flash('Announcement deleted.', 'info')
+    return redirect(url_for('main.announcements'))
 
 @main.route('/admin/users')
 @login_required
