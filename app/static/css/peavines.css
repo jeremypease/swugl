@@ -445,6 +445,7 @@ body {
 .field label { font-size: 13px; font-weight: 700; color: var(--text); }
 .field input, .field select, .field textarea {
   font-family: var(--font-body); font-size: 15px;
+  width: 100%;
   padding: 10px 12px; border-radius: var(--r-s);
   border: 1px solid var(--hairline-strong);
   background: var(--paper); color: var(--text);

@@ -105,7 +105,7 @@
                 <dt>Phone</dt><dd>{{ person.phone }}</dd>
                 {% endif %}
                 {% if person.address %}
-                <dt>Address</dt><dd>{{ person.address }}</dd>
+                <dt>Address</dt><dd><a href="https://maps.google.com/?q={{ person.address | urlencode }}" target="_blank" rel="noopener">{{ person.address }}</a></dd>
                 {% endif %}
             </dl>
         </div>
