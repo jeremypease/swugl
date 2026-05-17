@@ -8,7 +8,7 @@
    In production, replace with self-hosted woff2 in /fonts/.
    Substitution is documented in README.md → Caveats.
 */
-@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400..700;1,400..700&family=Nunito:wght@400;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,200;0,300;0,400;1,200;1,300;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400&display=swap');
 
 :root {
   /* =========================================================
@@ -16,26 +16,26 @@
      ========================================================= */
 
   /* Greens — leaves and vines */
-  --vine:        #3F5A30;   /* primary action, dark headlines */
-  --vine-deep:   #2E4324;   /* hover/pressed on Vine */
-  --pea:         #6B8E4E;   /* links, secondary accents */
-  --pea-soft:    #8FAE74;   /* hover-tints, decorative */
-  --sprout:      #A8C28A;   /* hover wash, illustration fill */
-  --sprout-soft: #D6E2C2;   /* selected row tint */
-  --leaf-mist:   #EEF3E2;   /* ultra-light section fill */
+  --vine:        #1f3a2b;   /* primary action, dark headlines */
+  --vine-deep:   #161a14;   /* hover/pressed on Vine */
+  --pea:         #3a5a40;   /* links, secondary accents */
+  --pea-soft:    #5b7a52;   /* hover-tints, decorative */
+  --sprout:      #a3b18a;   /* hover wash, illustration fill */
+  --sprout-soft: #cfdcb8;   /* selected row tint */
+  --leaf-mist:   #e4edd7;   /* ultra-light section fill */
 
   /* Paper — backgrounds */
-  --cream:       #FBF7EE;   /* page background */
-  --cream-warm:  #F4EDDB;   /* subtle alt section */
-  --paper:       #FFFFFF;   /* card surface */
+  --cream:       #e4edd7;   /* page background */
+  --cream-warm:  #cfdcb8;   /* subtle alt section */
+  --paper:       #f4f6e9;   /* card surface */
 
   /* Inks — text */
-  --ink:         #2A2E26;   /* primary text, dark surface */
-  --ink-soft:    #4A5043;   /* less-emphatic text */
-  --slate:       #6B7563;   /* muted, captions */
-  --slate-soft:  #9AA293;   /* placeholder, disabled text */
-  --hairline:    rgba(63, 90, 48, 0.12);  /* borders, dividers */
-  --hairline-strong: rgba(63, 90, 48, 0.22);
+  --ink:         #161a14;   /* primary text, dark surface */
+  --ink-soft:    #2e3328;   /* less-emphatic text */
+  --slate:       #5b6850;   /* muted, captions */
+  --slate-soft:  #8a9a7a;   /* placeholder, disabled text */
+  --hairline:    rgba(201, 212, 173, 0.5);  /* borders, dividers */
+  --hairline-strong: rgba(163, 177, 138, 0.6);
 
   /* Accents — used sparingly */
   --berry:       #B5446E;   /* birthdays, celebrations */
@@ -79,9 +79,9 @@
   /* =========================================================
      TYPE
      ========================================================= */
-  --font-display: 'Lora', 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
-  --font-body:    'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-  --font-mono:    ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --font-display: 'Spectral', 'Iowan Old Style', Georgia, serif;
+  --font-body:    'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
   /* Sizes / line-heights / weights — base values */
   --fs-display-xl: 56px;  --lh-display-xl: 64px;
@@ -94,9 +94,9 @@
   --fs-meta:       12px;  --lh-meta:       16px;
 
   --fw-regular:  400;
-  --fw-medium:   600;
-  --fw-bold:     700;
-  --fw-heavy:    800;
+  --fw-medium:   500;
+  --fw-bold:     600;
+  --fw-heavy:    600;
 
   /* =========================================================
      SPACING (4px base)
@@ -171,9 +171,10 @@ h1, .h1 {
   font-family: var(--font-display);
   font-size: var(--fs-display-l);
   line-height: var(--lh-display-l);
-  font-weight: var(--fw-medium);
+  font-weight: 300;
+  font-style: italic;
   color: var(--text);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.008em;
   margin: 0;
 }
 
@@ -181,7 +182,7 @@ h2, .h2 {
   font-family: var(--font-display);
   font-size: var(--fs-display-m);
   line-height: var(--lh-display-m);
-  font-weight: var(--fw-medium);
+  font-weight: 300;
   color: var(--text);
   letter-spacing: -0.005em;
   margin: 0;
@@ -191,7 +192,8 @@ h3, .h3 {
   font-family: var(--font-display);
   font-size: var(--fs-title);
   line-height: var(--lh-title);
-  font-weight: var(--fw-medium);
+  font-weight: 300;
+  font-style: italic;
   color: var(--text);
   margin: 0;
 }
