@@ -2,15 +2,59 @@
 
 {% block title %}Family Settings — Peavines{% endblock %}
 
+{% block head %}
+<style>
+.settings-layout {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: 28px;
+    align-items: start;
+}
+.settings-nav {
+    position: sticky;
+    top: 66px;
+    background: var(--paper);
+    border: 1px solid var(--hairline-strong);
+    border-radius: var(--r-m);
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.settings-nav a {
+    display: block;
+    padding: 7px 10px;
+    border-radius: var(--r-s);
+    font-size: 13px;
+    text-decoration: none;
+    color: var(--slate);
+    transition: background .12s, color .12s;
+}
+.settings-nav a:hover { background: var(--leaf-mist); color: var(--ink); }
+.settings-nav a.active { background: var(--leaf-mist); color: var(--vine); font-weight: 600; }
+@media (max-width: 680px) {
+    .settings-layout { grid-template-columns: 1fr; }
+    .settings-nav { position: static; }
+}
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="page-head">
-    <div>
-        <div class="eyebrow">Admin</div>
-        <h1>Family Settings</h1>
-    </div>
+<div class="settings-layout">
+
+{# ── Settings sidebar nav ─────────────────────────────────────── #}
+<div class="settings-nav">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);padding:4px 10px 8px;">Pod Settings</div>
+    <a href="/admin/users">Members &amp; invites</a>
+    <a href="/admin/family" class="active">Family settings</a>
 </div>
 
-<div style="max-width: 540px;">
+{# ── Main content ─────────────────────────────────────────────── #}
+<div>
+    <div style="margin-bottom:20px;">
+        <h1 style="margin-bottom:4px;">Family Settings</h1>
+    </div>
+
     <div class="card">
         <form method="POST">
             {{ form.hidden_tag() }}
@@ -21,7 +65,7 @@
                 {% for error in form.family_name.errors %}<span class="msg">{{ error }}</span>{% endfor %}
             </div>
 
-            <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
+            <p style="font-size:13px;color:var(--slate);margin-bottom:16px;">
                 The founding couple anchors the family tree. Everyone in the tree descends from them or is linked through marriage.
             </p>
 
@@ -36,17 +80,17 @@
                 </div>
             </div>
 
-            <details style="margin-top:20px;margin-bottom:4px;border:1px solid var(--border);border-radius:var(--r-card);background:var(--surface-alt,var(--surface));">
+            <details style="margin-top:20px;margin-bottom:4px;border:1px solid var(--hairline-strong);border-radius:var(--r-m);background:var(--leaf-mist);">
                 <summary style="padding:14px 16px;font-size:15px;font-weight:600;cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;user-select:none;">
                     Optional Features
-                    <i data-lucide="chevron-down" style="width:16px;height:16px;color:var(--text-muted);transition:transform .2s;" class="details-chevron"></i>
+                    <i data-lucide="chevron-down" style="width:16px;height:16px;color:var(--slate);transition:transform .2s;" class="details-chevron"></i>
                 </summary>
                 <div style="padding:4px 16px 16px;">
                     <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:4px 0;">
                         {{ form.has_lgbtq_options(style="width:16px;height:16px;margin-top:2px;flex-shrink:0;cursor:pointer;") }}
                         <div>
                             <div style="font-weight:600;font-size:14px;">{{ form.has_lgbtq_options.label.text }}</div>
-                            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">
+                            <div style="font-size:12px;color:var(--slate);margin-top:2px;">
                                 Adds expanded gender identities (Non-binary, Genderfluid, etc.) and a pronouns field to all member profiles.
                             </div>
                         </div>
@@ -59,11 +103,13 @@
             });
             </script>
 
-            <div style="display:flex;gap:10px;margin-top:16px;">
+            <div style="display:flex;gap:10px;margin-top:20px;">
                 <button type="submit" class="btn btn-primary">Save</button>
                 <a href="/admin/users" class="btn btn-secondary">Cancel</a>
             </div>
         </form>
     </div>
+</div>
+
 </div>
 {% endblock %}

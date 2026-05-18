@@ -12,11 +12,11 @@
 </div>
 
 {% if not q %}
-<p style="color:var(--text-muted);">Type a name in the search bar above.</p>
+<p style="color:var(--slate);">Type a name in the search bar above.</p>
 
 {% elif not results %}
 <div class="card" style="max-width:480px;">
-    <p style="color:var(--text-muted);">No family members found matching "{{ q }}".</p>
+    <p style="color:var(--slate);">No family members found matching "{{ q }}".</p>
 </div>
 
 {% else %}
@@ -41,7 +41,7 @@
             </div>
         </div>
         {% if person.get_age() %}
-        <span style="font-size:13px;color:var(--text-muted);">Age {{ person.get_age() }}</span>
+        <span style="font-size:13px;color:var(--slate);">Age {{ person.get_age() }}</span>
         {% endif %}
     </div>
     {% endfor %}

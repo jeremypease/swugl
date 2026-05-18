@@ -1,50 +1,81 @@
 {% extends "base.html" %}
 
-{% block title %}Events — Peavines{% endblock %}
+{% block title %}Events — {{ current_user.family.name }}{% endblock %}
+
+{% block head %}
+<style>
+.ev-card {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 18px;
+    background: var(--paper);
+    border: 1px solid var(--hairline-strong);
+    border-radius: var(--r-m);
+    text-decoration: none;
+    color: inherit;
+    transition: box-shadow .15s, border-color .15s, transform .15s;
+}
+.ev-card:hover { border-color: var(--vine); box-shadow: 0 4px 16px rgba(0,0,0,.08); transform: translateY(-1px); }
+.ev-date-badge {
+    width: 52px;
+    height: 52px;
+    border-radius: var(--r-s);
+    background: var(--leaf-mist);
+    border: 1px solid var(--hairline-strong);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.ev-date-badge .mon { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--vine); line-height: 1; }
+.ev-date-badge .day { font-size: 22px; font-weight: 700; color: var(--vine); line-height: 1.1; font-family: var(--font-mono); }
+.ev-name { font-weight: 600; font-size: 15px; margin-bottom: 2px; }
+.ev-meta { font-size: 13px; color: var(--slate); }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="page-head">
     <div>
-        <div class="eyebrow">Family</div>
+        <div class="eyebrow">{{ current_user.family.name }}</div>
         <h1>Events</h1>
     </div>
     {% if current_user.is_admin %}
-    <a href="/events/add" class="btn btn-primary">
-        <i data-lucide="plus"></i> New Event
-    </a>
+    <a href="/events/add" class="btn btn-primary"><i data-lucide="plus"></i> New Event</a>
     {% endif %}
 </div>
 
 {% if not upcoming and not past %}
-<div style="max-width:480px;text-align:center;padding:60px 24px;">
-    <i data-lucide="calendar" style="width:48px;height:48px;color:var(--border);margin-bottom:16px;"></i>
+<div style="max-width:440px;text-align:center;padding:64px 24px;">
+    <i data-lucide="calendar" style="width:48px;height:48px;color:var(--sprout);margin-bottom:16px;"></i>
     <div style="font-weight:600;font-size:16px;margin-bottom:6px;">No events yet</div>
-    <div style="color:var(--text-muted);font-size:14px;margin-bottom:20px;">Plan a reunion, holiday gathering, or any get-together.</div>
+    <div style="color:var(--slate);font-size:14px;margin-bottom:20px;">Plan a reunion, holiday gathering, or any get-together.</div>
     {% if current_user.is_admin %}
-    <a href="/events/add" class="btn btn-primary"><i data-lucide="plus"></i> Create First Event</a>
+    <a href="/events/add" class="btn btn-primary"><i data-lucide="plus"></i> Create first event</a>
     {% endif %}
 </div>
 {% endif %}
 
 {% if upcoming %}
-<div style="display:flex;flex-direction:column;gap:12px;max-width:720px;">
+<div style="display:flex;flex-direction:column;gap:10px;max-width:760px;">
     {% for event in upcoming %}
-    <a href="/events/{{ event.id }}" class="event-card">
-        <div class="event-date-block">
-            <div class="event-month">{{ event.start_date.strftime('%b') }}</div>
-            <div class="event-day">{{ event.start_date.strftime('%-d') }}</div>
+    <a href="/events/{{ event.id }}" class="ev-card">
+        <div class="ev-date-badge">
+            <div class="mon">{{ event.start_date.strftime('%b') }}</div>
+            <div class="day">{{ event.start_date.strftime('%-d') }}</div>
         </div>
-        <div class="event-info">
-            <div class="event-name">{{ event.name }}</div>
-            <div class="event-meta">
-                {{ event.date_range_display() }}
-                {% if event.location %} · {{ event.location }}{% endif %}
+        <div style="flex:1;min-width:0;">
+            <div class="ev-name">{{ event.name }}</div>
+            <div class="ev-meta">
+                {{ event.date_range_display() }}{% if event.location %} · {{ event.location }}{% endif %}
             </div>
-            <div class="event-sections">
-                {% if event.has_meals %}<span class="badge b-active"><span class="dot"></span>Meals</span>{% endif %}
-                {% if event.has_assignments %}<span class="badge b-admin"><span class="dot"></span>Tasks</span>{% endif %}
-                {% if event.has_sleeping %}<span class="badge b-pending"><span class="dot"></span>Sleeping</span>{% endif %}
-            </div>
+        </div>
+        <div style="display:flex;gap:5px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;">
+            {% if event.has_meals %}<span class="badge b-active" style="font-size:11px;">Meals</span>{% endif %}
+            {% if event.has_assignments %}<span class="badge b-admin" style="font-size:11px;">Tasks</span>{% endif %}
+            {% if event.has_sleeping %}<span class="badge b-pending" style="font-size:11px;">Sleeping</span>{% endif %}
         </div>
     </a>
     {% endfor %}
@@ -52,21 +83,18 @@
 {% endif %}
 
 {% if past %}
-<div style="margin-top:40px;">
-    <div style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;">Past Events</div>
-    <div style="display:flex;flex-direction:column;gap:12px;max-width:720px;">
+<div style="margin-top:40px;max-width:760px;">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);margin-bottom:12px;">Past Events</div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
         {% for event in past %}
-        <a href="/events/{{ event.id }}" class="event-card" style="opacity:.7;">
-            <div class="event-date-block" style="background:var(--hairline);">
-                <div class="event-month">{{ event.start_date.strftime('%b') }}</div>
-                <div class="event-day">{{ event.start_date.strftime('%-d') }}</div>
+        <a href="/events/{{ event.id }}" class="ev-card" style="opacity:.65;">
+            <div class="ev-date-badge" style="background:var(--hairline);">
+                <div class="mon" style="color:var(--slate);">{{ event.start_date.strftime('%b') }}</div>
+                <div class="day" style="color:var(--slate);">{{ event.start_date.strftime('%-d') }}</div>
             </div>
-            <div class="event-info">
-                <div class="event-name">{{ event.name }}</div>
-                <div class="event-meta">
-                    {{ event.date_range_display() }}
-                    {% if event.location %} · {{ event.location }}{% endif %}
-                </div>
+            <div style="flex:1;min-width:0;">
+                <div class="ev-name">{{ event.name }}</div>
+                <div class="ev-meta">{{ event.date_range_display() }}{% if event.location %} · {{ event.location }}{% endif %}</div>
             </div>
         </a>
         {% endfor %}

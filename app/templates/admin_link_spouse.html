@@ -15,7 +15,7 @@
 
 <div style="max-width: 480px;">
     <div class="card">
-        <p style="font-size:14px;color:var(--text-muted);margin-bottom:20px;">
+        <p style="font-size:14px;color:var(--slate);margin-bottom:20px;">
             This creates a confirmed spouse link immediately — no confirmation request is sent.
         </p>
         <form method="POST">
@@ -24,7 +24,7 @@
                 {{ form.spouse_id.label }}
                 {{ form.spouse_id() }}
                 {% for error in form.spouse_id.errors %}<span class="msg">{{ error }}</span>{% endfor %}
-                <div style="margin-top:6px;font-size:13px;color:var(--text-muted);">
+                <div style="margin-top:6px;font-size:13px;color:var(--slate);">
                     Not in the system yet?
                     <a href="/admin/add-member?link_spouse_for={{ subject.id }}" style="color:var(--vine);">
                         Create them first →

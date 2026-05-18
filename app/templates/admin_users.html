@@ -1,175 +1,208 @@
 {% extends "base.html" %}
 
-{% block title %}Members — Peavines{% endblock %}
+{% block title %}Members — Admin{% endblock %}
+
+{% block head %}
+<style>
+.settings-layout {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: 28px;
+    align-items: start;
+}
+.settings-nav {
+    position: sticky;
+    top: 66px;
+    background: var(--paper);
+    border: 1px solid var(--hairline-strong);
+    border-radius: var(--r-m);
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.settings-nav a {
+    display: block;
+    padding: 7px 10px;
+    border-radius: var(--r-s);
+    font-size: 13px;
+    text-decoration: none;
+    color: var(--slate);
+    transition: background .12s, color .12s;
+}
+.settings-nav a:hover { background: var(--leaf-mist); color: var(--ink); }
+.settings-nav a.active { background: var(--leaf-mist); color: var(--vine); font-weight: 600; }
+.member-row {
+    display: grid;
+    grid-template-columns: 1.8fr 1fr 0.9fr 1fr;
+    gap: 10px;
+    align-items: center;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--hairline);
+    font-size: 13px;
+}
+.member-row:last-child { border-bottom: none; }
+.member-row-head {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--slate-soft);
+    padding: 4px 0 8px;
+    border-bottom: 1px solid var(--hairline-strong);
+}
+@media (max-width: 680px) {
+    .settings-layout { grid-template-columns: 1fr; }
+    .settings-nav { position: static; }
+    .member-row { grid-template-columns: 1fr 1fr; }
+}
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="page-head">
-    <div>
-        <div class="eyebrow">Admin</div>
-        <h1>Members</h1>
-    </div>
-    <a href="/admin/add-member" class="btn btn-primary">
-        <i data-lucide="user-plus"></i> Add member
-    </a>
+<div class="settings-layout">
+
+{# ── Settings sidebar nav ─────────────────────────────────────── #}
+<div class="settings-nav">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);padding:4px 10px 8px;">Pod Settings</div>
+    <a href="/admin/users" class="active">Members &amp; invites</a>
+    <a href="/admin/family">Family settings</a>
 </div>
 
-{% if pending %}
-<div class="card" style="margin-bottom: 24px; border-left: 3px solid var(--honey);">
-    <div class="card-header">
-        <h3>Pending approval</h3>
-        <span class="badge b-pending"><span class="dot"></span>{{ pending|length }} waiting</span>
+{# ── Main content ─────────────────────────────────────────────── #}
+<div>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
+        <div>
+            <h1 style="margin-bottom:4px;">Members &amp; Invites</h1>
+            <div style="font-size:14px;color:var(--slate);">{{ people|length }} family member{{ 's' if people|length != 1 }}</div>
+        </div>
+        <a href="/admin/add-member" class="btn btn-primary"><i data-lucide="user-plus"></i> Add member</a>
     </div>
-    <table class="tbl">
-        <thead>
-            <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Phone</th>
-                <th class="col-actions">Actions</th>
-            </tr>
-        </thead>
-        <tbody>
+
+    {# Pending approval #}
+    {% if pending %}
+    <div class="card" style="margin-bottom:20px;border-left:3px solid var(--honey);">
+        <div class="card-header">
+            <h3>Pending approval</h3>
+            <span class="badge b-pending"><span class="dot"></span>{{ pending|length }} waiting</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:0;">
+            <div class="member-row member-row-head">
+                <div>Person</div><div>Email</div><div>Phone</div><div></div>
+            </div>
             {% for user in pending %}
-            <tr>
-                <td>
-                    <div class="av av-sm" style="background:var(--honey);color:var(--ink);display:inline-flex;margin-right:8px;vertical-align:middle;">{{ user.first_name[0] }}{{ user.last_name[0] }}</div>
-                    {{ user.get_full_name() }}
-                </td>
-                <td>{{ user.email }}</td>
-                <td>{{ user.phone or '—' }}</td>
-                <td class="col-actions">
-                    <form method="POST" action="/admin/approve/{{ user.id }}" style="display:inline">
+            <div class="member-row">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <div class="av av-sm" style="background:var(--honey);color:var(--ink);">{{ user.first_name[0] }}{{ user.last_name[0] }}</div>
+                    <span style="font-weight:500;">{{ user.get_full_name() }}</span>
+                </div>
+                <div style="color:var(--slate);">{{ user.email }}</div>
+                <div style="color:var(--slate);">{{ user.phone or '—' }}</div>
+                <div style="display:flex;gap:6px;">
+                    <form method="POST" action="/admin/approve/{{ user.id }}" style="display:contents;">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn btn-primary btn-sm">Approve</button>
                     </form>
-                    <form method="POST" action="/admin/reject/{{ user.id }}" style="display:inline">
+                    <form method="POST" action="/admin/reject/{{ user.id }}" style="display:contents;">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <button type="submit" class="btn btn-danger btn-sm">Reject</button>
+                        <button type="submit" class="btn btn-secondary btn-sm" style="color:var(--tomato);">Reject</button>
                     </form>
-                </td>
-            </tr>
+                </div>
+            </div>
             {% endfor %}
-        </tbody>
-    </table>
-</div>
-{% endif %}
-
-<div class="card">
-    <div class="card-header">
-        <h3>All family members</h3>
-        <span class="meta">{{ people|length }} total</span>
+        </div>
     </div>
-    <table class="tbl">
-        <thead>
-            <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Account</th>
-                <th>Role</th>
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for person in people %}
-            <tr>
-                <td>
-                    <div class="av av-sm" style="background:var(--vine);display:inline-flex;margin-right:8px;vertical-align:middle;">{{ person.name[0] }}</div>
-                    <a href="/person/{{ person.id }}" style="color:inherit;">{{ person.get_display_name() }}</a>
-                </td>
-                <td>{{ person.email or '—' }}</td>
-                <td>
-                    {% if person.user %}
-                        {% if person.user.status == 'approved' %}
-                        <span class="badge b-active"><span class="dot"></span>Active</span>
-                        {% elif person.user.status == 'pending' %}
-                        <span class="badge b-pending"><span class="dot"></span>Pending</span>
-                        {% elif person.user.status == 'invited' %}
-                        <span class="badge b-invited"><span class="dot"></span>Invited</span>
-                        {% else %}
-                        <span class="badge b-deceased"><span class="dot"></span>{{ person.user.status|capitalize }}</span>
-                        {% endif %}
-                    {% else %}
-                    <span style="color:var(--text-muted);font-size:13px;">No account</span>
-                    {% endif %}
-                </td>
-                <td>
-                    {% if person.user %}
-                        {% if person.user.is_admin %}
-                        <span class="badge b-admin"><span class="dot"></span>Admin</span>
-                        {% elif person.user.is_delegate %}
-                        <span class="badge b-delegate"><span class="dot"></span>Contributor</span>
-                        {% else %}
-                        <span style="color:var(--text-muted);font-size:13px;">Member</span>
-                        {% endif %}
-                    {% else %}
-                    <span style="color:var(--text-muted);font-size:13px;">—</span>
-                    {% endif %}
-                </td>
-                <td>
-                    {% if person.user and person.user.status == 'approved' and person.user.id != current_user.id %}
-                    <form method="POST" action="/admin/set-role/{{ person.user.id }}" style="display:flex;gap:6px;align-items:center;">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <select name="role" style="font-size:12px;padding:3px 6px;">
-                            <option value=""      {% if not person.user.is_admin and not person.user.is_delegate %}selected{% endif %}>Member</option>
-                            <option value="contributor" {% if person.user.is_delegate %}selected{% endif %}>Contributor</option>
-                            <option value="admin" {% if person.user.is_admin %}selected{% endif %}>Admin</option>
-                        </select>
-                        <button type="submit" class="btn btn-ghost btn-sm">Set</button>
-                    </form>
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
+    {% endif %}
 
-{% if non_directory %}
-<div class="card" style="margin-top: 24px;">
-    <div class="card-header">
-        <h3>Not in directory</h3>
-        <span class="meta">{{ non_directory|length }} person{{ 's' if non_directory|length != 1 else '' }}</span>
+    {# All members #}
+    <div class="card">
+        <div class="card-header">
+            <h3>All members</h3>
+            <span style="font-size:13px;color:var(--slate);">{{ people|length }} total</span>
+        </div>
+        <div class="member-row member-row-head">
+            <div>Person</div><div>Role</div><div>Account</div><div>Actions</div>
+        </div>
+        {% for person in people %}
+        <div class="member-row">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <div class="av av-sm">{{ person.name[0] }}</div>
+                <div>
+                    <a href="/person/{{ person.id }}" style="font-weight:500;color:inherit;text-decoration:none;">{{ person.get_display_name() }}</a>
+                    {% if person.email %}<div style="font-size:11px;color:var(--slate-soft);">{{ person.email }}</div>{% endif %}
+                </div>
+            </div>
+            <div>
+                {% if person.user %}
+                    {% if person.user.is_admin %}<span class="badge b-admin"><span class="dot"></span>Admin</span>
+                    {% elif person.user.is_delegate %}<span class="badge b-delegate"><span class="dot"></span>Contributor</span>
+                    {% else %}<span style="color:var(--slate);font-size:13px;">Member</span>{% endif %}
+                {% else %}
+                <span style="color:var(--slate-soft);font-size:13px;">—</span>
+                {% endif %}
+            </div>
+            <div>
+                {% if person.user %}
+                    {% if person.user.status == 'approved' %}<span class="badge b-active"><span class="dot"></span>Active</span>
+                    {% elif person.user.status == 'pending' %}<span class="badge b-pending"><span class="dot"></span>Pending</span>
+                    {% elif person.user.status == 'invited' %}<span class="badge b-invited"><span class="dot"></span>Invited</span>
+                    {% else %}<span class="badge"><span class="dot"></span>{{ person.user.status|capitalize }}</span>{% endif %}
+                {% else %}
+                <span style="color:var(--slate-soft);font-size:13px;">No account</span>
+                {% endif %}
+            </div>
+            <div>
+                {% if person.user and person.user.status == 'approved' and person.user.id != current_user.id %}
+                <form method="POST" action="/admin/set-role/{{ person.user.id }}" style="display:flex;gap:5px;align-items:center;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <select name="role" style="font-size:12px;padding:3px 6px;border:1px solid var(--hairline-strong);border-radius:var(--r-s);background:var(--paper);">
+                        <option value="" {% if not person.user.is_admin and not person.user.is_delegate %}selected{% endif %}>Member</option>
+                        <option value="contributor" {% if person.user.is_delegate %}selected{% endif %}>Contributor</option>
+                        <option value="admin" {% if person.user.is_admin %}selected{% endif %}>Admin</option>
+                    </select>
+                    <button type="submit" class="btn btn-ghost btn-sm">Set</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
     </div>
-    <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">
-        These people are part of the family tree but hidden from the member directory. Check the box to include them.
-    </p>
-    <table class="tbl">
-        <thead>
-            <tr>
-                <th style="width:36px;">Include</th>
-                <th>Name</th>
-                <th>Connected as</th>
-                <th>Birthday</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for person in non_directory %}
-            <tr>
-                <td>
-                    <form method="POST" action="/admin/toggle-directory/{{ person.id }}">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <button type="submit" class="btn btn-ghost btn-sm" title="Add to directory"
-                                style="padding:2px 6px;font-size:18px;line-height:1;">☐</button>
-                    </form>
-                </td>
-                <td>
-                    <div class="av av-sm" style="background:var(--vine);display:inline-flex;margin-right:8px;vertical-align:middle;">{{ person.name[0] }}</div>
-                    <a href="/person/{{ person.id }}" style="color:inherit;">{{ person.get_display_name() }}</a>
-                </td>
-                <td style="font-size:13px;color:var(--text-muted);">
-                    {% if person.child_rels %}
-                        Parent of {% for r in person.child_rels %}{{ r.child.get_display_name() }}{% if not loop.last %}, {% endif %}{% endfor %}
-                    {% else %}
-                        —
-                    {% endif %}
-                </td>
-                <td style="font-size:13px;color:var(--text-muted);">
-                    {{ person.birthday.strftime('%Y') if person.birthday else '—' }}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+
+    {# Not in directory #}
+    {% if non_directory %}
+    <div class="card" style="margin-top:20px;">
+        <div class="card-header">
+            <h3>Hidden from directory</h3>
+            <span style="font-size:13px;color:var(--slate);">{{ non_directory|length }} person{{ 's' if non_directory|length != 1 }}</span>
+        </div>
+        <p style="font-size:13px;color:var(--slate);margin-bottom:12px;">In the family tree but not shown in the member directory.</p>
+        <div class="member-row member-row-head" style="grid-template-columns:36px 1.5fr 1.5fr 1fr;">
+            <div></div><div>Name</div><div>Connected as</div><div>Birthday</div>
+        </div>
+        {% for person in non_directory %}
+        <div class="member-row" style="grid-template-columns:36px 1.5fr 1.5fr 1fr;">
+            <div>
+                <form method="POST" action="/admin/toggle-directory/{{ person.id }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-ghost btn-sm" title="Add to directory" style="padding:2px 6px;">
+                        <i data-lucide="eye" style="width:14px;height:14px;"></i>
+                    </button>
+                </form>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+                <div class="av av-sm">{{ person.name[0] }}</div>
+                <a href="/person/{{ person.id }}" style="color:inherit;">{{ person.get_display_name() }}</a>
+            </div>
+            <div style="font-size:13px;color:var(--slate);">
+                {% if person.child_rels %}Parent of {% for r in person.child_rels %}{{ r.child.get_display_name() }}{% if not loop.last %}, {% endif %}{% endfor %}
+                {% else %}—{% endif %}
+            </div>
+            <div style="font-size:13px;color:var(--slate);">{{ person.birthday.strftime('%Y') if person.birthday else '—' }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
 </div>
-{% endif %}
+</div>
 {% endblock %}

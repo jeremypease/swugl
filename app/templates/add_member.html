@@ -32,14 +32,14 @@
     <div class="card-header">
         <h3>⚠️ Possible duplicate</h3>
     </div>
-    <p style="font-size:14px;color:var(--text-muted);margin-bottom:12px;">
+    <p style="font-size:14px;color:var(--slate);margin-bottom:12px;">
         The following existing member{{ 's' if similar|length > 1 else '' }} may already be this person. Please check before adding.
     </p>
     {% for p in similar %}
-    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--hairline-strong);">
         <div style="flex:1;font-size:14px;">
             <a href="/person/{{ p.id }}" target="_blank" style="font-weight:600;">{{ p.get_display_name() }}</a>
-            {% if p.birthday %}<span style="color:var(--text-muted);margin-left:8px;">b. {{ p.birthday.strftime('%B %-d, %Y') }}</span>{% endif %}
+            {% if p.birthday %}<span style="color:var(--slate);margin-left:8px;">b. {{ p.birthday.strftime('%B %-d, %Y') }}</span>{% endif %}
         </div>
         <a href="/person/{{ p.id }}" target="_blank" class="btn btn-ghost btn-sm">View profile →</a>
     </div>

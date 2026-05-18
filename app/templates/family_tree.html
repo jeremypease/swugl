@@ -52,7 +52,7 @@
     {{ render_node(tree) }}
     {% else %}
     <div class="card" style="max-width:480px;">
-        <p style="color:var(--text-muted);">No tree data available. Set a founding couple in
+        <p style="color:var(--slate);">No tree data available. Set a founding couple in
             <a href="/admin/family">Family Settings</a> to get started.
         </p>
     </div>
@@ -63,7 +63,7 @@
 <div class="card" style="margin-top: 40px;">
     <div class="card-header">
         <h3>Extended Connections</h3>
-        <span style="font-size:13px;color:var(--text-muted);">Added by family members — informational only</span>
+        <span style="font-size:13px;color:var(--slate);">Added by family members — informational only</span>
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:10px;padding-top:4px;">
         {% for person in extended %}

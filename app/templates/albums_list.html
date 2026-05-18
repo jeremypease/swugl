@@ -1,12 +1,67 @@
 {% extends "base.html" %}
 
-{% block title %}Albums — {{ current_user.family.name }}{% endblock %}
+{% block title %}Photos — {{ current_user.family.name }}{% endblock %}
+
+{% block head %}
+<style>
+.album-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 14px;
+}
+.album-tile {
+    border-radius: var(--r-m);
+    overflow: hidden;
+    background: var(--paper);
+    border: 1px solid var(--hairline-strong);
+    text-decoration: none;
+    color: inherit;
+    display: block;
+    transition: box-shadow .15s, border-color .15s, transform .15s;
+}
+.album-tile:hover { border-color: var(--vine); box-shadow: 0 4px 18px rgba(0,0,0,.09); transform: translateY(-1px); }
+.album-tile-cover {
+    height: 150px;
+    background: var(--leaf-mist);
+    overflow: hidden;
+    position: relative;
+}
+.album-tile-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.album-tile-cover .empty-icon { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+.album-tile-info { padding: 10px 12px 12px; }
+.album-tile-name { font-weight: 600; font-size: 14px; margin-bottom: 2px; }
+.album-tile-meta { font-size: 12px; color: var(--slate); }
+.album-count-pill {
+    position: absolute;
+    bottom: 8px; right: 8px;
+    background: rgba(22,26,20,.6);
+    color: #fff;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 99px;
+    backdrop-filter: blur(4px);
+}
+.album-tile-new {
+    border: 1.5px dashed var(--hairline-strong);
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 186px;
+    font-size: 13px;
+    color: var(--slate);
+    cursor: pointer;
+    transition: border-color .15s, color .15s;
+}
+.album-tile-new:hover { border-color: var(--vine); color: var(--vine); }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="page-head">
     <div>
         <div class="eyebrow">{{ current_user.family.name }}</div>
-        <h1>Photo Albums</h1>
+        <h1>Photos</h1>
     </div>
     {% if current_user.is_admin or current_user.is_delegate %}
     <button class="btn btn-primary" onclick="document.getElementById('new-album-modal').style.display='flex'">
@@ -16,41 +71,96 @@
 </div>
 
 {% if albums %}
-<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:20px;">
-    {% for album in albums %}
-    <a href="/albums/{{ album.id }}" style="text-decoration:none;color:inherit;">
-        <div style="border-radius:var(--r-card);overflow:hidden;background:var(--surface);border:1px solid var(--border);transition:box-shadow 0.15s,border-color 0.15s;" class="album-card">
-            <div style="height:160px;background:var(--border);overflow:hidden;position:relative;">
+
+{# ── Pinned / event albums ────────────────────────────────────── #}
+{% set event_albums = albums | selectattr('event') | list %}
+{% set other_albums = albums | rejectattr('event') | list %}
+
+{% if event_albums %}
+<div style="margin-bottom:28px;">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);margin-bottom:12px;">Events</div>
+    <div class="album-grid">
+        {% for album in event_albums %}
+        <a href="/albums/{{ album.id }}" class="album-tile">
+            <div class="album-tile-cover">
                 {% if album.cover %}
-                <img src="{{ url_for('static', filename=album.cover.path) }}"
-                     style="width:100%;height:100%;object-fit:cover;" loading="lazy">
+                <img src="{{ url_for('static', filename=album.cover.path) }}" loading="lazy">
                 {% else %}
-                <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-muted);">
-                    <i data-lucide="image" style="width:40px;height:40px;opacity:0.3;"></i>
-                </div>
+                <div class="empty-icon"><i data-lucide="image" style="width:32px;height:32px;opacity:.25;"></i></div>
                 {% endif %}
-                <div style="position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,0.55);color:#fff;font-size:12px;padding:2px 8px;border-radius:99px;">
-                    {{ album.photo_count }} photo{{ 's' if album.photo_count != 1 else '' }}
-                </div>
+                <div class="album-count-pill">{{ album.photo_count }} photo{{ 's' if album.photo_count != 1 }}</div>
             </div>
-            <div style="padding:12px 14px;">
-                <div style="font-weight:600;font-size:14px;margin-bottom:2px;">{{ album.name }}</div>
-                <div style="font-size:12px;color:var(--text-muted);">
-                    {% if album.event %}{{ album.event.name }}{% elif album.year %}{{ album.year }}{% else %}{{ album.created_at.strftime('%b %Y') }}{% endif %}
-                </div>
+            <div class="album-tile-info">
+                <div class="album-tile-name">{{ album.name }}</div>
+                <div class="album-tile-meta">{{ album.event.name }}</div>
             </div>
-        </div>
-    </a>
-    {% endfor %}
+        </a>
+        {% endfor %}
+    </div>
 </div>
-{% else %}
-<p style="color:var(--text-muted);margin-top:8px;">No albums yet.</p>
 {% endif %}
 
-<style>.album-card:hover { border-color:var(--vine); box-shadow:0 4px 16px rgba(0,0,0,0.08); }</style>
+{# ── By year ──────────────────────────────────────────────────── #}
+{% set year_albums = other_albums | sort(attribute='year', reverse=True) %}
+{% if year_albums %}
+{% set years_seen = [] %}
+{% for album in year_albums %}
+    {% set yr = album.year or album.created_at.year %}
+    {% if yr not in years_seen %}
+        {% set _ = years_seen.append(yr) %}
+    {% endif %}
+{% endfor %}
+
+{% for yr in years_seen %}
+{% set yr_albums = [] %}
+{% for album in year_albums %}
+    {% if (album.year or album.created_at.year) == yr %}
+        {% set _ = yr_albums.append(album) %}
+    {% endif %}
+{% endfor %}
+<div style="margin-bottom:28px;">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);margin-bottom:12px;">{{ yr }}</div>
+    <div class="album-grid">
+        {% for album in yr_albums %}
+        <a href="/albums/{{ album.id }}" class="album-tile">
+            <div class="album-tile-cover">
+                {% if album.cover %}
+                <img src="{{ url_for('static', filename=album.cover.path) }}" loading="lazy">
+                {% else %}
+                <div class="empty-icon"><i data-lucide="image" style="width:32px;height:32px;opacity:.25;"></i></div>
+                {% endif %}
+                <div class="album-count-pill">{{ album.photo_count }} photo{{ 's' if album.photo_count != 1 }}</div>
+            </div>
+            <div class="album-tile-info">
+                <div class="album-tile-name">{{ album.name }}</div>
+                {% if album.description %}<div class="album-tile-meta">{{ album.description[:60] }}</div>{% endif %}
+            </div>
+        </a>
+        {% endfor %}
+        {% if current_user.is_admin or current_user.is_delegate %}
+        <div class="album-tile-new" style="border-radius:var(--r-m);" onclick="document.getElementById('new-album-modal').style.display='flex'">
+            <i data-lucide="plus" style="width:20px;height:20px;margin-right:6px;"></i> New album
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endfor %}
+{% endif %}
+
+{% else %}
+<div style="max-width:440px;text-align:center;padding:64px 24px;">
+    <i data-lucide="image" style="width:48px;height:48px;color:var(--sprout);margin-bottom:16px;"></i>
+    <div style="font-weight:600;font-size:16px;margin-bottom:6px;">No albums yet</div>
+    <div style="color:var(--slate);font-size:14px;margin-bottom:20px;">Create an album to share photos with the family.</div>
+    {% if current_user.is_admin or current_user.is_delegate %}
+    <button class="btn btn-primary" onclick="document.getElementById('new-album-modal').style.display='flex'">
+        <i data-lucide="plus"></i> Create first album
+    </button>
+    {% endif %}
+</div>
+{% endif %}
 
 {% if current_user.is_admin or current_user.is_delegate %}
-<!-- New Album Modal -->
 <div id="new-album-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;align-items:center;justify-content:center;padding:20px;">
     <div class="card" style="width:100%;max-width:480px;max-height:90vh;overflow-y:auto;">
         <div class="card-header">
@@ -82,11 +192,20 @@
             </div>
             <div style="display:flex;gap:10px;margin-top:8px;">
                 <button type="submit" class="btn btn-primary"><i data-lucide="plus"></i> Create</button>
-                <button type="button" class="btn btn-secondary"
-                        onclick="document.getElementById('new-album-modal').style.display='none'">Cancel</button>
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('new-album-modal').style.display='none'">Cancel</button>
             </div>
         </form>
     </div>
 </div>
+<script>
+const modal = document.getElementById('new-album-modal');
+const presetEvent = sessionStorage.getItem('newAlbumEvent');
+if (presetEvent) {
+    const sel = modal.querySelector('select[name="event_id"]');
+    if (sel) sel.value = presetEvent;
+    sessionStorage.removeItem('newAlbumEvent');
+    modal.style.display = 'flex';
+}
+</script>
 {% endif %}
 {% endblock %}

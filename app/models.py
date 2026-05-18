@@ -238,11 +238,13 @@ class Event(db.Model):
     has_assignments = db.Column(db.Boolean, default=False)
     has_sleeping = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    cover_image_path = db.Column(db.String(200), nullable=True)
 
     meals = db.relationship('EventMeal', backref='event', cascade='all, delete-orphan', order_by='EventMeal.meal_date')
     assignments = db.relationship('EventAssignment', backref='event', cascade='all, delete-orphan')
     sleeping_spots = db.relationship('EventSleepingSpot', backref='event', cascade='all, delete-orphan')
     rsvps = db.relationship('EventRSVP', backref='event', cascade='all, delete-orphan')
+    comments = db.relationship('EventComment', backref='event', cascade='all, delete-orphan', order_by='EventComment.created_at')
 
     def date_range_display(self):
         if not self.end_date or self.end_date == self.start_date:
@@ -320,6 +322,18 @@ class EventSleepingSpot(db.Model):
     notes = db.Column(db.Text, nullable=True)
 
     people = db.relationship('Person', secondary='event_sleeping_assignments')
+
+
+class EventComment(db.Model):
+    __tablename__ = 'event_comments'
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.Integer, db.ForeignKey('events.id'), nullable=False)
+    person_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    person = db.relationship('Person')
 
 
 class Announcement(db.Model):

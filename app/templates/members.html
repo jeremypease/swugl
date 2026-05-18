@@ -23,8 +23,8 @@
     <!-- Row 1: search + sort -->
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
         <input id="member-search" type="search" placeholder="Search by name…"
-               style="width:220px;" oninput="applyFilters()">
-        <select id="sort-select" onchange="applyFilters()" style="width:auto;">
+               style="width:220px;border:1px solid var(--hairline-strong);border-radius:var(--r-s);" oninput="applyFilters()">
+        <select id="sort-select" onchange="applyFilters()" style="width:auto;border:1px solid var(--hairline-strong);border-radius:var(--r-s);">
             <option value="az">A – Z</option>
             <option value="za">Z – A</option>
             <option value="youngest">Youngest first</option>
@@ -72,7 +72,7 @@
        data-deceased="{{ 'true' if person.deathday else 'false' }}"
        data-bday-days="{{ bday_days.get(person.id, -1) }}"
        data-has-photo="{{ 'true' if person.photo_path else 'false' }}"
-       style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:20px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-card);text-decoration:none;color:inherit;transition:box-shadow 0.15s,border-color 0.15s;">
+       style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:20px 12px;background:var(--paper);border:1px solid var(--hairline-strong);border-radius:var(--r-m);text-decoration:none;color:inherit;transition:box-shadow 0.15s,border-color 0.15s;">
         {{ av(person, size='lg') }}
         <div style="text-align:center;">
             <div style="font-weight:600;font-size:14px;line-height:1.3;">{{ person.get_display_name() }}</div>
@@ -101,21 +101,21 @@
 
 <style>
 .member-card:hover { border-color:var(--vine); box-shadow:0 4px 16px rgba(0,0,0,0.08); }
-.filter-group { display:flex; border:1px solid var(--border); border-radius:var(--r-pill); overflow:hidden; }
-.filter-group .filter-btn { border:none; border-radius:0; border-right:1px solid var(--border); }
+.filter-group { display:flex; border:1px solid var(--hairline-strong); border-radius:var(--r-pill); overflow:hidden; }
+.filter-group .filter-btn { border:none; border-radius:0; border-right:1px solid var(--hairline-strong); }
 .filter-group .filter-btn:last-child { border-right:none; }
 .filter-btn {
     padding:5px 12px; font-size:13px; cursor:pointer;
-    background:var(--surface); color:var(--text-muted);
-    border:1px solid var(--border); border-radius:var(--r-pill);
+    background:var(--paper); color:var(--slate);
+    border:1px solid var(--hairline-strong); border-radius:var(--r-pill);
     transition:background 0.1s, color 0.1s;
     white-space:nowrap;
 }
 .filter-btn.active { background:var(--vine); color:#fff; border-color:var(--vine); }
 .initial-btn {
     min-width:28px; height:28px; padding:0 6px; font-size:12px; font-weight:600;
-    cursor:pointer; background:var(--surface); color:var(--text-muted);
-    border:1px solid var(--border); border-radius:var(--r-sm);
+    cursor:pointer; background:var(--paper); color:var(--slate);
+    border:1px solid var(--hairline-strong); border-radius:var(--r-s);
     transition:background 0.1s, color 0.1s;
 }
 .initial-btn.active { background:var(--vine); color:#fff; border-color:var(--vine); }

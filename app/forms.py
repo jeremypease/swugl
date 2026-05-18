@@ -181,7 +181,13 @@ class EventForm(FlaskForm):
     has_meals = BooleanField('Meals')
     has_assignments = BooleanField('Assignments')
     has_sleeping = BooleanField('Sleeping Arrangements')
+    cover_image = FileField('Cover Image', validators=[Optional(), FileAllowed(['jpg', 'jpeg', 'png', 'webp'], 'Images only.')])
+    remove_cover = BooleanField('Remove cover image')
     submit = SubmitField('Save Event')
+
+class EventCommentForm(FlaskForm):
+    body = StringField('Comment', validators=[DataRequired(), Length(max=1000)])
+    submit = SubmitField('Post')
 
 class EventMealForm(FlaskForm):
     name = StringField('Meal Name', validators=[DataRequired(), Length(max=150)])

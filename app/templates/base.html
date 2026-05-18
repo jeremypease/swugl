@@ -25,21 +25,8 @@
         <div class="family-meta">Family</div>
 
         <nav class="nav">
-            <div class="nav-section">Navigate</div>
             <a href="/" {% if request.path == '/' %}class="active"{% endif %}>
                 <i data-lucide="home"></i> Home
-            </a>
-            <a href="/profile" {% if request.path == '/profile' %}class="active"{% endif %}>
-                <i data-lucide="user"></i> My Profile
-            </a>
-            <a href="/members" {% if request.path == '/members' %}class="active"{% endif %}>
-                <i data-lucide="users"></i> Members
-            </a>
-            <a href="/announcements" {% if request.path.startswith('/announcements') %}class="active"{% endif %}>
-                <i data-lucide="megaphone"></i> Announcements
-            </a>
-            <a href="/albums" {% if request.path.startswith('/albums') %}class="active"{% endif %}>
-                <i data-lucide="image"></i> Albums
             </a>
             <a href="/events" {% if request.path.startswith('/events') %}class="active"{% endif %}>
                 <i data-lucide="calendar"></i> Events
@@ -47,19 +34,28 @@
             <a href="/family/tree" {% if request.path == '/family/tree' %}class="active"{% endif %}>
                 <i data-lucide="git-branch"></i> Family Tree
             </a>
+            <a href="/albums" {% if request.path.startswith('/albums') %}class="active"{% endif %}>
+                <i data-lucide="image"></i> Photos
+            </a>
+            <a href="/members" {% if request.path == '/members' %}class="active"{% endif %}>
+                <i data-lucide="users"></i> Members
+            </a>
+            <a href="/announcements" {% if request.path.startswith('/announcements') %}class="active"{% endif %}>
+                <i data-lucide="megaphone"></i> Announcements
+            </a>
+            <a href="/profile" {% if request.path == '/profile' %}class="active"{% endif %}>
+                <i data-lucide="user"></i> My Profile
+            </a>
             {% if current_user.is_admin %}
             <div class="nav-section">Admin</div>
             <a href="/admin/users" {% if request.path.startswith('/admin') and request.path != '/admin/family' %}class="active"{% endif %}>
-                <i data-lucide="users"></i> Members
-            </a>
-            <a href="/admin/family" {% if request.path == '/admin/family' %}class="active"{% endif %}>
-                <i data-lucide="settings"></i> Family Settings
+                <i data-lucide="shield"></i> Settings
             </a>
             {% endif %}
         </nav>
 
         <div class="user-chip">
-            <div class="av av-sm" style="background: var(--vine);">{{ current_user.first_name[0] }}{{ current_user.last_name[0] }}</div>
+            <div class="av av-sm" style="background: var(--vine); color: var(--cream);">{{ current_user.first_name[0] }}{{ current_user.last_name[0] }}</div>
             <div>
                 <div class="name">{{ current_user.get_full_name() }}</div>
                 <div class="role">{% if current_user.is_admin %}Admin{% else %}Member{% endif %}</div>

@@ -1,137 +1,222 @@
 {% extends "base.html" %}
 
-{% block title %}{{ family.name }} — Peavines{% endblock %}
+{% block title %}Home — {{ family.name }}{% endblock %}
+
+{% block head %}
+<style>
+.dash-grid {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr;
+    gap: 20px;
+    align-items: start;
+}
+.event-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--hairline);
+    text-decoration: none;
+    color: inherit;
+}
+.event-row:last-child { border-bottom: none; }
+.event-row:hover .event-row-name { color: var(--vine); }
+.date-badge {
+    width: 44px;
+    height: 44px;
+    border-radius: var(--r-s);
+    background: var(--leaf-mist);
+    border: 1px solid var(--hairline-strong);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.date-badge .mon { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--slate); line-height: 1; }
+.date-badge .day { font-size: 19px; font-weight: 700; color: var(--vine); line-height: 1.1; font-family: var(--font-mono); }
+.bday-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px 4px 5px;
+    background: var(--berry-soft);
+    border-radius: 99px;
+    font-size: 12px;
+    color: var(--berry);
+    font-weight: 500;
+    white-space: nowrap;
+}
+.bday-chip .av-xs {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--berry);
+    color: #fff;
+    font-size: 9px;
+    font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+}
+.photo-grid-sm {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+}
+.photo-grid-sm a { display: block; aspect-ratio: 1; overflow: hidden; border-radius: 4px; }
+.photo-grid-sm img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.photo-grid-sm .ph { width: 100%; height: 100%; background: var(--leaf-mist); display: flex; align-items: center; justify-content: center; }
+@media (max-width: 680px) {
+    .dash-grid { grid-template-columns: 1fr; }
+}
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="page-head">
-    <div>
-        <div class="eyebrow">Family</div>
-        <h1>{{ family.name }}</h1>
-        <p class="sub">{{ member_count }} member{{ 's' if member_count != 1 else '' }}</p>
+
+{% set hour = now.hour if now is defined else 12 %}
+{% set greeting = 'Good morning' if hour < 12 else ('Good afternoon' if hour < 17 else 'Good evening') %}
+
+<div style="margin-bottom:20px;">
+    <h1 style="margin-bottom:2px;">{{ greeting }}{% if me %}, {{ me.get_display_name().split()[0] }}{% endif %}</h1>
+    <div style="font-size:14px;color:var(--slate);">
+        {% set n = (upcoming_events|length) + (upcoming_birthdays|length) %}
+        {% if n > 0 %}{{ n }} thing{{ 's' if n != 1 }} happening soon in the pod{% else %}{{ family.name }} · {{ member_count }} member{{ 's' if member_count != 1 }}{% endif %}
     </div>
 </div>
 
-<div style="display:flex;flex-direction:column;gap:20px;max-width:560px;">
-
-    {% if profile_nudge and me %}
+{% if profile_nudge and me %}
+<div class="card" style="border-left:3px solid var(--honey);max-width:720px;margin-bottom:20px;">
     {% set total = 4 %}
     {% set done = total - profile_nudge|length %}
-    {% set pct = (done / total * 100)|int %}
-    <div class="card" style="border-left:3px solid var(--honey);">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-            <div>
-                <div style="font-weight:600;font-size:15px;">Complete your profile</div>
-                <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">{{ done }} of {{ total }} fields filled in</div>
-            </div>
-            <a href="/person/{{ me.id }}/edit" class="btn btn-secondary btn-sm">Edit profile</a>
+    <div style="display:flex;align-items:center;gap:12px;">
+        <div style="flex:1;">
+            <div style="font-weight:600;font-size:14px;">Finish your profile</div>
+            <div style="font-size:12px;color:var(--slate);margin-top:2px;">{{ done }} of {{ total }} fields filled in — {% for field, label in profile_nudge %}{{ label }}{% if not loop.last %}, {% endif %}{% endfor %}</div>
         </div>
-        <div style="background:var(--border);border-radius:99px;height:6px;margin-bottom:12px;">
-            <div style="background:var(--honey);height:6px;border-radius:99px;width:{{ pct }}%;transition:width 0.3s;"></div>
+        <a href="/person/{{ me.id }}/edit" class="btn btn-secondary btn-sm">Edit profile</a>
+    </div>
+</div>
+{% endif %}
+
+<div class="dash-grid">
+
+{# ── LEFT: events + announcements ─────────────────────────────── #}
+<div style="display:flex;flex-direction:column;gap:20px;">
+
+    {# Upcoming events #}
+    <div class="card">
+        <div class="card-header">
+            <h3>Upcoming</h3>
+            <a href="/events" style="font-size:13px;color:var(--slate);text-decoration:none;">See all →</a>
         </div>
-        <div style="display:flex;flex-direction:column;gap:6px;">
-            {% for field, label in profile_nudge %}
-            <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-muted);">
-                <span style="width:16px;height:16px;border-radius:50%;border:1.5px solid var(--border);display:inline-block;flex-shrink:0;"></span>
-                {{ label }}
-            </div>
+        {% if upcoming_events %}
+        <div>
+            {% for event in upcoming_events %}
+            <a href="/events/{{ event.id }}" class="event-row">
+                <div class="date-badge">
+                    <div class="mon">{{ event.start_date.strftime('%b') }}</div>
+                    <div class="day">{{ event.start_date.strftime('%-d') }}</div>
+                </div>
+                <div style="flex:1;min-width:0;">
+                    <div class="event-row-name" style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ event.name }}</div>
+                    <div style="font-size:12px;color:var(--slate);margin-top:1px;">
+                        {{ event.date_range_display() }}{% if event.location %} · {{ event.location }}{% endif %}
+                    </div>
+                </div>
+                <div style="display:flex;gap:4px;flex-shrink:0;">
+                    {% if event.has_meals %}<span class="badge b-active" style="font-size:11px;">Meals</span>{% endif %}
+                    {% if event.has_sleeping %}<span class="badge b-pending" style="font-size:11px;">Sleeping</span>{% endif %}
+                </div>
+            </a>
             {% endfor %}
         </div>
+        {% if current_user.is_admin %}
+        <div style="padding-top:10px;margin-top:4px;border-top:1px solid var(--hairline);">
+            <a href="/events/add" class="btn btn-ghost btn-sm"><i data-lucide="plus"></i> New event</a>
+        </div>
+        {% endif %}
+        {% else %}
+        <p style="font-size:14px;color:var(--slate);padding:4px 0;">No upcoming events.{% if current_user.is_admin %} <a href="/events/add" style="color:var(--vine);">Create one →</a>{% endif %}</p>
+        {% endif %}
     </div>
-    {% endif %}
 
+    {# Announcements #}
     {% if home_announcements %}
     <div class="card">
         <div class="card-header">
             <h3>Announcements</h3>
-            <a href="/announcements" class="meta" style="text-decoration:none;">View all →</a>
+            <a href="/announcements" style="font-size:13px;color:var(--slate);text-decoration:none;">See all →</a>
         </div>
-        {% for a in home_announcements %}
-        <div style="padding:12px 0;{% if not loop.last %}border-bottom:1px solid var(--border);{% endif %}">
+        {% for a in home_announcements[:3] %}
+        <div style="padding:12px 0;{% if not loop.last %}border-bottom:1px solid var(--hairline);{% endif %}">
             {% if a.pinned %}
-            <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--vine);">
-                <i data-lucide="pin" style="width:10px;height:10px;"></i> Pinned ·
-            </span>
+            <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--vine);">Pinned · </span>
             {% endif %}
-            <a href="/announcements" style="font-weight:600;font-size:14px;color:inherit;text-decoration:none;">{{ a.title }}</a>
-            <div style="font-size:13px;color:var(--text-muted);margin-top:2px;">
-                {% if a.author %}{{ a.author.get_display_name() }} · {% endif %}{{ a.created_at.strftime('%b %-d') }}
-            </div>
-            <p style="font-size:13px;line-height:1.55;margin-top:6px;color:var(--text-muted);">
-                {{ a.body[:160] }}{% if a.body|length > 160 %}…{% endif %}
-            </p>
+            <div style="font-weight:600;font-size:14px;">{{ a.title }}</div>
+            <div style="font-size:12px;color:var(--slate);margin-top:2px;">{% if a.author %}{{ a.author.get_display_name() }} · {% endif %}{{ a.created_at.strftime('%b %-d') }}</div>
+            <p style="font-size:13px;color:var(--slate);line-height:1.5;margin-top:6px;">{{ a.body[:140] }}{% if a.body|length > 140 %}…{% endif %}</p>
         </div>
         {% endfor %}
     </div>
     {% endif %}
 
-    <div class="card">
-        <div class="card-header">
-            <h3>Upcoming Events</h3>
-            <a href="/events" class="meta" style="text-decoration:none;">View all →</a>
-        </div>
-        {% if upcoming_events %}
-            {% for event in upcoming_events %}
-            <a href="/events/{{ event.id }}" style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);text-decoration:none;color:inherit;">
-                <div style="text-align:center;min-width:36px;">
-                    <div style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--text-muted);">{{ event.start_date.strftime('%b') }}</div>
-                    <div style="font-size:20px;font-weight:700;line-height:1;color:var(--vine);">{{ event.start_date.strftime('%-d') }}</div>
-                </div>
-                <div>
-                    <div style="font-weight:600;font-size:14px;">{{ event.name }}</div>
-                    {% if event.location %}<div class="meta">{{ event.location }}</div>{% endif %}
-                </div>
-            </a>
-            {% endfor %}
-        {% else %}
-            <p style="color:var(--text-muted);font-size:14px;padding:8px 0;">No upcoming events.</p>
-            {% if current_user.is_admin %}
-            <a href="/events/add" class="btn btn-ghost btn-sm" style="margin-top:4px;"><i data-lucide="plus"></i> Add event</a>
-            {% endif %}
-        {% endif %}
-    </div>
+</div>
 
+{# ── RIGHT: birthdays + photos ─────────────────────────────────── #}
+<div style="display:flex;flex-direction:column;gap:20px;">
+
+    {# Birthdays soon #}
+    {% if upcoming_birthdays %}
     <div class="card">
         <div class="card-header">
-            <h3>Upcoming Birthdays</h3>
-            <span class="meta">Next 30 days</span>
+            <h3>Birthdays soon</h3>
+            <span style="font-size:12px;color:var(--slate);">next 30 days</span>
         </div>
-        {% if upcoming_birthdays %}
+        <div style="display:flex;flex-wrap:wrap;gap:6px;padding-top:4px;">
             {% for person, bday, days in upcoming_birthdays %}
-            <div class="bday-row">
-                <div class="bday-date">
-                    <span class="day">{{ bday.strftime('%-d') }}</span>
-                    <span class="mon">{{ bday.strftime('%b') }}</span>
-                </div>
-                <div>
-                    <div class="bday-row name">
-                        <a href="/person/{{ person.id }}">{{ person.get_display_name() }}</a>
-                    </div>
-                    <div class="bday-row age">
-                        Turning {{ person.get_age() + 1 }} ·
-                        {% if days == 0 %}Today!
-                        {% elif days == 1 %}Tomorrow
-                        {% else %}in {{ days }} days{% endif %}
-                    </div>
-                </div>
-                <span class="badge b-active" style="background:var(--berry-soft);color:var(--berry);border-radius:var(--r-pill);">🎂</span>
-            </div>
+            <a href="/person/{{ person.id }}" class="bday-chip" style="text-decoration:none;">
+                <div class="av-xs">{{ person.name[:2].upper() }}</div>
+                {{ person.get_display_name().split()[0] }} ·
+                {% if days == 0 %}Today!{% elif days == 1 %}Tomorrow{% else %}{{ days }}d{% endif %}
+            </a>
             {% endfor %}
-        {% else %}
-            <p style="color:var(--text-muted);font-size:14px;padding:8px 0;">No birthdays in the next 30 days.</p>
-        {% endif %}
+        </div>
     </div>
+    {% endif %}
 
-    <div class="card" style="border-left: 3px solid var(--pea);">
-        <p style="font-size:13px;color:var(--text-muted);margin-bottom:8px;">Quick links</p>
+    {# Recent photos #}
+    {% if recent_photos %}
+    <div class="card">
+        <div class="card-header">
+            <h3>Latest photos</h3>
+            <a href="/albums" style="font-size:13px;color:var(--slate);text-decoration:none;">Albums →</a>
+        </div>
+        <div class="photo-grid-sm">
+            {% for photo in recent_photos %}
+            <a href="/albums/{{ photo.album_id }}">
+                <img src="{{ url_for('static', filename=photo.path) }}" alt="" loading="lazy">
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% elif current_user.is_admin or current_user.is_delegate %}
+    <div class="card">
+        <div class="card-header"><h3>Photos</h3></div>
+        <p style="font-size:13px;color:var(--slate);padding:4px 0;">No photos yet. <a href="/albums" style="color:var(--vine);">Create an album →</a></p>
+    </div>
+    {% endif %}
+
+    {# Quick links #}
+    <div class="card" style="background:var(--leaf-mist);border:none;">
         <div style="display:flex;flex-direction:column;gap:6px;">
-            <a href="/profile/edit" class="btn btn-secondary btn-sm" style="justify-content:flex-start;">
-                <i data-lucide="edit-2"></i> Edit my profile
-            </a>
-            <a href="/spouse/add" class="btn btn-secondary btn-sm" style="justify-content:flex-start;">
-                <i data-lucide="heart"></i> Add spouse
-            </a>
+            <a href="/members" class="btn btn-secondary btn-sm" style="justify-content:flex-start;"><i data-lucide="users"></i> Member directory</a>
+            <a href="/albums" class="btn btn-secondary btn-sm" style="justify-content:flex-start;"><i data-lucide="image"></i> Photo albums</a>
+            {% if me %}
+            <a href="/person/{{ me.id }}/edit" class="btn btn-secondary btn-sm" style="justify-content:flex-start;"><i data-lucide="edit-2"></i> Edit my profile</a>
+            {% endif %}
         </div>
     </div>
 
 </div>
+</div>
+
 {% endblock %}

@@ -22,20 +22,21 @@
   --pea-soft:    #5b7a52;   /* hover-tints, decorative */
   --sprout:      #a3b18a;   /* hover wash, illustration fill */
   --sprout-soft: #cfdcb8;   /* selected row tint */
-  --leaf-mist:   #e4edd7;   /* ultra-light section fill */
+  --leaf-mist:   #E8EEDF;   /* green accent pill, active states */
 
   /* Paper — backgrounds */
-  --cream:       #e4edd7;   /* page background */
-  --cream-warm:  #cfdcb8;   /* subtle alt section */
-  --paper:       #f4f6e9;   /* card surface */
+  --cream:       #F4F4F1;   /* Layer 0 — app canvas, warm light gray */
+  --cream-warm:  #FBFAF6;   /* Layer 1 — sidebar, secondary panels */
+  --paper:       #FFFFFF;   /* Layer 2 — cards, modals, lifts forward */
 
   /* Inks — text */
-  --ink:         #161a14;   /* primary text, dark surface */
-  --ink-soft:    #2e3328;   /* less-emphatic text */
-  --slate:       #5b6850;   /* muted, captions */
-  --slate-soft:  #8a9a7a;   /* placeholder, disabled text */
-  --hairline:    rgba(201, 212, 173, 0.5);  /* borders, dividers */
-  --hairline-strong: rgba(163, 177, 138, 0.6);
+  --ink:         #0F170C;   /* headings + body — near-black with olive cast */
+  --ink-soft:    #1C2418;   /* secondary text — dark olive */
+  --slate:       #6E7567;   /* muted, captions — warm gray */
+  --slate-soft:  #9EA697;   /* placeholder, disabled — warm gray */
+  --hairline:    #EBEAE4;   /* light dividers, row separators */
+  --hairline-mid: #E2E1DC;  /* card borders, sidebar separator */
+  --hairline-strong: #D6D5CE; /* input borders — darker warm gray */
 
   /* Accents — used sparingly */
   --berry:       #B5446E;   /* birthdays, celebrations */
@@ -124,11 +125,11 @@
      SHADOWS
      ========================================================= */
   --shadow-card:
-      0 1px 2px rgba(63, 90, 48, 0.06),
-      0 8px 24px -12px rgba(63, 90, 48, 0.18);
+      0 1px 2px rgba(15, 23, 12, 0.04),
+      0 1px 3px rgba(15, 23, 12, 0.06);
   --shadow-card-hover:
-      0 2px 4px rgba(63, 90, 48, 0.08),
-      0 16px 36px -14px rgba(63, 90, 48, 0.24);
+      0 2px 4px rgba(15, 23, 12, 0.06),
+      0 8px 20px -8px rgba(15, 23, 12, 0.12);
   --shadow-button:
       0 1px 0 rgba(46, 67, 36, 0.20),
       0 2px 6px -2px rgba(46, 67, 36, 0.30);
@@ -285,7 +286,7 @@ body {
 /* Sidebar ---------------------------------------------------- */
 .sidebar {
   background: var(--cream-warm);
-  border-right: 1px solid var(--hairline);
+  border-right: 1px solid var(--hairline-mid);
   padding: 22px 18px 28px;
   display: flex;
   flex-direction: column;
@@ -338,9 +339,9 @@ body {
 }
 .nav a:hover { background: var(--leaf-mist); color: var(--vine-deep); }
 .nav a.active {
-  background: var(--surface);
-  color: var(--vine-deep);
-  box-shadow: 0 1px 2px rgba(63,90,48,0.06);
+  background: var(--leaf-mist);
+  color: var(--vine);
+  box-shadow: 0 1px 2px rgba(15,23,12,0.06);
 }
 .nav a svg { width: 18px; height: 18px; stroke-width: 1.75; }
 
@@ -351,7 +352,7 @@ body {
   gap: 10px;
   padding: 8px 10px;
   border-radius: var(--r-m);
-  background: var(--surface);
+  background: var(--leaf-mist);
   box-shadow: 0 1px 2px rgba(63,90,48,0.06);
 }
 .user-chip .name { font-size: 13px; font-weight: 700; }
@@ -363,8 +364,8 @@ body {
   align-items: center;
   gap: 16px;
   padding: 14px 40px;
-  border-bottom: 1px solid var(--hairline);
-  background: rgba(251,247,238,0.85);
+  border-bottom: 1px solid var(--hairline-mid);
+  background: rgba(244,244,241,0.92);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   position: sticky;
@@ -427,6 +428,7 @@ body {
 /* Cards ------------------------------------------------------ */
 .card {
   background: var(--surface);
+  border: 1px solid var(--hairline-mid);
   border-radius: var(--r-l);
   box-shadow: var(--shadow-card);
   padding: 20px;
@@ -454,7 +456,7 @@ body {
   transition: border-color 140ms var(--ease-settle), box-shadow 140ms var(--ease-settle);
 }
 .field input:focus, .field select:focus, .field textarea:focus {
-  outline: none; border-color: var(--pea); box-shadow: var(--focus-ring);
+  outline: none; border-color: var(--vine); box-shadow: var(--focus-ring);
 }
 .field .help { font-size: 12px; color: var(--text-muted); }
 .field.err input, .field.err select { border-color: var(--tomato); }
@@ -467,8 +469,9 @@ body {
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   font-family: var(--font-display); font-weight: 600;
-  color: var(--cream);
-  box-shadow: 0 0 0 2px var(--cream), 0 1px 2px rgba(0,0,0,0.08);
+  background: var(--leaf-mist);
+  color: var(--vine);
+  box-shadow: 0 0 0 2px var(--paper), 0 1px 2px rgba(15,23,12,0.08);
   background-size: cover;
   background-position: center;
 }
@@ -488,11 +491,11 @@ body {
 }
 .badge .dot { width: 6px; height: 6px; border-radius: 50%; }
 .b-pending  { background: var(--honey-soft);  color: #7A5A12; } .b-pending  .dot { background: var(--honey); }
-.b-active   { background: var(--leaf-mist);   color: var(--vine-deep); } .b-active .dot { background: var(--pea); }
+.b-active   { background: var(--leaf-mist);   color: var(--vine); } .b-active .dot { background: #3A8E5A; }
 .b-invited  { background: var(--berry-soft);  color: #7B2A4A; } .b-invited  .dot { background: var(--berry); }
 .b-deceased { background: rgba(107,117,99,0.18); color: var(--ink-soft); } .b-deceased .dot { background: var(--slate); }
 .b-divorced { background: var(--tomato-soft); color: #7B2A22; } .b-divorced .dot { background: var(--tomato); }
-.b-admin    { background: var(--vine);        color: var(--cream); } .b-admin    .dot { background: var(--sprout); }
+.b-admin    { background: var(--leaf-mist);   color: var(--vine); border: 1px solid rgba(31,58,43,0.15); } .b-admin    .dot { background: var(--vine); }
 .b-delegate { background: var(--paper);       color: var(--vine); border: 1px solid var(--hairline-strong); } .b-delegate .dot { background: var(--pea); }
 
 /* Flash ------------------------------------------------------ */
@@ -515,7 +518,7 @@ body {
 }
 .tbl tbody td { padding: 12px; border-bottom: 1px solid var(--hairline); vertical-align: middle; }
 .tbl tbody tr:last-child td { border-bottom: 0; }
-.tbl tbody tr:hover td { background: var(--leaf-mist); }
+.tbl tbody tr:hover td { background: #F4F6EE; }
 .tbl .col-actions { text-align: right; white-space: nowrap; }
 .tbl .col-actions .btn + .btn { margin-left: 6px; }
 

@@ -2,37 +2,165 @@
 
 {% block title %}{{ event.name }} — Peavines{% endblock %}
 
+{% block head %}
+<style>
+/* ── Event detail 2-column layout ─────────────────────────────────── */
+.ev-grid {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr;
+    gap: 0;
+    align-items: start;
+}
+.ev-main {
+    padding-right: 28px;
+    min-width: 0;
+}
+.ev-rail {
+    position: sticky;
+    top: 66px;
+    max-height: calc(100vh - 90px);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-bottom: 24px;
+}
+.ev-cover {
+    width: 100%;
+    height: 220px;
+    object-fit: cover;
+    border-radius: var(--r-m);
+    margin-bottom: 18px;
+    display: block;
+}
+.ev-cover-placeholder {
+    width: 100%;
+    height: 220px;
+    border-radius: var(--r-m);
+    background: var(--leaf-mist);
+    margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ── Pea pod RSVP ─────────────────────────────────────────────────── */
+.pod-wrap {
+    position: relative;
+    height: 90px;
+    margin: 8px 0 4px;
+}
+.pod-wrap svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+.pod-peas {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    padding: 0 20px;
+}
+.pod-pea {
+    position: relative;
+    flex-shrink: 0;
+}
+.pod-pea .av {
+    width: 28px;
+    height: 28px;
+    font-size: 10px;
+    font-weight: 600;
+}
+.pod-dot {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 1.5px solid var(--paper);
+}
+.pod-dot.yes  { background: var(--vine); }
+.pod-dot.maybe { background: #e6a817; }
+.pod-dot.no   { background: var(--slate-soft); }
+.pod-dot.none { background: var(--hairline-strong); }
+
+/* ── RSVP buttons ─────────────────────────────────────────────────── */
+.rsvp-btn-group {
+    display: flex;
+    gap: 6px;
+}
+.rsvp-person-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--hairline);
+}
+.rsvp-person-row:last-child { border-bottom: none; }
+
+/* ── Comments ─────────────────────────────────────────────────────── */
+.comment-row {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--hairline);
+    font-size: 13px;
+}
+.comment-row:last-child { border-bottom: none; }
+.comment-body { flex: 1; }
+.comment-name { font-weight: 600; margin-right: 5px; }
+.comment-time { font-size: 11px; color: var(--slate-soft); margin-top: 2px; }
+
+/* ── Mobile sticky RSVP ───────────────────────────────────────────── */
+.ev-mobile-rsvp {
+    display: none;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--paper);
+    border-top: 1.5px solid var(--hairline-strong);
+    padding: 10px 16px;
+    gap: 8px;
+    z-index: 50;
+}
+
+/* ── Roster rows ─────────────────────────────────────────────────── */
+.rsvp-row:hover { background: var(--leaf-mist); border-radius: var(--r-s); }
+details.no-children > summary { cursor: default; }
+details[open] .details-chevron { transform: rotate(180deg); }
+.details-chevron { transition: transform .2s; }
+
+@media (max-width: 700px) {
+    .ev-grid {
+        grid-template-columns: 1fr;
+    }
+    .ev-main {
+        padding-right: 0;
+    }
+    .ev-rail {
+        position: static;
+        max-height: none;
+    }
+    .ev-mobile-rsvp {
+        display: flex;
+    }
+    .ev-rail-rsvp-controls {
+        display: none;
+    }
+    body { padding-bottom: 70px; }
+}
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="page-head">
-    <div>
-        <div class="eyebrow">
-            {{ event.date_range_display() }}{% if event.location %} · {{ event.location }}{% endif %}
-        </div>
-        <h1>{{ event.name }}</h1>
-    </div>
-    {% if current_user.is_admin %}
-    <div style="display:flex;gap:8px;">
-        <button class="btn btn-secondary" onclick="document.getElementById('edit-event-modal').style.display='flex'">
-            <i data-lucide="edit-2"></i> Edit
-        </button>
-        <form method="POST" action="/events/{{ event.id }}/delete" onsubmit="return confirm('Delete {{ event.name }}? This cannot be undone.');">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="btn btn-secondary" style="color:var(--tomato);">
-                <i data-lucide="trash-2"></i> Delete
-            </button>
-        </form>
-    </div>
-    {% endif %}
-</div>
 
 {% set date_min = event.start_date.strftime('%Y-%m-%d') %}
 {% set date_max = (event.end_date or event.start_date).strftime('%Y-%m-%d') %}
 
-{% if event.description %}
-<p class="lead" style="max-width:640px;margin-bottom:24px;">{{ event.description }}</p>
-{% endif %}
-
-{# ── RSVP ──────────────────────────────────────────────────────────────────── #}
 {% set yes_count = namespace(v=0) %}
 {% set maybe_count = namespace(v=0) %}
 {% set no_count = namespace(v=0) %}
@@ -42,620 +170,643 @@
     {% set no_count.v = no_count.v + g.no|length %}
 {% endfor %}
 
-<div class="card" style="max-width:720px;margin-bottom:20px;">
-    <div class="card-header">
-        <h3>Who's Coming?</h3>
-        <div style="display:flex;gap:12px;font-size:13px;">
-            {% if yes_count.v %}<span style="color:var(--vine);font-weight:600;">{{ yes_count.v }} going</span>{% endif %}
-            {% if maybe_count.v %}<span style="color:var(--text-muted);">{{ maybe_count.v }} maybe</span>{% endif %}
-            {% if no_count.v %}<span style="color:var(--text-muted);">{{ no_count.v }} not coming</span>{% endif %}
+<div class="ev-grid">
+
+{# ════════════════════════ LEFT COLUMN ════════════════════════ #}
+<div class="ev-main">
+
+    {# Page head #}
+    <div class="page-head" style="margin-bottom:16px;">
+        <div>
+            <div class="eyebrow">
+                <a href="/events" style="color:inherit;text-decoration:none;">← Events</a>
+            </div>
+            <h1>{{ event.name }}</h1>
+            <div style="font-size:13px;color:var(--slate);margin-top:2px;">
+                {{ event.date_range_display() }}{% if event.location %} · {{ event.location }}{% endif %}
+            </div>
         </div>
+        {% if current_user.is_admin %}
+        <div style="display:flex;gap:8px;">
+            <button class="btn btn-secondary" onclick="document.getElementById('edit-event-modal').style.display='flex'">
+                <i data-lucide="edit-2"></i> Edit
+            </button>
+            <form method="POST" action="/events/{{ event.id }}/delete" onsubmit="return confirm('Delete {{ event.name }}? This cannot be undone.');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-secondary" style="color:var(--tomato);">
+                    <i data-lucide="trash-2"></i>
+                </button>
+            </form>
+        </div>
+        {% endif %}
     </div>
 
-    {# My household RSVP controls #}
-    {% if household %}
-    <div style="margin-bottom:{% if rsvp_groups %}16{% else %}0{% endif %}px;">
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin-bottom:10px;">Your Family</div>
-        <div style="display:flex;flex-direction:column;gap:10px;">
-            {% for person in household %}
-            {% set status = rsvp_map.get(person.id) %}
-            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                <span style="font-size:14px;font-weight:{% if loop.index <= 2 %}600{% else %}400{% endif %};min-width:140px;color:{% if loop.index > 2 %}var(--text-muted){% else %}inherit{% endif %};">
-                    {{ person.get_display_name() }}
-                </span>
-                <div style="display:flex;gap:4px;">
-                    {% for val, label, tomato in [('yes','Going',false),('maybe','Maybe',false),('no','Can\'t go',true)] %}
-                    <form method="POST" action="/events/{{ event.id }}/rsvp" style="display:contents;">
+    {# Cover image #}
+    {% if event.cover_image_path %}
+    <img src="{{ url_for('static', filename=event.cover_image_path) }}" class="ev-cover" alt="{{ event.name }}">
+    {% endif %}
+
+    {# Description #}
+    {% if event.description %}
+    <p style="font-size:14px;line-height:1.55;color:var(--ink-soft);margin-bottom:20px;max-width:580px;">{{ event.description }}</p>
+    {% endif %}
+
+    <div style="display:flex;flex-direction:column;gap:20px;">
+
+    {# ── MEALS ─────────────────────────────────────────────────────── #}
+    {% if event.has_meals %}
+    <div class="card">
+        <div class="card-header">
+            <h3>Meals</h3>
+            <div style="display:flex;gap:6px;align-items:center;">
+                {% if current_user.is_admin %}
+                <button class="btn btn-ghost btn-sm" onclick="toggleForm('meal-add-form')">
+                    <i data-lucide="plus"></i> Add meal
+                </button>
+                <form method="POST" action="/events/{{ event.id }}/disable-section" style="display:contents;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="section" value="meals">
+                    <button type="submit" class="btn btn-ghost btn-sm" title="Hide" style="color:var(--slate-soft);padding:4px 6px;"
+                            onclick="return confirm('Disable Meals? Existing meals will be preserved.')">
+                        <i data-lucide="eye-off" style="width:14px;height:14px;"></i>
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if current_user.is_admin %}
+        <div id="meal-add-form" style="display:none;padding:12px 0;border-bottom:1px solid var(--hairline);">
+            <form method="POST" action="/events/{{ event.id }}/meals/add">
+                {{ meal_form.hidden_tag() }}
+                <div class="field-row">
+                    <div class="field">{{ meal_form.name.label }}{{ meal_form.name(placeholder="e.g. Saturday Dinner") }}</div>
+                    <div class="field">{{ meal_form.meal_date.label }}{{ meal_form.meal_date(min=date_min, max=date_max) }}</div>
+                    <div class="field">{{ meal_form.meal_time.label }}{{ meal_form.meal_time(placeholder="6:00 PM") }}</div>
+                </div>
+                <div class="field">{{ meal_form.notes.label }}<span style="color:var(--slate-soft);font-size:12px;"> (optional)</span>{{ meal_form.notes(rows=2) }}</div>
+                <button type="submit" class="btn btn-primary btn-sm">Add Meal</button>
+            </form>
+        </div>
+        {% endif %}
+
+        {% if event.meals %}
+            {% for meal in event.meals %}
+            <div style="padding:16px 0;{% if not loop.last %}border-bottom:1px solid var(--hairline);{% endif %}">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap;">
+                    <strong style="font-size:15px;">{{ meal.name }}</strong>
+                    {% if meal.meal_date %}<span style="font-size:13px;color:var(--slate);">{{ meal.meal_date.strftime('%B %-d') }}</span>{% endif %}
+                    {% if meal.meal_time %}<span style="font-size:13px;color:var(--slate);">{{ meal.meal_time }}</span>{% endif %}
+                    {% if meal.assigned_family %}
+                    <span style="font-size:13px;color:var(--slate);">Host: <strong>{{ meal.assigned_family.get_couple_name() }}</strong></span>
+                    {% if current_user.is_admin %}
+                    <form method="POST" action="/events/{{ event.id }}/meals/{{ meal.id }}/unassign-family">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <input type="hidden" name="person_id" value="{{ person.id }}">
-                        <input type="hidden" name="status" value="{{ val }}">
-                        <button type="submit" class="btn btn-sm {{ 'btn-primary' if status == val else 'btn-secondary' }}"
-                                style="{{ 'color:var(--tomato);' if tomato and status == val else '' }}{{ 'opacity:.5;' if status and status != val else '' }}">
-                            {{ label }}
-                        </button>
+                        <button type="submit" class="btn btn-ghost btn-sm">Clear</button>
                     </form>
-                    {% endfor %}
-                    {% if not status %}
-                    <span style="font-size:12px;color:var(--text-muted);align-self:center;">No response yet</span>
+                    {% endif %}
+                    {% elif current_user.is_admin %}
+                    <form method="POST" action="/events/{{ event.id }}/meals/{{ meal.id }}/assign-family" style="display:flex;gap:4px;align-items:center;">
+                        {{ meal_family_forms[meal.id].hidden_tag() }}
+                        <span style="font-size:13px;color:var(--slate);white-space:nowrap;">Host:</span>
+                        {{ meal_family_forms[meal.id].assigned_family_id(style="font-size:13px;padding:3px 6px;") }}
+                        <button type="submit" class="btn btn-ghost btn-sm">Set</button>
+                    </form>
+                    {% endif %}
+                    {% if current_user.is_admin %}
+                    <form method="POST" action="/events/{{ event.id }}/meals/{{ meal.id }}/delete" style="margin-left:auto;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);">Remove</button>
+                    </form>
                     {% endif %}
                 </div>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
+                {% if meal.notes %}<p style="font-size:13px;color:var(--slate);margin:0 0 10px;">{{ meal.notes }}</p>{% endif %}
 
-    {# Member summary (non-admin) #}
-    {% if not current_user.is_admin and not current_user.is_delegate %}
-        {% if rsvp_groups %}
-        {% if household %}<div style="border-top:1px solid var(--hairline);margin:16px 0 12px;"></div>{% endif %}
-        <div style="display:flex;flex-direction:column;gap:8px;">
-            {% for group in rsvp_groups %}
-            <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
-                <span style="font-size:14px;font-weight:600;min-width:180px;">{{ group.label }}</span>
-                <span style="font-size:13px;color:var(--text-muted);">
-                    {% set parts = [] %}
-                    {% if group.yes %}{% set _ = parts.append('<span style="color:var(--vine);">' ~ group.yes|join(', ') ~ '</span>') %}{% endif %}
-                    {% if group.maybe %}{% set _ = parts.append(group.maybe|join(', ') ~ ' (maybe)') %}{% endif %}
-                    {% if group.no %}{% set _ = parts.append('<span style="opacity:.5;">' ~ group.no|join(', ') ~ ' — can\'t go</span>') %}{% endif %}
-                    {{ parts | join(' · ') | safe }}
-                </span>
-            </div>
-            {% endfor %}
-        </div>
-        {% elif not household %}
-        <p style="font-size:14px;color:var(--text-muted);">No responses yet.</p>
-        {% endif %}
-    {% endif %}
-
-    {# Admin / contributor full family list #}
-    {% if current_user.is_admin or current_user.is_delegate %}
-    {% if household %}<div style="border-top:1px solid var(--hairline);margin:16px 0 14px;"></div>{% endif %}
-    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin-bottom:10px;">All Families</div>
-    {% if family_groups %}
-    <div style="display:flex;flex-direction:column;gap:2px;">
-        {% for group in family_groups %}
-        {% set any_response = group.adults | selectattr('1') | list or group.children | selectattr('1') | list %}
-        <details style="border-radius:var(--r-sm);" {% if not group.children %}class="no-children"{% endif %}>
-            <summary style="list-style:none;display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--r-sm);cursor:pointer;user-select:none;"
-                     class="rsvp-row">
-                <div style="flex:1;font-weight:600;font-size:14px;">{{ group.label }}</div>
-                {# Adult statuses #}
-                <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-                    {% for person, status in group.adults %}
-                    <span style="font-size:13px;">
-                        {{ person.get_display_name().split()[0] }}:
-                        {% if status == 'yes' %}<span style="color:var(--vine);font-weight:600;">Going</span>
-                        {% elif status == 'maybe' %}<span style="color:#c87c00;font-weight:600;">Maybe</span>
-                        {% elif status == 'no' %}<span style="color:var(--tomato);font-weight:600;">Can't go</span>
-                        {% else %}<span style="color:var(--text-muted);">No response</span>{% endif %}
-                    </span>
-                    {% if not loop.last %}<span style="color:var(--hairline);">·</span>{% endif %}
+                {% set food_items = meal.items | selectattr('is_cleanup', 'false') | list %}
+                {% set cleanup_items = meal.items | selectattr('is_cleanup') | list %}
+                {% for group_label, group_items in [('Bring', food_items), ('Cleanup', cleanup_items)] %}
+                {% if group_items %}
+                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);margin-bottom:4px;">{{ group_label }}</div>
+                <table class="tbl" style="margin-bottom:12px;">
+                    <tbody>
+                    {% for item in group_items %}
+                    <tr>
+                        <td style="font-weight:500;">{{ item.label }}{% if item.quantity %} <span style="font-weight:400;font-size:12px;color:var(--slate);">(need {{ item.quantity }})</span>{% endif %}</td>
+                        <td>{% if item.assigned_to %}<span style="font-size:13px;">{{ item.assigned_to.get_display_name() }}</span>{% else %}<span style="font-size:13px;color:var(--slate);">—</span>{% endif %}</td>
+                        <td class="col-actions" style="display:flex;gap:6px;align-items:center;">
+                            <form method="POST" action="/events/{{ event.id }}/meals/{{ meal.id }}/items/{{ item.id }}/assign" style="display:flex;gap:4px;align-items:center;">
+                                {{ item_assign_forms[item.id].hidden_tag() }}
+                                {{ item_assign_forms[item.id].person_id(style="font-size:13px;padding:3px 6px;") }}
+                                <button type="submit" class="btn btn-ghost btn-sm">Assign</button>
+                            </form>
+                            {% if current_user.is_admin %}
+                            {% if item.assigned_to %}
+                            <form method="POST" action="/events/{{ event.id }}/meals/{{ meal.id }}/items/{{ item.id }}/unassign">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-ghost btn-sm">Clear</button>
+                            </form>
+                            {% endif %}
+                            <form method="POST" action="/events/{{ event.id }}/meals/{{ meal.id }}/items/{{ item.id }}/delete">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);">×</button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
                     {% endfor %}
-                </div>
-                {% if group.children %}
-                <i data-lucide="chevron-down" style="width:14px;height:14px;color:var(--text-muted);flex-shrink:0;" class="details-chevron"></i>
+                    </tbody>
+                </table>
                 {% endif %}
-            </summary>
-            {% if group.children %}
-            <div style="padding:4px 10px 10px 24px;display:flex;flex-direction:column;gap:6px;">
-                {% for person, status in group.children %}
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <span style="font-size:13px;flex:1;color:var(--text-muted);">{{ person.get_display_name() }}</span>
-                    <span style="font-size:13px;">
-                        {% if status == 'yes' %}<span style="color:var(--vine);">Going</span>
-                        {% elif status == 'maybe' %}<span style="color:#c87c00;">Maybe</span>
-                        {% elif status == 'no' %}<span style="color:var(--tomato);">Can't go</span>
-                        {% else %}<span style="color:var(--text-muted);">No response</span>{% endif %}
-                    </span>
-                </div>
                 {% endfor %}
-            </div>
-            {% endif %}
-        </details>
-        {% endfor %}
-    </div>
-    {% else %}
-    <p style="font-size:14px;color:var(--text-muted);">No family members in directory yet.</p>
-    {% endif %}
-    {% endif %}
-</div>
 
-<style>
-.rsvp-row:hover { background: var(--surface-alt, var(--border)); }
-details.no-children > summary { cursor: default; }
-details[open] .details-chevron { transform: rotate(180deg); }
-.details-chevron { transition: transform .2s; }
-</style>
-
-<div style="display:flex;flex-direction:column;gap:20px;max-width:720px;">
-
-{# ── MEALS ─────────────────────────────────────────────────────────────────── #}
-{% if event.has_meals %}
-<div class="card">
-    <div class="card-header">
-        <h3>Meals</h3>
-        <div style="display:flex;gap:6px;align-items:center;">
-            {% if current_user.is_admin %}
-            <button class="btn btn-ghost btn-sm" onclick="toggleForm('meal-add-form')">
-                <i data-lucide="plus"></i> Add meal
-            </button>
-            <form method="POST" action="/events/{{ event.id }}/disable-section" style="display:contents;">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <input type="hidden" name="section" value="meals">
-                <button type="submit" class="btn btn-ghost btn-sm" title="Disable Meals" style="color:var(--text-muted);padding:4px 6px;"
-                        onclick="return confirm('Disable Meals? Existing meals will be preserved.')">
-                    <i data-lucide="eye-off" style="width:14px;height:14px;"></i>
-                </button>
-            </form>
-            {% endif %}
-        </div>
-    </div>
-
-    {% if current_user.is_admin %}
-    <div id="meal-add-form" style="display:none;padding:12px 0;border-bottom:1px solid var(--hairline);">
-        <form method="POST" action="/events/{{ event.id }}/meals/add">
-            {{ meal_form.hidden_tag() }}
-            <div class="field-row">
-                <div class="field">
-                    {{ meal_form.name.label }}
-                    {{ meal_form.name(placeholder="e.g. Saturday Dinner") }}
-                </div>
-                <div class="field">
-                    {{ meal_form.meal_date.label }}
-                    {{ meal_form.meal_date(min=date_min, max=date_max) }}
-                </div>
-                <div class="field">
-                    {{ meal_form.meal_time.label }}
-                    {{ meal_form.meal_time(placeholder="e.g. 6:00 PM") }}
-                </div>
-            </div>
-            <div class="field">
-                {{ meal_form.notes.label }} <span style="color:var(--text-muted);font-size:12px;">(optional)</span>
-                {{ meal_form.notes(rows=2, placeholder="Any notes about this meal…") }}
-            </div>
-            <button type="submit" class="btn btn-primary btn-sm">Add Meal</button>
-        </form>
-    </div>
-    {% endif %}
-
-    {% if event.meals %}
-        {% for meal in event.meals %}
-        <div style="padding:16px 0;{% if not loop.last %}border-bottom:1px solid var(--hairline);{% endif %}">
-
-            {# Meal header #}
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap;">
-                <strong style="font-size:15px;">{{ meal.name }}</strong>
-                {% if meal.meal_date %}<span style="font-size:13px;color:var(--text-muted);">{{ meal.meal_date.strftime('%B %-d') }}</span>{% endif %}
-                {% if meal.meal_time %}<span style="font-size:13px;color:var(--text-muted);">{{ meal.meal_time }}</span>{% endif %}
-
-                {# Host family #}
-                {% if meal.assigned_family %}
-                <span style="font-size:13px;color:var(--text-muted);">Host: <strong>{{ meal.assigned_family.get_couple_name() }}</strong></span>
-                {% if current_user.is_admin %}
-                <form method="POST" action="/events/{{ event.id }}/meals/{{ meal.id }}/unassign-family">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" class="btn btn-ghost btn-sm">Clear</button>
-                </form>
-                {% endif %}
-                {% elif current_user.is_admin %}
-                <form method="POST" action="/events/{{ event.id }}/meals/{{ meal.id }}/assign-family" style="display:flex;gap:4px;align-items:center;">
-                    {{ meal_family_forms[meal.id].hidden_tag() }}
-                    <span style="font-size:13px;color:var(--text-muted);white-space:nowrap;">Host family:</span>
-                    {{ meal_family_forms[meal.id].assigned_family_id(style="font-size:13px;padding:3px 6px;") }}
-                    <button type="submit" class="btn btn-ghost btn-sm">Set</button>
+                {% if my_person %}
+                <form method="POST" action="/events/{{ event.id }}/meals/{{ meal.id }}/self-signup" style="display:flex;gap:8px;align-items:center;margin-top:4px;">
+                    {{ self_signup_form.hidden_tag() }}
+                    {{ self_signup_form.label(placeholder="I'll bring…", style="flex:1;min-width:160px;font-size:13px;") }}
+                    <button type="submit" class="btn btn-ghost btn-sm">+ Sign up</button>
                 </form>
                 {% endif %}
 
                 {% if current_user.is_admin %}
-                <form method="POST" action="/events/{{ event.id }}/meals/{{ meal.id }}/delete" style="margin-left:auto;">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);">Remove meal</button>
+                <form method="POST" action="/events/{{ event.id }}/meals/{{ meal.id }}/items/add" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px;padding-top:6px;border-top:1px dashed var(--hairline);">
+                    {{ meal_item_form.hidden_tag() }}
+                    {{ meal_item_form.label(placeholder="Add item (e.g. Rolls)", style="flex:1;min-width:160px;font-size:13px;") }}
+                    {{ meal_item_form.quantity(placeholder="Qty", style="width:60px;font-size:13px;") }}
+                    <label style="display:flex;align-items:center;gap:5px;font-size:13px;white-space:nowrap;">{{ meal_item_form.is_cleanup() }} Cleanup</label>
+                    <button type="submit" class="btn btn-ghost btn-sm">+ Add</button>
                 </form>
                 {% endif %}
             </div>
-
-            {# Meal notes #}
-            {% if meal.notes %}
-            <p style="font-size:13px;color:var(--text-muted);margin:0 0 10px;">{{ meal.notes }}</p>
-            {% endif %}
-
-            {# Items table #}
-            {% set food_items = meal.items | selectattr('is_cleanup', 'false') | list %}
-            {% set cleanup_items = meal.items | selectattr('is_cleanup') | list %}
-
-            {% for group_label, group_items in [('Bring', food_items), ('Cleanup', cleanup_items)] %}
-            {% if group_items %}
-            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin-bottom:4px;">{{ group_label }}</div>
-            <table class="tbl" style="margin-bottom:12px;">
-                <tbody>
-                {% for item in group_items %}
-                <tr>
-                    <td style="font-weight:500;">
-                        {{ item.label }}
-                        {% if item.quantity %}
-                        <span style="font-weight:400;font-size:12px;color:var(--text-muted);">(need {{ item.quantity }})</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if item.assigned_to %}
-                        <span style="font-size:13px;">{{ item.assigned_to.get_display_name() }}</span>
-                        {% else %}
-                        <span style="font-size:13px;color:var(--text-muted);">—</span>
-                        {% endif %}
-                    </td>
-                    <td class="col-actions" style="display:flex;gap:6px;align-items:center;">
-                        <form method="POST" action="/events/{{ event.id }}/meals/{{ meal.id }}/items/{{ item.id }}/assign" style="display:flex;gap:4px;align-items:center;">
-                            {{ item_assign_forms[item.id].hidden_tag() }}
-                            {{ item_assign_forms[item.id].person_id(style="font-size:13px;padding:3px 6px;") }}
-                            <button type="submit" class="btn btn-ghost btn-sm">Assign</button>
-                        </form>
-                        {% if current_user.is_admin %}
-                        {% if item.assigned_to %}
-                        <form method="POST" action="/events/{{ event.id }}/meals/{{ meal.id }}/items/{{ item.id }}/unassign">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <button type="submit" class="btn btn-ghost btn-sm">Clear</button>
-                        </form>
-                        {% endif %}
-                        <form method="POST" action="/events/{{ event.id }}/meals/{{ meal.id }}/items/{{ item.id }}/delete">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);">×</button>
-                        </form>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-                </tbody>
-            </table>
-            {% endif %}
             {% endfor %}
-
-            {# Member self-signup #}
-            {% if my_person %}
-            <form method="POST" action="/events/{{ event.id }}/meals/{{ meal.id }}/self-signup" style="display:flex;gap:8px;align-items:center;margin-top:4px;">
-                {{ self_signup_form.hidden_tag() }}
-                {{ self_signup_form.label(placeholder="I'll bring…", style="flex:1;min-width:160px;font-size:13px;") }}
-                <button type="submit" class="btn btn-ghost btn-sm">+ Sign up</button>
-            </form>
-            {% endif %}
-
-            {# Admin add item form #}
-            {% if current_user.is_admin %}
-            <form method="POST" action="/events/{{ event.id }}/meals/{{ meal.id }}/items/add" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px;padding-top:6px;border-top:1px dashed var(--hairline);">
-                {{ meal_item_form.hidden_tag() }}
-                {{ meal_item_form.label(placeholder="Add item (e.g. Rolls, Clean up tables)", style="flex:1;min-width:160px;font-size:13px;") }}
-                {{ meal_item_form.quantity(placeholder="Qty", style="width:60px;font-size:13px;") }}
-                <label style="display:flex;align-items:center;gap:5px;font-size:13px;white-space:nowrap;">
-                    {{ meal_item_form.is_cleanup() }} Cleanup
-                </label>
-                <button type="submit" class="btn btn-ghost btn-sm">+ Add item</button>
-            </form>
-            {% endif %}
-
-        </div>
-        {% endfor %}
-    {% else %}
-    <p style="color:var(--text-muted);font-size:14px;padding:8px 0;">No meals added yet.{% if current_user.is_admin %} Click "Add meal" to get started.{% endif %}</p>
+        {% else %}
+        <p style="color:var(--slate);font-size:14px;padding:8px 0;">No meals added yet.{% if current_user.is_admin %} Click "Add meal" to get started.{% endif %}</p>
+        {% endif %}
+    </div>
+    {% elif current_user.is_admin %}
+    <form method="POST" action="/events/{{ event.id }}/enable-section">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="section" value="meals">
+        <button type="submit" class="btn btn-ghost btn-sm" style="font-size:13px;color:var(--slate);padding:0;">
+            <i data-lucide="plus" style="width:13px;height:13px;"></i> Enable Meals
+        </button>
+    </form>
     {% endif %}
-</div>
 
-{% elif current_user.is_admin %}
-<form method="POST" action="/events/{{ event.id }}/enable-section">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <input type="hidden" name="section" value="meals">
-    <button type="submit" class="btn btn-ghost btn-sm" style="font-size:13px;color:var(--text-muted);padding:0;">
-        <i data-lucide="plus" style="width:13px;height:13px;"></i> Enable Meals
-    </button>
-</form>
-{% endif %}
-
-
-{# ── ASSIGNMENTS ───────────────────────────────────────────────────────────── #}
-{% if event.has_assignments %}
-<div class="card">
-    <div class="card-header">
-        <h3>Assignments</h3>
-        <div style="display:flex;gap:6px;align-items:center;">
-            {% if current_user.is_admin %}
-            <button class="btn btn-ghost btn-sm" onclick="toggleForm('assign-add-form')">
-                <i data-lucide="plus"></i> Add task
-            </button>
-            <form method="POST" action="/events/{{ event.id }}/disable-section" style="display:contents;">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <input type="hidden" name="section" value="assignments">
-                <button type="submit" class="btn btn-ghost btn-sm" title="Disable Assignments" style="color:var(--text-muted);padding:4px 6px;"
-                        onclick="return confirm('Disable Assignments? Existing tasks will be preserved.')">
-                    <i data-lucide="eye-off" style="width:14px;height:14px;"></i>
+    {# ── ASSIGNMENTS ─────────────────────────────────────────────────── #}
+    {% if event.has_assignments %}
+    <div class="card">
+        <div class="card-header">
+            <h3>Assignments</h3>
+            <div style="display:flex;gap:6px;align-items:center;">
+                {% if current_user.is_admin %}
+                <button class="btn btn-ghost btn-sm" onclick="toggleForm('assign-add-form')">
+                    <i data-lucide="plus"></i> Add task
                 </button>
-            </form>
-            {% endif %}
+                <form method="POST" action="/events/{{ event.id }}/disable-section" style="display:contents;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="section" value="assignments">
+                    <button type="submit" class="btn btn-ghost btn-sm" title="Hide" style="color:var(--slate-soft);padding:4px 6px;"
+                            onclick="return confirm('Disable Assignments? Existing tasks will be preserved.')">
+                        <i data-lucide="eye-off" style="width:14px;height:14px;"></i>
+                    </button>
+                </form>
+                {% endif %}
+            </div>
         </div>
-    </div>
 
-    {% if current_user.is_admin %}
-    <div id="assign-add-form" style="display:none;padding:12px 0;border-bottom:1px solid var(--hairline);">
-        <form method="POST" action="/events/{{ event.id }}/assignments/add">
-            {{ assign_form.hidden_tag() }}
-            <div class="field-row">
-                <div class="field">
-                    {{ assign_form.title.label }}
-                    {{ assign_form.title(placeholder="e.g. Set up tables") }}
+        {% if current_user.is_admin %}
+        <div id="assign-add-form" style="display:none;padding:12px 0;border-bottom:1px solid var(--hairline);">
+            <form method="POST" action="/events/{{ event.id }}/assignments/add">
+                {{ assign_form.hidden_tag() }}
+                <div class="field-row">
+                    <div class="field">{{ assign_form.title.label }}{{ assign_form.title(placeholder="e.g. Set up tables") }}</div>
+                    <div class="field" style="max-width:140px;">{{ assign_form.category.label }}{{ assign_form.category() }}</div>
+                    <div class="field" style="max-width:140px;">{{ assign_form.due_date.label }}{{ assign_form.due_date(min=date_min, max=date_max) }}</div>
                 </div>
-                <div class="field" style="max-width:140px;">
-                    {{ assign_form.category.label }}
-                    {{ assign_form.category() }}
-                </div>
-                <div class="field" style="max-width:140px;">
-                    {{ assign_form.due_date.label }}
-                    {{ assign_form.due_date(min=date_min, max=date_max) }}
-                </div>
-            </div>
-            <div class="field">
-                {{ assign_form.description.label }}
-                {{ assign_form.description(placeholder="Optional details", rows=1) }}
-            </div>
-            <button type="submit" class="btn btn-primary btn-sm">Add Task</button>
-        </form>
-    </div>
-    {% endif %}
-
-    {% if event.assignments %}
-    {# Group by category #}
-    {% set categories_present = event.assignments | map(attribute='category') | unique | list %}
-    {% set ordered_cats = ['Setup', 'Food', 'Errands', 'Cleanup', 'Other', none, ''] %}
-
-    {% set sorted_assignments = event.assignments | sort(attribute='category', case_sensitive=False) %}
-
-    {# Build ordered unique category list preserving assignment order #}
-    {% set seen_cats = [] %}
-    {% for a in event.assignments %}
-        {% set cat = a.category or '' %}
-        {% if cat not in seen_cats %}{% set _ = seen_cats.append(cat) %}{% endif %}
-    {% endfor %}
-
-    {% set groups = {} %}
-    {% for a in event.assignments %}
-        {% set cat = a.category or '' %}
-        {% if cat not in groups %}{% set _ = groups.update({cat: []}) %}{% endif %}
-        {% set _ = groups[cat].append(a) %}
-    {% endfor %}
-
-    <div style="display:flex;flex-direction:column;">
-        {% for cat in seen_cats %}
-        {% set items = groups[cat] %}
-        {% if seen_cats | length > 1 %}
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);padding:10px 0 4px;">
-            {{ cat if cat else 'General' }}
+                <div class="field">{{ assign_form.description.label }}{{ assign_form.description(placeholder="Optional details", rows=1) }}</div>
+                <button type="submit" class="btn btn-primary btn-sm">Add Task</button>
+            </form>
         </div>
         {% endif %}
-        {% for a in items %}
-        <div class="relation-row" style="{% if a.is_done %}opacity:.6;{% endif %}">
-            {% if a.claimed_by_id %}
-            <form method="POST" action="/events/{{ event.id }}/assignments/{{ a.id }}/done" style="display:contents;">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                {% if current_user.is_admin or (my_person and a.claimed_by_id == my_person.id) %}
-                <button type="submit" class="task-check {% if a.is_done %}task-done{% endif %}" title="Toggle done"></button>
+
+        {% if event.assignments %}
+        {% set seen_cats = [] %}
+        {% for a in event.assignments %}{% set cat = a.category or '' %}{% if cat not in seen_cats %}{% set _ = seen_cats.append(cat) %}{% endif %}{% endfor %}
+        {% set groups = {} %}
+        {% for a in event.assignments %}{% set cat = a.category or '' %}{% if cat not in groups %}{% set _ = groups.update({cat: []}) %}{% endif %}{% set _ = groups[cat].append(a) %}{% endfor %}
+
+        <div style="display:flex;flex-direction:column;">
+            {% for cat in seen_cats %}
+            {% set items = groups[cat] %}
+            {% if seen_cats | length > 1 %}
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);padding:10px 0 4px;">{{ cat if cat else 'General' }}</div>
+            {% endif %}
+            {% for a in items %}
+            <div class="relation-row" style="{% if a.is_done %}opacity:.6;{% endif %}">
+                {% if a.claimed_by_id %}
+                <form method="POST" action="/events/{{ event.id }}/assignments/{{ a.id }}/done" style="display:contents;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    {% if current_user.is_admin or (my_person and a.claimed_by_id == my_person.id) %}
+                    <button type="submit" class="task-check {% if a.is_done %}task-done{% endif %}" title="Toggle done"></button>
+                    {% else %}
+                    <span class="task-check {% if a.is_done %}task-done{% endif %}" style="cursor:default;"></span>
+                    {% endif %}
+                </form>
                 {% else %}
-                <span class="task-check {% if a.is_done %}task-done{% endif %}" style="cursor:default;"></span>
+                <span class="task-check" style="cursor:default;"></span>
                 {% endif %}
-            </form>
-            {% else %}
-            <span class="task-check" style="cursor:default;"></span>
-            {% endif %}
-
-            <div style="flex:1;">
-                <div style="font-weight:600;">{{ a.title }}</div>
-                {% if a.description %}<div style="font-size:13px;color:var(--text-muted);">{{ a.description }}</div>{% endif %}
-                {% if a.due_date %}<div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Due {{ a.due_date.strftime('%b %-d') }}</div>{% endif %}
-            </div>
-
-            {% if a.claimed_by %}
-            <span style="font-size:13px;color:var(--text-muted);">{{ a.claimed_by.get_display_name() }}</span>
-            {% if current_user.is_admin or (my_person and a.claimed_by_id == my_person.id) %}
-            <form method="POST" action="/events/{{ event.id }}/assignments/{{ a.id }}/unclaim">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="btn btn-ghost btn-sm">Unclaim</button>
-            </form>
-            {% endif %}
-            {% else %}
-            {% if my_person %}
-            <form method="POST" action="/events/{{ event.id }}/assignments/{{ a.id }}/claim">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="btn btn-ghost btn-sm">Claim</button>
-            </form>
-            {% endif %}
-            {% if current_user.is_admin and assign_admin_forms[a.id] %}
-            <form method="POST" action="/events/{{ event.id }}/assignments/{{ a.id }}/assign" style="display:flex;gap:4px;align-items:center;">
-                {{ assign_admin_forms[a.id].hidden_tag() }}
-                {{ assign_admin_forms[a.id].person_id(style="font-size:13px;padding:3px 6px;") }}
-                <button type="submit" class="btn btn-ghost btn-sm">Assign</button>
-            </form>
-            {% endif %}
-            {% endif %}
-
-            {% if current_user.is_admin %}
-            <form method="POST" action="/events/{{ event.id }}/assignments/{{ a.id }}/delete">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);">×</button>
-            </form>
-            {% endif %}
-        </div>
-        {% endfor %}
-        {% endfor %}
-    </div>
-    {% else %}
-    <p style="color:var(--text-muted);font-size:14px;padding:8px 0;">No tasks added yet.{% if current_user.is_admin %} Click "Add task" to get started.{% endif %}</p>
-    {% endif %}
-</div>
-
-{% elif current_user.is_admin %}
-<form method="POST" action="/events/{{ event.id }}/enable-section">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <input type="hidden" name="section" value="assignments">
-    <button type="submit" class="btn btn-ghost btn-sm" style="font-size:13px;color:var(--text-muted);padding:0;">
-        <i data-lucide="plus" style="width:13px;height:13px;"></i> Enable Assignments
-    </button>
-</form>
-{% endif %}
-
-
-{# ── SLEEPING ──────────────────────────────────────────────────────────────── #}
-{% if event.has_sleeping %}
-<div class="card">
-    <div class="card-header">
-        <h3>Sleeping Arrangements</h3>
-        <div style="display:flex;gap:6px;align-items:center;">
-            {% if current_user.is_admin %}
-            <button class="btn btn-ghost btn-sm" onclick="toggleForm('spot-add-form')">
-                <i data-lucide="plus"></i> Add spot
-            </button>
-            <form method="POST" action="/events/{{ event.id }}/disable-section" style="display:contents;">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <input type="hidden" name="section" value="sleeping">
-                <button type="submit" class="btn btn-ghost btn-sm" title="Disable Sleeping Arrangements" style="color:var(--text-muted);padding:4px 6px;"
-                        onclick="return confirm('Disable Sleeping Arrangements? Existing spots will be preserved.')">
-                    <i data-lucide="eye-off" style="width:14px;height:14px;"></i>
-                </button>
-            </form>
-            {% endif %}
-        </div>
-    </div>
-
-    {% if current_user.is_admin %}
-    <div id="spot-add-form" style="display:none;padding:12px 0;border-bottom:1px solid var(--hairline);">
-        <form method="POST" action="/events/{{ event.id }}/sleeping/add-spot">
-            {{ spot_form.hidden_tag() }}
-            <div class="field-row">
-                <div class="field">
-                    {{ spot_form.name.label }}
-                    {{ spot_form.name(placeholder="e.g. Master bedroom") }}
+                <div style="flex:1;">
+                    <div style="font-weight:600;">{{ a.title }}</div>
+                    {% if a.description %}<div style="font-size:13px;color:var(--slate);">{{ a.description }}</div>{% endif %}
+                    {% if a.due_date %}<div style="font-size:12px;color:var(--slate);margin-top:2px;">Due {{ a.due_date.strftime('%b %-d') }}</div>{% endif %}
                 </div>
-                <div class="field" style="max-width:120px;">
-                    {{ spot_form.capacity.label }}
-                    {{ spot_form.capacity(placeholder="e.g. 2") }}
-                </div>
-            </div>
-            <div class="field">
-                {{ spot_form.notes.label }} <span style="color:var(--text-muted);font-size:12px;">(optional)</span>
-                {{ spot_form.notes(rows=2, placeholder="e.g. Queen bed, private bath") }}
-            </div>
-            <button type="submit" class="btn btn-primary btn-sm">Add Spot</button>
-        </form>
-    </div>
-    {% endif %}
-
-    {% if event.sleeping_spots %}
-    <div style="display:flex;flex-direction:column;gap:12px;padding-top:4px;">
-        {% for spot in event.sleeping_spots %}
-        {% set at_capacity = spot.capacity and spot.people | length >= spot.capacity %}
-        <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 0;{% if not loop.last %}border-bottom:1px solid var(--hairline);{% endif %}">
-            <div style="flex:1;">
-                <div style="font-weight:600;display:flex;align-items:center;gap:8px;">
-                    {{ spot.name }}
-                    {% if spot.capacity %}
-                    <span style="font-weight:400;font-size:13px;color:{% if at_capacity %}var(--tomato){% else %}var(--text-muted){% endif %};">
-                        {{ spot.people | length }}/{{ spot.capacity }}
-                        {% if at_capacity %} · Full{% endif %}
-                    </span>
-                    {% endif %}
-                </div>
-                {% if spot.notes %}<div style="font-size:13px;color:var(--text-muted);margin-top:2px;">{{ spot.notes }}</div>{% endif %}
-                <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">
-                    {% for person in spot.people %}
-                    <span class="badge b-active" style="display:inline-flex;align-items:center;gap:6px;">
-                        <span class="dot"></span>{{ person.get_display_name() }}
-                        {% if current_user.is_admin %}
-                        <form method="POST" action="/events/{{ event.id }}/sleeping/{{ spot.id }}/unassign/{{ person.id }}" style="display:contents;">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;line-height:1;color:inherit;">×</button>
-                        </form>
-                        {% endif %}
-                    </span>
-                    {% endfor %}
-                    {% if not spot.people %}
-                    <span style="font-size:13px;color:var(--text-muted);">No one assigned</span>
-                    {% endif %}
-                </div>
-            </div>
-            {% if current_user.is_admin %}
-            <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
-                {% if sleeping_assign_forms[spot.id] and not at_capacity %}
-                <form method="POST" action="/events/{{ event.id }}/sleeping/{{ spot.id }}/assign" style="display:flex;gap:6px;align-items:center;">
-                    {{ sleeping_assign_forms[spot.id].hidden_tag() }}
-                    {{ sleeping_assign_forms[spot.id].person_id() }}
+                {% if a.claimed_by %}
+                <span style="font-size:13px;color:var(--slate);">{{ a.claimed_by.get_display_name() }}</span>
+                {% if current_user.is_admin or (my_person and a.claimed_by_id == my_person.id) %}
+                <form method="POST" action="/events/{{ event.id }}/assignments/{{ a.id }}/unclaim">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-ghost btn-sm">Unclaim</button>
+                </form>
+                {% endif %}
+                {% else %}
+                {% if my_person %}
+                <form method="POST" action="/events/{{ event.id }}/assignments/{{ a.id }}/claim">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-ghost btn-sm">Claim</button>
+                </form>
+                {% endif %}
+                {% if current_user.is_admin and assign_admin_forms[a.id] %}
+                <form method="POST" action="/events/{{ event.id }}/assignments/{{ a.id }}/assign" style="display:flex;gap:4px;align-items:center;">
+                    {{ assign_admin_forms[a.id].hidden_tag() }}
+                    {{ assign_admin_forms[a.id].person_id(style="font-size:13px;padding:3px 6px;") }}
                     <button type="submit" class="btn btn-ghost btn-sm">Assign</button>
                 </form>
-                {% elif at_capacity %}
-                <span style="font-size:12px;color:var(--tomato);font-weight:600;">Full</span>
                 {% endif %}
-                <form method="POST" action="/events/{{ event.id }}/sleeping/{{ spot.id }}/delete">
+                {% endif %}
+                {% if current_user.is_admin %}
+                <form method="POST" action="/events/{{ event.id }}/assignments/{{ a.id }}/delete">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);">Remove spot</button>
+                    <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);">×</button>
                 </form>
+                {% endif %}
             </div>
-            {% endif %}
+            {% endfor %}
+            {% endfor %}
         </div>
-        {% endfor %}
-    </div>
-    {% else %}
-    <p style="color:var(--text-muted);font-size:14px;padding:8px 0;">No spots added yet.{% if current_user.is_admin %} Click "Add spot" to get started.{% endif %}</p>
-    {% endif %}
-</div>
-
-{% elif current_user.is_admin %}
-<form method="POST" action="/events/{{ event.id }}/enable-section">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <input type="hidden" name="section" value="sleeping">
-    <button type="submit" class="btn btn-ghost btn-sm" style="font-size:13px;color:var(--text-muted);padding:0;">
-        <i data-lucide="plus" style="width:13px;height:13px;"></i> Enable Sleeping Arrangements
-    </button>
-</form>
-{% endif %}
-
-</div>
-
-<!-- Albums linked to this event -->
-{% if event.albums or current_user.is_admin or current_user.is_delegate %}
-<div class="card" style="margin-top:24px;">
-    <div class="card-header">
-        <h3>Photos</h3>
-        {% if current_user.is_admin or current_user.is_delegate %}
-        <a href="/albums" class="btn btn-ghost btn-sm" onclick="sessionStorage.setItem('newAlbumEvent','{{ event.id }}')">
-            <i data-lucide="plus"></i> New Album
-        </a>
+        {% else %}
+        <p style="color:var(--slate);font-size:14px;padding:8px 0;">No tasks added yet.{% if current_user.is_admin %} Click "Add task".{% endif %}</p>
         {% endif %}
     </div>
-    {% if event.albums %}
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-top:8px;">
-        {% for album in event.albums %}
-        <a href="/albums/{{ album.id }}" style="text-decoration:none;color:inherit;">
-            <div style="border-radius:var(--r-sm);overflow:hidden;border:1px solid var(--border);">
-                <div style="height:110px;background:var(--border);overflow:hidden;">
-                    {% if album.cover %}
-                    <img src="{{ url_for('static', filename=album.cover.path) }}"
-                         style="width:100%;height:100%;object-fit:cover;" loading="lazy">
-                    {% else %}
-                    <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">
-                        <i data-lucide="image" style="width:28px;height:28px;opacity:0.3;"></i>
+    {% elif current_user.is_admin %}
+    <form method="POST" action="/events/{{ event.id }}/enable-section">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="section" value="assignments">
+        <button type="submit" class="btn btn-ghost btn-sm" style="font-size:13px;color:var(--slate);padding:0;">
+            <i data-lucide="plus" style="width:13px;height:13px;"></i> Enable Assignments
+        </button>
+    </form>
+    {% endif %}
+
+    {# ── SLEEPING ────────────────────────────────────────────────────── #}
+    {% if event.has_sleeping %}
+    <div class="card">
+        <div class="card-header">
+            <h3>Sleeping Arrangements</h3>
+            <div style="display:flex;gap:6px;align-items:center;">
+                {% if current_user.is_admin %}
+                <button class="btn btn-ghost btn-sm" onclick="toggleForm('spot-add-form')">
+                    <i data-lucide="plus"></i> Add spot
+                </button>
+                <form method="POST" action="/events/{{ event.id }}/disable-section" style="display:contents;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="section" value="sleeping">
+                    <button type="submit" class="btn btn-ghost btn-sm" title="Hide" style="color:var(--slate-soft);padding:4px 6px;"
+                            onclick="return confirm('Disable Sleeping Arrangements? Existing spots will be preserved.')">
+                        <i data-lucide="eye-off" style="width:14px;height:14px;"></i>
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+        {% if current_user.is_admin %}
+        <div id="spot-add-form" style="display:none;padding:12px 0;border-bottom:1px solid var(--hairline);">
+            <form method="POST" action="/events/{{ event.id }}/sleeping/add-spot">
+                {{ spot_form.hidden_tag() }}
+                <div class="field-row">
+                    <div class="field">{{ spot_form.name.label }}{{ spot_form.name(placeholder="e.g. Master bedroom") }}</div>
+                    <div class="field" style="max-width:120px;">{{ spot_form.capacity.label }}{{ spot_form.capacity(placeholder="2") }}</div>
+                </div>
+                <div class="field">{{ spot_form.notes.label }}<span style="color:var(--slate-soft);font-size:12px;"> (optional)</span>{{ spot_form.notes(rows=2) }}</div>
+                <button type="submit" class="btn btn-primary btn-sm">Add Spot</button>
+            </form>
+        </div>
+        {% endif %}
+        {% if event.sleeping_spots %}
+        <div style="display:flex;flex-direction:column;gap:12px;padding-top:4px;">
+            {% for spot in event.sleeping_spots %}
+            {% set at_capacity = spot.capacity and spot.people | length >= spot.capacity %}
+            <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 0;{% if not loop.last %}border-bottom:1px solid var(--hairline);{% endif %}">
+                <div style="flex:1;">
+                    <div style="font-weight:600;display:flex;align-items:center;gap:8px;">
+                        {{ spot.name }}
+                        {% if spot.capacity %}
+                        <span style="font-weight:400;font-size:13px;color:{% if at_capacity %}var(--tomato){% else %}var(--slate){% endif %};">
+                            {{ spot.people | length }}/{{ spot.capacity }}{% if at_capacity %} · Full{% endif %}
+                        </span>
+                        {% endif %}
+                    </div>
+                    {% if spot.notes %}<div style="font-size:13px;color:var(--slate);margin-top:2px;">{{ spot.notes }}</div>{% endif %}
+                    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">
+                        {% for person in spot.people %}
+                        <span class="badge b-active" style="display:inline-flex;align-items:center;gap:6px;">
+                            <span class="dot"></span>{{ person.get_display_name() }}
+                            {% if current_user.is_admin %}
+                            <form method="POST" action="/events/{{ event.id }}/sleeping/{{ spot.id }}/unassign/{{ person.id }}" style="display:contents;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;line-height:1;color:inherit;">×</button>
+                            </form>
+                            {% endif %}
+                        </span>
+                        {% endfor %}
+                        {% if not spot.people %}<span style="font-size:13px;color:var(--slate);">No one assigned</span>{% endif %}
+                    </div>
+                </div>
+                {% if current_user.is_admin %}
+                <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
+                    {% if sleeping_assign_forms[spot.id] and not at_capacity %}
+                    <form method="POST" action="/events/{{ event.id }}/sleeping/{{ spot.id }}/assign" style="display:flex;gap:6px;align-items:center;">
+                        {{ sleeping_assign_forms[spot.id].hidden_tag() }}
+                        {{ sleeping_assign_forms[spot.id].person_id() }}
+                        <button type="submit" class="btn btn-ghost btn-sm">Assign</button>
+                    </form>
+                    {% elif at_capacity %}
+                    <span style="font-size:12px;color:var(--tomato);font-weight:600;">Full</span>
+                    {% endif %}
+                    <form method="POST" action="/events/{{ event.id }}/sleeping/{{ spot.id }}/delete">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);">Remove spot</button>
+                    </form>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="color:var(--slate);font-size:14px;padding:8px 0;">No spots added yet.{% if current_user.is_admin %} Click "Add spot".{% endif %}</p>
+        {% endif %}
+    </div>
+    {% elif current_user.is_admin %}
+    <form method="POST" action="/events/{{ event.id }}/enable-section">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="section" value="sleeping">
+        <button type="submit" class="btn btn-ghost btn-sm" style="font-size:13px;color:var(--slate);padding:0;">
+            <i data-lucide="plus" style="width:13px;height:13px;"></i> Enable Sleeping Arrangements
+        </button>
+    </form>
+    {% endif %}
+
+    {# ── PHOTOS ──────────────────────────────────────────────────────── #}
+    {% if event.albums or current_user.is_admin or current_user.is_delegate %}
+    <div class="card">
+        <div class="card-header">
+            <h3>Photos</h3>
+            {% if current_user.is_admin or current_user.is_delegate %}
+            <a href="/albums" class="btn btn-ghost btn-sm" onclick="sessionStorage.setItem('newAlbumEvent','{{ event.id }}')">
+                <i data-lucide="plus"></i> New Album
+            </a>
+            {% endif %}
+        </div>
+        {% if event.albums %}
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-top:8px;">
+            {% for album in event.albums %}
+            <a href="/albums/{{ album.id }}" style="text-decoration:none;color:inherit;">
+                <div style="border-radius:var(--r-s);overflow:hidden;border:1px solid var(--hairline-strong);">
+                    <div style="height:100px;background:var(--leaf-mist);overflow:hidden;">
+                        {% if album.cover %}
+                        <img src="{{ url_for('static', filename=album.cover.path) }}" style="width:100%;height:100%;object-fit:cover;" loading="lazy">
+                        {% else %}
+                        <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">
+                            <i data-lucide="image" style="width:24px;height:24px;opacity:0.3;"></i>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div style="padding:7px 10px;">
+                        <div style="font-weight:600;font-size:13px;">{{ album.name }}</div>
+                        <div style="font-size:12px;color:var(--slate);">{{ album.photo_count }} photo{{ 's' if album.photo_count != 1 else '' }}</div>
+                    </div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="font-size:14px;color:var(--slate);padding:8px 0;">No photo albums yet.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    </div>{# end flex col #}
+</div>{# end ev-main #}
+
+{# ════════════════════════ RIGHT RAIL ════════════════════════ #}
+<div class="ev-rail">
+
+    {# ── RSVP card ─────────────────────────────────────────────────── #}
+    <div class="card">
+        <div class="card-header">
+            <h3 style="font-size:14px;">Who's Coming?</h3>
+            <div style="font-size:12px;color:var(--slate);">
+                {% if yes_count.v %}<span style="color:var(--vine);font-weight:600;">{{ yes_count.v }} going</span>{% endif %}
+                {% if maybe_count.v %}<span style="color:var(--slate);"> · {{ maybe_count.v }} maybe</span>{% endif %}
+                {% if no_count.v %}<span style="color:var(--slate);"> · {{ no_count.v }} can't</span>{% endif %}
+            </div>
+        </div>
+
+        {# Pea pod visualization — all family members as peas #}
+        {% if all_people %}
+        {% set pod_people = all_people[:10] %}
+        <div class="pod-wrap">
+            <svg viewBox="0 0 240 80" preserveAspectRatio="none">
+                <path d="M10 40 Q 120 -18 230 40 Q 120 98 10 40 Z"
+                      fill="var(--leaf-mist)" stroke="var(--sprout)" stroke-width="1.5"/>
+            </svg>
+            <div class="pod-peas">
+                {% for person in pod_people %}
+                {% set st = rsvp_map.get(person.id, 'none') %}
+                <div class="pod-pea" title="{{ person.get_display_name() }} — {% if st == 'yes' %}Going{% elif st == 'maybe' %}Maybe{% elif st == 'no' %}Can't go{% else %}No response{% endif %}">
+                    <div class="av av-sm" style="background:var(--vine);width:28px;height:28px;font-size:9px;">{{ person.name[:2].upper() }}</div>
+                    <div class="pod-dot {{ st }}"></div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        <div style="display:flex;justify-content:center;gap:12px;font-size:10px;color:var(--slate);margin-bottom:8px;">
+            <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--vine);margin-right:3px;"></span>going</span>
+            <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#e6a817;margin-right:3px;"></span>maybe</span>
+            <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--slate-soft);margin-right:3px;"></span>can't</span>
+        </div>
+        {% endif %}
+
+        {# My household RSVP controls #}
+        {% if household %}
+        <div class="ev-rail-rsvp-controls" style="border-top:1px solid var(--hairline);padding-top:12px;margin-top:4px;">
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);margin-bottom:10px;">Your Response</div>
+            <div style="display:flex;flex-direction:column;gap:8px;">
+                {% for person in household %}
+                {% set status = rsvp_map.get(person.id) %}
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                    <span style="font-size:13px;font-weight:{% if loop.index <= 2 %}600{% else %}400{% endif %};flex:1;min-width:90px;color:{% if loop.index > 2 %}var(--slate){% else %}inherit{% endif %};">{{ person.get_display_name() }}</span>
+                    <div style="display:flex;gap:4px;">
+                        {% for val, label in [('yes','Going'),('maybe','Maybe'),('no','Can\'t')] %}
+                        <form method="POST" action="/events/{{ event.id }}/rsvp" style="display:contents;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="person_id" value="{{ person.id }}">
+                            <input type="hidden" name="status" value="{{ val }}">
+                            <button type="submit" class="btn btn-sm {{ 'btn-primary' if status == val else 'btn-secondary' }}"
+                                    style="font-size:11px;padding:4px 8px;{% if status and status != val %}opacity:.45;{% endif %}">{{ label }}</button>
+                        </form>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {# Roster #}
+        {% if rsvp_groups or family_groups %}
+        <div style="border-top:1px solid var(--hairline);padding-top:12px;margin-top:10px;">
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);margin-bottom:8px;">
+                {% if current_user.is_admin or current_user.is_delegate %}All Families{% else %}Responses{% endif %}
+            </div>
+
+            {# Admin full roster #}
+            {% if current_user.is_admin or current_user.is_delegate %}
+            {% if family_groups %}
+            <div style="display:flex;flex-direction:column;gap:2px;">
+                {% for group in family_groups %}
+                <details style="border-radius:var(--r-s);" {% if not group.children %}class="no-children"{% endif %}>
+                    <summary style="list-style:none;display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:var(--r-s);cursor:pointer;user-select:none;" class="rsvp-row">
+                        <div style="flex:1;font-weight:600;font-size:13px;">{{ group.label }}</div>
+                        <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
+                            {% for person, status in group.adults %}
+                            <span style="font-size:12px;">
+                                {% if status == 'yes' %}<span style="color:var(--vine);font-weight:600;">Going</span>
+                                {% elif status == 'maybe' %}<span style="color:#c87c00;">Maybe</span>
+                                {% elif status == 'no' %}<span style="color:var(--tomato);">Can't</span>
+                                {% else %}<span style="color:var(--slate-soft);">—</span>{% endif %}
+                            </span>
+                            {% if not loop.last %}<span style="color:var(--hairline);">·</span>{% endif %}
+                            {% endfor %}
+                        </div>
+                        {% if group.children %}<i data-lucide="chevron-down" style="width:12px;height:12px;color:var(--slate);flex-shrink:0;" class="details-chevron"></i>{% endif %}
+                    </summary>
+                    {% if group.children %}
+                    <div style="padding:4px 8px 8px 20px;display:flex;flex-direction:column;gap:4px;">
+                        {% for person, status in group.children %}
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <span style="font-size:12px;flex:1;color:var(--slate);">{{ person.get_display_name() }}</span>
+                            <span style="font-size:12px;">
+                                {% if status == 'yes' %}<span style="color:var(--vine);">Going</span>
+                                {% elif status == 'maybe' %}<span style="color:#c87c00;">Maybe</span>
+                                {% elif status == 'no' %}<span style="color:var(--tomato);">Can't</span>
+                                {% else %}<span style="color:var(--slate-soft);">—</span>{% endif %}
+                            </span>
+                        </div>
+                        {% endfor %}
                     </div>
                     {% endif %}
-                </div>
-                <div style="padding:8px 10px;">
-                    <div style="font-weight:600;font-size:13px;">{{ album.name }}</div>
-                    <div style="font-size:12px;color:var(--text-muted);">{{ album.photo_count }} photo{{ 's' if album.photo_count != 1 else '' }}</div>
-                </div>
+                </details>
+                {% endfor %}
             </div>
-        </a>
-        {% endfor %}
+            {% else %}
+            <p style="font-size:13px;color:var(--slate);">No family members in directory.</p>
+            {% endif %}
+
+            {# Member summary #}
+            {% else %}
+            {% if rsvp_groups %}
+            <div style="display:flex;flex-direction:column;gap:6px;">
+                {% for group in rsvp_groups %}
+                <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">
+                    <span style="font-size:13px;font-weight:600;min-width:120px;">{{ group.label }}</span>
+                    <span style="font-size:12px;color:var(--slate);">
+                        {% set parts = [] %}
+                        {% if group.yes %}{% set _ = parts.append('<span style="color:var(--vine);">' ~ group.yes|join(', ') ~ '</span>') %}{% endif %}
+                        {% if group.maybe %}{% set _ = parts.append(group.maybe|join(', ') ~ ' (maybe)') %}{% endif %}
+                        {% if group.no %}{% set _ = parts.append('<span style="opacity:.5;">' ~ group.no|join(', ') ~ ' — can\'t</span>') %}{% endif %}
+                        {{ parts | join(' · ') | safe }}
+                    </span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p style="font-size:13px;color:var(--slate);">No responses yet.</p>
+            {% endif %}
+            {% endif %}
+        </div>
+        {% endif %}
     </div>
-    {% else %}
-    <p style="font-size:14px;color:var(--text-muted);padding:8px 0;">No photo albums yet for this event.</p>
-    {% endif %}
+
+    {# ── COMMENTS ──────────────────────────────────────────────────── #}
+    <div class="card">
+        <div class="card-header">
+            <h3 style="font-size:14px;">Comments</h3>
+            <span style="font-size:12px;color:var(--slate);">{{ event.comments | length }}</span>
+        </div>
+
+        {% if event.comments %}
+        <div style="margin-bottom:12px;">
+            {% for comment in event.comments %}
+            <div class="comment-row">
+                <div class="av av-sm" style="background:var(--vine);flex-shrink:0;">{{ comment.person.name[:2].upper() }}</div>
+                <div class="comment-body">
+                    <div><span class="comment-name">{{ comment.person.get_display_name() }}</span>{{ comment.body }}</div>
+                    <div class="comment-time">{{ comment.created_at.strftime('%-I:%M %p · %b %-d') }}</div>
+                </div>
+                {% if current_user.is_admin or (current_user.person and comment.person_id == current_user.person.id) %}
+                <form method="POST" action="/events/{{ event.id }}/comments/{{ comment.id }}/delete">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" style="background:none;border:none;cursor:pointer;color:var(--slate-soft);font-size:14px;padding:0;line-height:1;" title="Delete">×</button>
+                </form>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if my_person %}
+        <form method="POST" action="/events/{{ event.id }}/comments" style="display:flex;gap:6px;align-items:center;margin-top:{% if event.comments %}0{% else %}4px{% endif %};">
+            {{ comment_form.hidden_tag() }}
+            {{ comment_form.body(placeholder="Add a comment…", style="flex:1;font-size:13px;") }}
+            <button type="submit" class="btn btn-ghost btn-sm">Post</button>
+        </form>
+        {% else %}
+        <p style="font-size:13px;color:var(--slate);">Link your family profile to comment.</p>
+        {% endif %}
+    </div>
+
+</div>{# end ev-rail #}
+</div>{# end ev-grid #}
+
+
+{# ── Mobile sticky RSVP bar ────────────────────────────────────────── #}
+{% if household %}
+<div class="ev-mobile-rsvp">
+    {% set me = household[0] %}
+    {% set my_status = rsvp_map.get(me.id) %}
+    {% for val, label in [('yes','Going'),('maybe','Maybe'),('no','Can\'t')] %}
+    <form method="POST" action="/events/{{ event.id }}/rsvp" style="display:contents;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="person_id" value="{{ me.id }}">
+        <input type="hidden" name="status" value="{{ val }}">
+        <button type="submit" class="btn btn-sm {{ 'btn-primary' if my_status == val else 'btn-secondary' }}" style="flex:1;">{{ label }}</button>
+    </form>
+    {% endfor %}
 </div>
 {% endif %}
 
 
-{# ── INLINE EDIT MODAL ─────────────────────────────────────────────────────── #}
+{# ── Edit event modal ──────────────────────────────────────────────── #}
 {% if current_user.is_admin %}
 <div id="edit-event-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;align-items:center;justify-content:center;padding:20px;">
     <div class="card" style="width:100%;max-width:560px;max-height:90vh;overflow-y:auto;">
@@ -665,40 +816,31 @@ details[open] .details-chevron { transform: rotate(180deg); }
                 <i data-lucide="x"></i>
             </button>
         </div>
-        <form method="POST" action="/events/{{ event.id }}/edit">
+        <form method="POST" action="/events/{{ event.id }}/edit" enctype="multipart/form-data">
             {{ event_form.hidden_tag() }}
-            <div class="field">
-                {{ event_form.name.label }}
-                {{ event_form.name() }}
-            </div>
-            <div class="field">
-                {{ event_form.description.label }}
-                {{ event_form.description(rows=3) }}
-            </div>
-            <div class="field">
-                {{ event_form.location.label }}
-                {{ event_form.location(placeholder="e.g. Grandma's house, Salt Lake City") }}
-            </div>
+            <div class="field">{{ event_form.name.label }}{{ event_form.name() }}</div>
+            <div class="field">{{ event_form.description.label }}{{ event_form.description(rows=3) }}</div>
+            <div class="field">{{ event_form.location.label }}{{ event_form.location(placeholder="e.g. Grandma's house") }}</div>
             <div class="field-row">
-                <div class="field">
-                    {{ event_form.start_date.label }}
-                    {{ event_form.start_date() }}
-                </div>
-                <div class="field">
-                    {{ event_form.end_date.label }}
-                    {{ event_form.end_date() }}
-                </div>
+                <div class="field">{{ event_form.start_date.label }}{{ event_form.start_date() }}</div>
+                <div class="field">{{ event_form.end_date.label }}{{ event_form.end_date() }}</div>
             </div>
             <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;">
-                <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;">
-                    {{ event_form.has_meals() }} Meals
+                <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;">{{ event_form.has_meals() }} Meals</label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;">{{ event_form.has_assignments() }} Assignments</label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;">{{ event_form.has_sleeping() }} Sleeping</label>
+            </div>
+            <div class="field">
+                {{ event_form.cover_image.label }}
+                {% if event.cover_image_path %}
+                <div style="margin-bottom:8px;">
+                    <img src="{{ url_for('static', filename=event.cover_image_path) }}" style="height:70px;border-radius:var(--r-s);object-fit:cover;">
+                </div>
+                <label class="checkbox-row" style="margin-bottom:6px;">
+                    {{ event_form.remove_cover() }} <span style="font-size:13px;">Remove current cover image</span>
                 </label>
-                <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;">
-                    {{ event_form.has_assignments() }} Assignments
-                </label>
-                <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;">
-                    {{ event_form.has_sleeping() }} Sleeping Arrangements
-                </label>
+                {% endif %}
+                {{ event_form.cover_image() }}
             </div>
             <div style="display:flex;gap:10px;">
                 <button type="submit" class="btn btn-primary">Save</button>

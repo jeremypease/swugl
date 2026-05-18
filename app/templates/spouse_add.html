@@ -20,7 +20,7 @@
         <div class="card-header">
             <h3>Select a family member</h3>
         </div>
-        <p style="font-size:14px;color:var(--text-muted);margin-bottom:16px;">Choose someone already in the family tree. They'll receive a confirmation request.</p>
+        <p style="font-size:14px;color:var(--slate);margin-bottom:16px;">Choose someone already in the family tree. They'll receive a confirmation request.</p>
         <form method="POST" action="/spouse/add">
             {{ form.hidden_tag() }}
             <div class="field">
@@ -42,7 +42,7 @@
         <div class="card-header">
             <h3>Invite someone new</h3>
         </div>
-        <p style="font-size:14px;color:var(--text-muted);margin-bottom:16px;">They'll get an email invitation to join the family and their account will be linked as your spouse.</p>
+        <p style="font-size:14px;color:var(--slate);margin-bottom:16px;">They'll get an email invitation to join the family and their account will be linked as your spouse.</p>
         <form method="POST" action="/spouse/invite">
             {{ invite_form.hidden_tag() }}
             <div class="field-row">

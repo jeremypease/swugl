@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, send_file
 from flask_login import login_user, logout_user, login_required, current_user
-from .models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, ASSIGNMENT_CATEGORIES, EventRSVP, EventSleepingSpot, Announcement, Album, Photo
-from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm, ForgotPasswordForm, ResetPasswordForm, AddPersonForm, RelativeForm, AddParentForm, FamilySettingsForm, EditPersonForm, EventForm, EventMealForm, EventMealFamilyAssignForm, EventMealItemForm, EventMealSelfSignupForm, EventMealAssignForm, EventAssignmentForm, EventAssignmentAdminAssignForm, EventSleepingSpotForm, EventSleepingAssignForm, GENDER_CHOICES_DEFAULT, GENDER_CHOICES_EXPANDED, PRONOUN_CHOICES, AnnouncementForm, AlbumForm, PhotoUploadForm
+from .models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, ASSIGNMENT_CATEGORIES, EventRSVP, EventSleepingSpot, EventComment, Announcement, Album, Photo
+from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm, ForgotPasswordForm, ResetPasswordForm, AddPersonForm, RelativeForm, AddParentForm, FamilySettingsForm, EditPersonForm, EventForm, EventCommentForm, EventMealForm, EventMealFamilyAssignForm, EventMealItemForm, EventMealSelfSignupForm, EventMealAssignForm, EventAssignmentForm, EventAssignmentAdminAssignForm, EventSleepingSpotForm, EventSleepingAssignForm, GENDER_CHOICES_DEFAULT, GENDER_CHOICES_EXPANDED, PRONOUN_CHOICES, AnnouncementForm, AlbumForm, PhotoUploadForm
 from .email import send_verification_email, send_pending_notification, send_approval_notification, send_spouse_confirmation_email, send_spouse_invitation_email, send_password_reset_email, send_member_invitation_email
 from datetime import date, datetime, timedelta
 from functools import wraps
@@ -231,10 +231,14 @@ def index():
     recent = Announcement.query.filter_by(family_id=current_user.family_id, pinned=False)\
         .order_by(Announcement.created_at.desc()).limit(3).all()
     home_announcements = pinned + recent
+    recent_photos = Photo.query.filter_by(family_id=current_user.family_id)\
+        .order_by(Photo.created_at.desc()).limit(6).all()
     return render_template('index.html', member_count=member_count, family=current_user.family,
                            upcoming_birthdays=upcoming_birthdays, upcoming_events=upcoming_events,
                            profile_nudge=profile_nudge, me=me,
-                           home_announcements=home_announcements)
+                           home_announcements=home_announcements,
+                           recent_photos=recent_photos,
+                           now=datetime.now())
 
 @main.route('/login', methods=['GET', 'POST'])
 def login():
@@ -1336,6 +1340,15 @@ def event_add():
             has_sleeping=form.has_sleeping.data,
         )
         db.session.add(event)
+        db.session.flush()
+        if form.cover_image.data and hasattr(form.cover_image.data, 'filename') and form.cover_image.data.filename:
+            f = form.cover_image.data
+            ext = os.path.splitext(f.filename)[1].lower()
+            upload_dir = os.path.join(current_app.root_path, 'static', 'uploads', 'events')
+            os.makedirs(upload_dir, exist_ok=True)
+            filename = f'{uuid.uuid4().hex}{ext}'
+            f.save(os.path.join(upload_dir, filename))
+            event.cover_image_path = f'uploads/events/{filename}'
         db.session.commit()
         flash(f'{event.name} has been created.', 'info')
         return redirect(url_for('main.event_detail', event_id=event.id))
@@ -1392,6 +1405,7 @@ def event_detail(event_id):
     self_signup_form = EventMealSelfSignupForm()
     my_person = current_user.person
     event_form = EventForm(obj=event)
+    comment_form = EventCommentForm()
 
     # RSVP data
     rsvp_map = {r.person_id: r.status for r in event.rsvps}
@@ -1433,11 +1447,13 @@ def event_detail(event_id):
         sleeping_assign_forms=sleeping_assign_forms,
         my_person=my_person,
         event_form=event_form,
+        comment_form=comment_form,
         assignment_categories=ASSIGNMENT_CATEGORIES,
         rsvp_map=rsvp_map,
         household=household,
         rsvp_groups=rsvp_groups,
         family_groups=family_groups,
+        all_people=all_people,
     )
 
 
@@ -1459,6 +1475,23 @@ def event_edit(event_id):
         event.has_meals = form.has_meals.data
         event.has_assignments = form.has_assignments.data
         event.has_sleeping = form.has_sleeping.data
+        if form.remove_cover.data and event.cover_image_path:
+            old = os.path.join(current_app.root_path, 'static', event.cover_image_path)
+            if os.path.exists(old):
+                os.remove(old)
+            event.cover_image_path = None
+        elif form.cover_image.data and hasattr(form.cover_image.data, 'filename') and form.cover_image.data.filename:
+            if event.cover_image_path:
+                old = os.path.join(current_app.root_path, 'static', event.cover_image_path)
+                if os.path.exists(old):
+                    os.remove(old)
+            f = form.cover_image.data
+            ext = os.path.splitext(f.filename)[1].lower()
+            upload_dir = os.path.join(current_app.root_path, 'static', 'uploads', 'events')
+            os.makedirs(upload_dir, exist_ok=True)
+            filename = f'{uuid.uuid4().hex}{ext}'
+            f.save(os.path.join(upload_dir, filename))
+            event.cover_image_path = f'uploads/events/{filename}'
         db.session.commit()
         flash('Event updated.', 'info')
         return redirect(url_for('main.event_detail', event_id=event.id))
@@ -1512,6 +1545,43 @@ def event_disable_section(event_id):
     elif section == 'sleeping':
         event.has_sleeping = False
     db.session.commit()
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+# ── Comments ──────────────────────────────────────────────────────────────────
+
+@main.route('/events/<int:event_id>/comments', methods=['POST'])
+@login_required
+def event_comment_add(event_id):
+    event = db.session.get(Event, event_id)
+    if not event or event.family_id != current_user.family_id:
+        return redirect(url_for('main.events_list'))
+    if not current_user.person:
+        flash('You need a family profile to comment.', 'error')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    form = EventCommentForm()
+    if form.validate_on_submit():
+        comment = EventComment(
+            event_id=event_id,
+            person_id=current_user.person.id,
+            body=form.body.data.strip(),
+        )
+        db.session.add(comment)
+        db.session.commit()
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+@main.route('/events/<int:event_id>/comments/<int:comment_id>/delete', methods=['POST'])
+@login_required
+def event_comment_delete(event_id, comment_id):
+    event = db.session.get(Event, event_id)
+    comment = db.session.get(EventComment, comment_id)
+    if not event or event.family_id != current_user.family_id or not comment or comment.event_id != event_id:
+        return redirect(url_for('main.events_list'))
+    can_delete = current_user.is_admin or (current_user.person and comment.person_id == current_user.person.id)
+    if can_delete:
+        db.session.delete(comment)
+        db.session.commit()
     return redirect(url_for('main.event_detail', event_id=event_id))
 
 

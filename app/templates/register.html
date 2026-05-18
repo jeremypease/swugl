@@ -3,40 +3,25 @@
 {% block title %}{% if invited %}Join your family — Peavines{% else %}Create your family — Peavines{% endif %}{% endblock %}
 
 {% block content %}
-<div class="signin-shell">
+<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:40px 20px;background:var(--cream);">
+    <div style="width:100%;max-width:440px;">
 
-    <!-- Marketing rail -->
-    <div class="signin-marketing">
-        <div class="logo">
-            <img src="{{ url_for('static', filename='assets/peavines-logo.svg') }}" alt="Peavines">
-        </div>
-        <div>
-            <h1>Every branch matters.</h1>
-            <p>Build your family tree together — birthdays, photos, stories, and connections that last.</p>
-        </div>
-        <p class="testimonial">"We finally have one place the whole family can keep up."</p>
-        <img class="vines" src="{{ url_for('static', filename='assets/illustrations/vine-divider.svg') }}" alt="">
-    </div>
-
-    <!-- Form rail -->
-    <div class="signin-form-wrap">
-        <div class="signin-form" style="max-width: 420px;">
-            <div class="brand">
-                <img src="{{ url_for('static', filename='assets/peavines-logo.svg') }}" alt="Peavines">
-            </div>
-
+        <div style="text-align:center;margin-bottom:28px;">
+            <img src="{{ url_for('static', filename='assets/peavines-mark.svg') }}" alt="Peavines" style="height:52px;margin-bottom:16px;">
             {% if invited %}
-            <h2>Join your family</h2>
-            <p class="sub">Your name and email are pre-filled. Set a password to finish.</p>
+            <h2 style="font-size:26px;font-weight:300;margin-bottom:4px;">Join your family</h2>
+            <p style="color:var(--slate);font-size:14px;">Your name and email are pre-filled. Set a password to finish.</p>
             {% else %}
-            <h2>Create your family's space</h2>
-            <p class="sub">You'll be the admin — invite everyone else once you're in.</p>
+            <h2 style="font-size:26px;font-weight:300;margin-bottom:4px;">Create your family's space</h2>
+            <p style="color:var(--slate);font-size:14px;">You'll be the admin — invite everyone else once you're in.</p>
             {% endif %}
+        </div>
 
+        <div class="card" style="padding:28px 32px;">
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
                     {% for category, message in messages %}
-                    <div class="flash {% if category == 'error' %}f-error{% elif category == 'info' %}f-info{% else %}f-warn{% endif %}">
+                    <div class="flash {% if category == 'error' %}f-error{% elif category == 'info' %}f-info{% else %}f-warn{% endif %}" style="margin-bottom:16px;">
                         {{ message }}
                     </div>
                     {% endfor %}
@@ -92,7 +77,7 @@
                 <div class="field">
                     {{ form.password.label }}
                     {{ form.password(placeholder="••••••••") }}
-                    <span class="help">At least 8 characters — uppercase, lowercase, number, and special character.</span>
+                    <span class="help" style="font-size:12px;color:var(--slate);display:block;margin-top:4px;">At least 8 characters — uppercase, lowercase, number, and special character.</span>
                     {% for error in form.password.errors %}
                     <span class="msg">{{ error }}</span>
                     {% endfor %}
@@ -106,14 +91,15 @@
                     {% endfor %}
                 </div>
 
-                <button type="submit" class="btn btn-primary btn-block">
+                <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">
                     {% if invited %}Join the family{% else %}Create family{% endif %}
                 </button>
             </form>
-
-            <p class="meta-line">Already have an account? <a href="/login">Sign in</a></p>
         </div>
-    </div>
 
+        <p style="text-align:center;font-size:13px;color:var(--slate);margin-top:20px;">
+            Already have an account? <a href="/login">Sign in</a>
+        </p>
+    </div>
 </div>
 {% endblock %}

@@ -3,84 +3,111 @@
 
 {% block title %}Announcements — {{ current_user.family.name }}{% endblock %}
 
+{% block head %}
+<style>
+.announce-card {
+    padding: 18px 20px;
+    background: var(--paper);
+    border: 1px solid var(--hairline-strong);
+    border-radius: var(--r-m);
+}
+.announce-card.pinned { border-left: 3px solid var(--vine); }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="page-head">
     <div>
         <div class="eyebrow">{{ current_user.family.name }}</div>
         <h1>Announcements</h1>
     </div>
+    {% if current_user.is_admin or current_user.is_delegate %}
+    <button class="btn btn-primary" onclick="document.getElementById('post-modal').style.display='flex'">
+        <i data-lucide="plus"></i> Post
+    </button>
+    {% endif %}
 </div>
-
-{% if current_user.is_admin or current_user.is_delegate %}
-<div class="card" style="max-width:640px;margin-bottom:24px;">
-    <div class="card-header"><h3>Post an announcement</h3></div>
-    <form method="POST" action="/announcements/add">
-        {{ form.hidden_tag() }}
-        <div class="field">
-            {{ form.title.label }}
-            {{ form.title(placeholder="Title") }}
-            {% for e in form.title.errors %}<span class="msg">{{ e }}</span>{% endfor %}
-        </div>
-        <div class="field">
-            {{ form.body.label }}
-            {{ form.body(rows=4, placeholder="What would you like to share with the family?") }}
-            {% for e in form.body.errors %}<span class="msg">{{ e }}</span>{% endfor %}
-        </div>
-        {% if current_user.is_admin %}
-        <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;margin-bottom:12px;">
-            {{ form.pinned(style="width:15px;height:15px;cursor:pointer;") }}
-            Pin this announcement to the top
-        </label>
-        {% endif %}
-        <button type="submit" class="btn btn-primary">
-            <i data-lucide="send"></i> Post
-        </button>
-    </form>
-</div>
-{% endif %}
 
 {% if announcements %}
-<div style="display:flex;flex-direction:column;gap:16px;max-width:640px;">
+<div style="display:flex;flex-direction:column;gap:12px;max-width:680px;">
     {% for a in announcements %}
-    <div class="card" style="{% if a.pinned %}border-left:3px solid var(--vine);{% endif %}">
-        <div class="card-header" style="align-items:flex-start;">
-            <div>
+    <div class="announce-card {% if a.pinned %}pinned{% endif %}">
+        <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px;">
+            <div style="flex:1;">
                 {% if a.pinned %}
-                <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--vine);margin-bottom:4px;display:block;">
-                    <i data-lucide="pin" style="width:11px;height:11px;"></i> Pinned
+                <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--vine);display:block;margin-bottom:4px;">
+                    <i data-lucide="pin" style="width:10px;height:10px;"></i> Pinned
                 </span>
                 {% endif %}
-                <h3 style="margin:0;">{{ a.title }}</h3>
-                <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">
+                <div style="font-weight:600;font-size:16px;">{{ a.title }}</div>
+                <div style="font-size:12px;color:var(--slate);margin-top:3px;display:flex;align-items:center;gap:5px;">
                     {% if a.author %}{{ av(a.author, size='xs', color='var(--vine)') }} {{ a.author.get_display_name() }} · {% endif %}
                     {{ a.created_at.strftime('%B %-d, %Y') }}
                 </div>
             </div>
-            <div style="display:flex;gap:6px;margin-left:auto;flex-shrink:0;">
+            <div style="display:flex;gap:4px;flex-shrink:0;">
                 {% if current_user.is_admin %}
                 <form method="POST" action="/announcements/{{ a.id }}/pin">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-ghost btn-sm" title="{{ 'Unpin' if a.pinned else 'Pin' }}">
-                        <i data-lucide="pin" style="width:14px;height:14px;{% if a.pinned %}color:var(--vine);{% endif %}"></i>
+                        <i data-lucide="pin" style="width:13px;height:13px;{% if a.pinned %}color:var(--vine);{% endif %}"></i>
                     </button>
                 </form>
                 {% endif %}
                 {% if current_user.is_admin or (current_user.person and a.author_id == current_user.person.id) %}
-                <form method="POST" action="/announcements/{{ a.id }}/delete"
-                      onsubmit="return confirm('Delete this announcement?')">
+                <form method="POST" action="/announcements/{{ a.id }}/delete" onsubmit="return confirm('Delete this announcement?')">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);">
-                        <i data-lucide="trash-2" style="width:14px;height:14px;"></i>
+                        <i data-lucide="trash-2" style="width:13px;height:13px;"></i>
                     </button>
                 </form>
                 {% endif %}
             </div>
         </div>
-        <p style="font-size:15px;line-height:1.65;white-space:pre-wrap;margin-top:8px;">{{ a.body }}</p>
+        <p style="font-size:15px;line-height:1.65;white-space:pre-wrap;color:var(--ink-soft);">{{ a.body }}</p>
     </div>
     {% endfor %}
 </div>
 {% else %}
-<p style="color:var(--text-muted);margin-top:8px;">No announcements yet.</p>
+<div style="max-width:440px;text-align:center;padding:64px 24px;">
+    <i data-lucide="megaphone" style="width:48px;height:48px;color:var(--sprout);margin-bottom:16px;"></i>
+    <div style="font-weight:600;font-size:16px;margin-bottom:6px;">No announcements yet</div>
+    <div style="color:var(--slate);font-size:14px;">Share news, reminders, and updates with the family.</div>
+</div>
+{% endif %}
+
+{% if current_user.is_admin or current_user.is_delegate %}
+<div id="post-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;align-items:center;justify-content:center;padding:20px;">
+    <div class="card" style="width:100%;max-width:560px;max-height:90vh;overflow-y:auto;">
+        <div class="card-header">
+            <h3>Post Announcement</h3>
+            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('post-modal').style.display='none'">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <form method="POST" action="/announcements/add">
+            {{ form.hidden_tag() }}
+            <div class="field">
+                {{ form.title.label }}
+                {{ form.title(placeholder="Title") }}
+                {% for e in form.title.errors %}<span class="msg">{{ e }}</span>{% endfor %}
+            </div>
+            <div class="field">
+                {{ form.body.label }}
+                {{ form.body(rows=5, placeholder="What would you like to share?") }}
+                {% for e in form.body.errors %}<span class="msg">{{ e }}</span>{% endfor %}
+            </div>
+            {% if current_user.is_admin %}
+            <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;margin-bottom:14px;">
+                {{ form.pinned() }} Pin to top
+            </label>
+            {% endif %}
+            <div style="display:flex;gap:10px;">
+                <button type="submit" class="btn btn-primary"><i data-lucide="send"></i> Post</button>
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('post-modal').style.display='none'">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
 {% endif %}
 {% endblock %}
