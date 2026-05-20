@@ -6,7 +6,7 @@ from .email import send_verification_email, send_pending_notification, send_appr
 from datetime import date, datetime, timedelta
 from functools import wraps
 from urllib.parse import urlparse
-from . import db
+from . import db, limiter
 import secrets
 import re
 import os
@@ -241,6 +241,7 @@ def index():
                            now=datetime.now())
 
 @main.route('/login', methods=['GET', 'POST'])
+@limiter.limit('20 per minute', methods=['POST'])
 def login():
     if current_user.is_authenticated:
         return redirect(url_for('main.index'))
@@ -523,7 +524,7 @@ def remove_parent(person_id, parent_id):
         flash('You do not have permission to edit this profile.', 'error')
         return redirect(url_for('main.person_detail', person_id=person_id))
     parent_person = db.session.get(Person, parent_id)
-    if parent_person:
+    if parent_person and parent_person.family_id == current_user.family_id:
         ParentRelationship.query.filter_by(parent_id=parent_person.id, child_id=person.id).delete()
         db.session.commit()
         flash(f'{parent_person.get_display_name()} removed as a parent.', 'info')
@@ -581,7 +582,7 @@ def remove_child(person_id, child_id):
         flash('You do not have permission to edit this profile.', 'error')
         return redirect(url_for('main.person_detail', person_id=person_id))
     child_person = db.session.get(Person, child_id)
-    if child_person:
+    if child_person and child_person.family_id == current_user.family_id:
         ParentRelationship.query.filter_by(parent_id=person.id, child_id=child_person.id).delete()
         db.session.commit()
         flash(f'{child_person.get_display_name()} removed as a child.', 'info')
@@ -2085,7 +2086,7 @@ def event_sleeping_unassign(event_id, sid, pid):
         flash('Spot not found.', 'error')
         return redirect(url_for('main.event_detail', event_id=event_id))
     person = db.session.get(Person, pid)
-    if person and person in spot.people:
+    if person and person.family_id == current_user.family_id and person in spot.people:
         spot.people.remove(person)
         db.session.commit()
         flash(f'{person.get_display_name()} removed from {spot.name}.', 'info')

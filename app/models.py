@@ -81,7 +81,7 @@ class Person(db.Model):
     __tablename__ = 'people'
 
     id = db.Column(db.Integer, primary_key=True)
-    family_id = db.Column(db.Integer, db.ForeignKey('families.id'), nullable=False)
+    family_id = db.Column(db.Integer, db.ForeignKey('families.id'), nullable=False, index=True)
     name = db.Column(db.String(100), nullable=False)
     gender = db.Column(db.String(10))
     birthday = db.Column(db.Date)
@@ -167,7 +167,7 @@ class User(UserMixin, db.Model):
     __tablename__ = 'users'
 
     id = db.Column(db.Integer, primary_key=True)
-    family_id = db.Column(db.Integer, db.ForeignKey('families.id'), nullable=False)
+    family_id = db.Column(db.Integer, db.ForeignKey('families.id'), nullable=False, index=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
     first_name = db.Column(db.String(50), nullable=False)
@@ -228,7 +228,7 @@ class Event(db.Model):
     __tablename__ = 'events'
 
     id = db.Column(db.Integer, primary_key=True)
-    family_id = db.Column(db.Integer, db.ForeignKey('families.id'), nullable=False)
+    family_id = db.Column(db.Integer, db.ForeignKey('families.id'), nullable=False, index=True)
     name = db.Column(db.String(150), nullable=False)
     description = db.Column(db.Text, nullable=True)
     location = db.Column(db.String(200), nullable=True)
@@ -340,7 +340,7 @@ class Announcement(db.Model):
     __tablename__ = 'announcements'
 
     id = db.Column(db.Integer, primary_key=True)
-    family_id = db.Column(db.Integer, db.ForeignKey('families.id'), nullable=False)
+    family_id = db.Column(db.Integer, db.ForeignKey('families.id'), nullable=False, index=True)
     author_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=True)
     title = db.Column(db.String(150), nullable=False)
     body = db.Column(db.Text, nullable=False)
@@ -354,7 +354,7 @@ class Album(db.Model):
     __tablename__ = 'albums'
 
     id = db.Column(db.Integer, primary_key=True)
-    family_id = db.Column(db.Integer, db.ForeignKey('families.id'), nullable=False)
+    family_id = db.Column(db.Integer, db.ForeignKey('families.id'), nullable=False, index=True)
     created_by_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=True)
     name = db.Column(db.String(150), nullable=False)
     description = db.Column(db.Text, nullable=True)
@@ -381,7 +381,7 @@ class Photo(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     album_id = db.Column(db.Integer, db.ForeignKey('albums.id'), nullable=False)
-    family_id = db.Column(db.Integer, db.ForeignKey('families.id'), nullable=False)
+    family_id = db.Column(db.Integer, db.ForeignKey('families.id'), nullable=False, index=True)
     uploaded_by_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=True)
     path = db.Column(db.String(300), nullable=False)
     caption = db.Column(db.String(300), nullable=True)
