@@ -156,6 +156,48 @@ Before building native apps, ship a PWA to get mobile-friendly fast.
 
 ---
 
+## Security
+
+OurPeaPod stores personal information — names, birthdays, addresses, family relationships, photos. Security is not a phase; it's a constant. This section tracks what's in place and what still needs doing.
+
+### Already in place
+- CSRF protection (Flask-WTF) on all forms
+- Password hashing (Werkzeug `pbkdf2:sha256`)
+- `family_id` scoping on all queries — no cross-family data leakage
+- Rate limiting: 20/min on login POST, 10/hr on registration and password reset
+- Session cookie flags: `Secure`, `HttpOnly`, `SameSite=Lax` in production
+- Open redirect prevention in login flow
+- Email enumeration prevention in forgot-password (always shows same message)
+- Token expiry on invitations, email verification, and password resets
+- SQL injection protection via SQLAlchemy ORM
+- HTTP security headers: `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, `Content-Security-Policy`
+- Uploaded family photos protected — `/static/uploads/` requires authentication
+- File upload extension whitelist (`jpg`, `jpeg`, `png`, `webp`, `gif`, `heic`)
+- UUIDs for all uploaded filenames (no guessable paths)
+- `SECRET_KEY` required from environment — app refuses to start without it
+
+### Pre-launch must-do
+- [ ] **Move uploads off the local filesystem** — photos in `static/uploads/` will vanish on Railway redeploy. Switch to Cloudflare R2 or AWS S3 with private buckets and short-lived signed URLs. Signed URLs are also stronger than the current auth-gateway approach (no URL sharing possible).
+- [ ] **File content validation** — currently checks extension only. Add magic-byte validation (e.g. `python-magic`) to confirm the file is actually an image before saving.
+- [ ] **Password strength enforcement** — add minimum 10-character requirement and reject the 100 most common passwords.
+- [ ] **Dependency vulnerability scanning** — add GitHub Dependabot or run `pip audit` in CI before each deploy.
+- [ ] **Secure token comparison** — use `hmac.compare_digest()` when validating invitation/reset tokens to prevent timing attacks.
+
+### Near-term (before paid tier)
+- [ ] **Audit log** — record admin actions (approving members, changing roles, deleting content) to a log table. Families deserve to know who did what.
+- [ ] **Rate limiting on invitation acceptance** — the `/register/invite/<token>` endpoint has no rate limit; a stolen token could be brute-forced (low risk due to token length, but worth closing).
+- [ ] **Account lockout** — after N failed logins from the same IP, lock for X minutes. Flask-Limiter handles IP-level limits; add per-account lockout on top.
+- [ ] **Email-change verification** — if a user changes their email, require re-verification of the new address before it takes effect.
+
+### Longer term (before mobile apps / public API)
+- [ ] **JWT token security** — API tokens for mobile apps need short expiry, rotation, and revocation.
+- [ ] **PII field encryption at rest** — sensitive fields (phone, address) stored in plaintext in the DB. Encrypt with a key stored in env for an extra layer against DB dump attacks.
+- [ ] **Penetration test** — before the paid tier goes live, have a third party attempt to break in.
+- [ ] **GDPR / data deletion** — implement a formal "delete my data" flow that removes all PII and family tree entries for a user.
+- [ ] **Backup verification** — test that Railway's automatic Postgres backups are restorable.
+
+---
+
 ## Technical Architecture Notes
 
 ### Multi-Tenancy

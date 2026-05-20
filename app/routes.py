@@ -279,6 +279,7 @@ def logout():
     return redirect(url_for('main.login'))
 
 @main.route('/register', methods=['GET', 'POST'])
+@limiter.limit('10 per hour', methods=['POST'])
 def register():
     if current_user.is_authenticated:
         return redirect(url_for('main.home'))
@@ -657,6 +658,7 @@ def family_tree():
     return render_template('family_tree.html', tree=tree, extended=extended, family=family)
 
 @main.route('/forgot-password', methods=['GET', 'POST'])
+@limiter.limit('10 per hour', methods=['POST'])
 def forgot_password():
     if current_user.is_authenticated:
         return redirect(url_for('main.home'))

@@ -1,6 +1,6 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, request, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager
+from flask_login import LoginManager, current_user
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
@@ -59,6 +59,31 @@ def create_app():
     @app.context_processor
     def inject_now():
         return {'now': datetime.utcnow()}
+
+    # Block unauthenticated access to uploaded family files
+    @app.before_request
+    def protect_uploads():
+        if request.path.startswith('/static/uploads/'):
+            if not current_user.is_authenticated:
+                return redirect(url_for('main.login', next=request.path))
+
+    # Security headers on every response
+    @app.after_request
+    def set_security_headers(response):
+        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
+        # Tight CSP: same-origin only, plus the specific CDNs we use
+        response.headers['Content-Security-Policy'] = (
+            "default-src 'self'; "
+            "script-src 'self' https://unpkg.com 'unsafe-inline'; "
+            "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; "
+            "font-src 'self' https://fonts.gstatic.com; "
+            "img-src 'self' data:; "
+            "connect-src 'self';"
+        )
+        return response
 
     @app.errorhandler(404)
     def not_found(e):
