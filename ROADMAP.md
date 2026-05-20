@@ -144,7 +144,68 @@ Before building native apps, ship a PWA to get mobile-friendly fast.
 
 ---
 
-## Phase 4 — Growth & Monetization
+## Phase 4 — Support & Platform Operations
+*OurPeaPod (the company) needs its own tools to operate the platform, help users, and stay informed about what's happening across all pods.*
+
+### 4A — In-App Support Channel
+The simplest path for users to get help without leaving the app.
+
+- [ ] **"Get help" link** in sidebar footer — visible to all authenticated users
+- [ ] **Support request form** at `/support`: subject, description, category (billing, technical, account, other)
+  - Routes to `hello@ourpeapod.com` via SendGrid
+  - Automatically includes: user email, family name, pod ID, browser/OS (from user-agent)
+  - Confirms submission with a flash message
+- [ ] **Help center link** — link out to a Notion-based FAQ or help docs (lightweight, no custom build needed initially)
+- [ ] **Status page** — a simple hosted status page (Instatus or Statuspage.io) users can check during outages
+
+### 4B — Platform Admin Panel
+A separate admin area for OurPeaPod staff — distinct from the family-level admin that pod admins already have.
+
+**Access model:**
+- New `is_platform_admin` boolean on the `User` model
+- Separate decorator `@platform_admin_required`
+- All platform admin actions are written to an audit log
+- Platform admins can only be designated by directly editing the database (no UI for this — intentional)
+
+**Dashboard** — `/platform/dashboard`
+- Total pods, total users, total active subscriptions
+- New pods this week/month
+- Recent support requests
+- Error rate (from logs)
+
+**Pod management** — `/platform/pods`
+- List all families: name, member count, plan, created date, last activity
+- Search by family name or admin email
+- View any pod's details: members, events, storage used, billing status
+
+**Support mode** — `/platform/pods/<id>/support-view`
+- Read-only view of a pod as the family admin sees it — to reproduce issues without disrupting the family
+- Every entry into support mode is logged: who accessed, when, why (required reason field)
+- Cannot make changes — read-only strictly enforced
+- Visible banner: "You are viewing this pod in support mode"
+
+**User lookup** — `/platform/users`
+- Find any user across all pods by email
+- View account status, pod membership, last login
+- Actions: resend verification email, reset password link, unlock account
+
+**Billing management** — `/platform/billing` *(after Phase 1B Stripe is live)*
+- View subscription status for any pod
+- Apply manual credit or extend trial
+- Cancel subscription on behalf of a user
+
+**System announcements** — `/platform/announce`
+- Push a notice to all pods (e.g. "Scheduled maintenance Saturday 2am")
+- Shown as a dismissible banner in all pods until dismissed or expired
+
+### 4C — Support Documentation
+- [ ] Help center (Notion or similar) covering: getting started, inviting members, events, photos, billing
+- [ ] In-app contextual help tooltips on complex features (event planning, family tree)
+- [ ] `hello@ourpeapod.com` inbox monitored and routed
+
+---
+
+## Phase 5 — Growth & Monetization
 *After the product is stable and has real users.*
 
 - [ ] **Referral program**: "Invite another family, get 1 month free"
@@ -233,16 +294,19 @@ Introduce a `FamilyScoped` mixin or query helper to enforce this at the model la
 ## Recommended Execution Order
 
 1. **Go Live** — Get the existing app running on ourpeapod.com
-2. **Phase 0** — Harden what exists (1–2 weeks)
-3. **Phase 1C** — Landing page (1 week, high visibility, no backend risk)
-4. **Phase 1A** — Self-serve signup (2–3 weeks)
+2. **Phase 0** — Harden what exists (1–2 weeks) ✓ done
+3. **Phase 1C** — Landing page (1 week) ✓ done
+4. **Phase 1A** — Self-serve pod signup (2–3 weeks)
 5. **Phase 1B** — Stripe billing (2 weeks)
-6. **Phase 3A** — Calendar feed (1 week, quick win, high value)
-7. **Phase 2C** — Event improvements (2 weeks)
-8. **Phase 2A** — Chat (3–4 weeks)
-9. **Phase 2B** — Recipes & gifts (2 weeks)
-10. **Phase 3B** — PWA (1 week)
-11. **Phase 3C/3D** — Native apps (2–3 months)
+6. **Phase 4A** — In-app support form (1 day — do this before taking any money)
+7. **Phase 4B** — Platform admin panel (2–3 weeks — needed once multiple pods exist)
+8. **Phase 3A** — Calendar feed (1 week, quick win)
+9. **Phase 2C** — Event improvements (2 weeks)
+10. **Phase 2A** — Chat (3–4 weeks)
+11. **Phase 2B** — Recipes & gifts (2 weeks)
+12. **Phase 3B** — PWA (1 week)
+13. **Phase 3C/3D** — Native apps (2–3 months)
+14. **Phase 5** — Growth & monetization (ongoing)
 
 ---
 
