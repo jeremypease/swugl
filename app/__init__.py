@@ -6,6 +6,7 @@ from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from dotenv import load_dotenv
+from datetime import datetime
 import os
 
 load_dotenv()
@@ -54,6 +55,10 @@ def create_app():
     from .models import User, Person
     from .routes import main
     app.register_blueprint(main)
+
+    @app.context_processor
+    def inject_now():
+        return {'now': datetime.utcnow()}
 
     @app.errorhandler(404)
     def not_found(e):

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}OurPeaPod — Your family's private space{% endblock %}</title>
+    <link rel="icon" href="{{ url_for('static', filename='assets/favicon.svg') }}" type="image/svg+xml">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/peavines.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    {% block head %}{% endblock %}
+</head>
+<body class="landing-body">
+
+<header class="l-nav">
+    <a href="/" class="l-nav-brand">
+        <img src="{{ url_for('static', filename='assets/peavines-mark.svg') }}" alt="OurPeaPod" height="28">
+        <span>OurPeaPod</span>
+    </a>
+    <nav class="l-nav-links">
+        <a href="#features">Features</a>
+        <a href="#pricing">Pricing</a>
+        <a href="/login" class="btn btn-secondary btn-sm">Sign in</a>
+        <a href="/register" class="btn btn-primary btn-sm">Get started free</a>
+    </nav>
+    <button class="l-nav-toggle" id="navToggle" aria-label="Menu">
+        <i data-lucide="menu"></i>
+    </button>
+</header>
+
+<div class="l-nav-mobile" id="navMobile">
+    <a href="#features" onclick="document.getElementById('navMobile').classList.remove('open')">Features</a>
+    <a href="#pricing" onclick="document.getElementById('navMobile').classList.remove('open')">Pricing</a>
+    <a href="/login">Sign in</a>
+    <a href="/register" class="btn btn-primary" style="text-align:center;">Get started free</a>
+</div>
+
+{% block content %}{% endblock %}
+
+<footer class="l-footer">
+    <div class="l-footer-inner">
+        <div class="l-footer-brand">
+            <img src="{{ url_for('static', filename='assets/peavines-mark.svg') }}" alt="OurPeaPod" height="22">
+            <span>OurPeaPod</span>
+        </div>
+        <div class="l-footer-links">
+            <a href="/privacy">Privacy Policy</a>
+            <a href="/terms">Terms of Service</a>
+            <a href="mailto:hello@ourpeapod.com">Contact</a>
+        </div>
+        <div class="l-footer-copy">© {{ now.year }} OurPeaPod. All rights reserved.</div>
+    </div>
+</footer>
+
+<script>
+lucide.createIcons();
+document.getElementById('navToggle').addEventListener('click', function() {
+    document.getElementById('navMobile').classList.toggle('open');
+});
+// Close mobile nav when clicking outside
+document.addEventListener('click', function(e) {
+    var nav = document.getElementById('navMobile');
+    var toggle = document.getElementById('navToggle');
+    if (!nav.contains(e.target) && !toggle.contains(e.target)) {
+        nav.classList.remove('open');
+    }
+});
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

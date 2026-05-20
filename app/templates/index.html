@@ -1,222 +1,157 @@
-{% extends "base.html" %}
+{% extends "landing_base.html" %}
 
-{% block title %}Home — {{ family.name }}{% endblock %}
-
-{% block head %}
-<style>
-.dash-grid {
-    display: grid;
-    grid-template-columns: 1.3fr 1fr;
-    gap: 20px;
-    align-items: start;
-}
-.event-row {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--hairline);
-    text-decoration: none;
-    color: inherit;
-}
-.event-row:last-child { border-bottom: none; }
-.event-row:hover .event-row-name { color: var(--vine); }
-.date-badge {
-    width: 44px;
-    height: 44px;
-    border-radius: var(--r-s);
-    background: var(--leaf-mist);
-    border: 1px solid var(--hairline-strong);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-.date-badge .mon { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--slate); line-height: 1; }
-.date-badge .day { font-size: 19px; font-weight: 700; color: var(--vine); line-height: 1.1; font-family: var(--font-mono); }
-.bday-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 10px 4px 5px;
-    background: var(--berry-soft);
-    border-radius: 99px;
-    font-size: 12px;
-    color: var(--berry);
-    font-weight: 500;
-    white-space: nowrap;
-}
-.bday-chip .av-xs {
-    width: 22px; height: 22px; border-radius: 50%;
-    background: var(--berry);
-    color: #fff;
-    font-size: 9px;
-    font-weight: 700;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
-}
-.photo-grid-sm {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 4px;
-}
-.photo-grid-sm a { display: block; aspect-ratio: 1; overflow: hidden; border-radius: 4px; }
-.photo-grid-sm img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.photo-grid-sm .ph { width: 100%; height: 100%; background: var(--leaf-mist); display: flex; align-items: center; justify-content: center; }
-@media (max-width: 680px) {
-    .dash-grid { grid-template-columns: 1fr; }
-}
-</style>
-{% endblock %}
+{% block title %}OurPeaPod — Your family's private space{% endblock %}
 
 {% block content %}
 
-{% set hour = now.hour if now is defined else 12 %}
-{% set greeting = 'Good morning' if hour < 12 else ('Good afternoon' if hour < 17 else 'Good evening') %}
+{# ── Hero ──────────────────────────────────────────────────────────────── #}
+<div class="l-hero">
+    <div class="l-hero-pod">
+        <img src="{{ url_for('static', filename='assets/peavines-mark.svg') }}" height="20" alt="">
+        Private · Secure · Just family
+    </div>
 
-<div style="margin-bottom:20px;">
-    <h1 style="margin-bottom:2px;">{{ greeting }}{% if me %}, {{ me.get_display_name().split()[0] }}{% endif %}</h1>
-    <div style="font-size:14px;color:var(--slate);">
-        {% set n = (upcoming_events|length) + (upcoming_birthdays|length) %}
-        {% if n > 0 %}{{ n }} thing{{ 's' if n != 1 }} happening soon in the pod{% else %}{{ family.name }} · {{ member_count }} member{{ 's' if member_count != 1 }}{% endif %}
+    <h1>Your family's<br><em>private space</em><br>to stay connected</h1>
+
+    <p>A shared home for your family tree, events, photos, and memories — seen only by the people who matter most.</p>
+
+    <div class="l-hero-ctas">
+        <a href="/register" class="btn btn-primary">Start your pod free</a>
+        <a href="/login" class="btn btn-secondary">Sign in</a>
+    </div>
+    <div class="l-hero-note">No credit card required. Free to get started.</div>
+</div>
+
+{# ── Stats strip ───────────────────────────────────────────────────────── #}
+<div class="l-visual">
+    <div class="l-visual-pod">
+        <div class="icon">🌳</div>
+        <div class="label">Family tree</div>
+        <div class="val">Generations</div>
+    </div>
+    <div class="l-visual-pod">
+        <div class="icon">📅</div>
+        <div class="label">Events planned</div>
+        <div class="val">Together</div>
+    </div>
+    <div class="l-visual-pod">
+        <div class="icon">📸</div>
+        <div class="label">Memories</div>
+        <div class="val">Preserved</div>
+    </div>
+    <div class="l-visual-pod">
+        <div class="icon">🔒</div>
+        <div class="label">Access</div>
+        <div class="val">Family only</div>
     </div>
 </div>
 
-{% if profile_nudge and me %}
-<div class="card" style="border-left:3px solid var(--honey);max-width:720px;margin-bottom:20px;">
-    {% set total = 4 %}
-    {% set done = total - profile_nudge|length %}
-    <div style="display:flex;align-items:center;gap:12px;">
-        <div style="flex:1;">
-            <div style="font-weight:600;font-size:14px;">Finish your profile</div>
-            <div style="font-size:12px;color:var(--slate);margin-top:2px;">{{ done }} of {{ total }} fields filled in — {% for field, label in profile_nudge %}{{ label }}{% if not loop.last %}, {% endif %}{% endfor %}</div>
-        </div>
-        <a href="/person/{{ me.id }}/edit" class="btn btn-secondary btn-sm">Edit profile</a>
-    </div>
-</div>
-{% endif %}
-
-<div class="dash-grid">
-
-{# ── LEFT: events + announcements ─────────────────────────────── #}
-<div style="display:flex;flex-direction:column;gap:20px;">
-
-    {# Upcoming events #}
-    <div class="card">
-        <div class="card-header">
-            <h3>Upcoming</h3>
-            <a href="/events" style="font-size:13px;color:var(--slate);text-decoration:none;">See all →</a>
-        </div>
-        {% if upcoming_events %}
-        <div>
-            {% for event in upcoming_events %}
-            <a href="/events/{{ event.id }}" class="event-row">
-                <div class="date-badge">
-                    <div class="mon">{{ event.start_date.strftime('%b') }}</div>
-                    <div class="day">{{ event.start_date.strftime('%-d') }}</div>
-                </div>
-                <div style="flex:1;min-width:0;">
-                    <div class="event-row-name" style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ event.name }}</div>
-                    <div style="font-size:12px;color:var(--slate);margin-top:1px;">
-                        {{ event.date_range_display() }}{% if event.location %} · {{ event.location }}{% endif %}
-                    </div>
-                </div>
-                <div style="display:flex;gap:4px;flex-shrink:0;">
-                    {% if event.has_meals %}<span class="badge b-active" style="font-size:11px;">Meals</span>{% endif %}
-                    {% if event.has_sleeping %}<span class="badge b-pending" style="font-size:11px;">Sleeping</span>{% endif %}
-                </div>
-            </a>
-            {% endfor %}
-        </div>
-        {% if current_user.is_admin %}
-        <div style="padding-top:10px;margin-top:4px;border-top:1px solid var(--hairline);">
-            <a href="/events/add" class="btn btn-ghost btn-sm"><i data-lucide="plus"></i> New event</a>
-        </div>
-        {% endif %}
-        {% else %}
-        <p style="font-size:14px;color:var(--slate);padding:4px 0;">No upcoming events.{% if current_user.is_admin %} <a href="/events/add" style="color:var(--vine);">Create one →</a>{% endif %}</p>
-        {% endif %}
+{# ── Features ──────────────────────────────────────────────────────────── #}
+<div class="l-section" id="features">
+    <div class="l-section-header">
+        <span class="l-eyebrow">Everything your family needs</span>
+        <h2>One private place for all of it</h2>
+        <p>OurPeaPod brings your family's history, plans, and memories together in a space that's completely yours.</p>
     </div>
 
-    {# Announcements #}
-    {% if home_announcements %}
-    <div class="card">
-        <div class="card-header">
+    <div class="l-features-grid">
+
+        <div class="l-feature-card">
+            <div class="l-feature-icon"><i data-lucide="git-branch" style="width:22px;height:22px;"></i></div>
+            <h3>Family Tree</h3>
+            <p>Map your family across generations. Add parents, children, spouses, and track birthdays, birthplaces, and life stories.</p>
+        </div>
+
+        <div class="l-feature-card">
+            <div class="l-feature-icon"><i data-lucide="calendar" style="width:22px;height:22px;"></i></div>
+            <h3>Event Planning</h3>
+            <p>Organize reunions and holidays with RSVPs, meal sign-up sheets, task assignments, and sleeping arrangements — all in one place.</p>
+        </div>
+
+        <div class="l-feature-card">
+            <div class="l-feature-icon"><i data-lucide="image" style="width:22px;height:22px;"></i></div>
+            <h3>Photo Albums</h3>
+            <p>Upload and organize family photos into albums. Share memories from reunions, holidays, and everyday moments.</p>
+        </div>
+
+        <div class="l-feature-card">
+            <div class="l-feature-icon"><i data-lucide="megaphone" style="width:22px;height:22px;"></i></div>
             <h3>Announcements</h3>
-            <a href="/announcements" style="font-size:13px;color:var(--slate);text-decoration:none;">See all →</a>
+            <p>Post news, pin important updates, and keep everyone in the loop — no group text needed.</p>
         </div>
-        {% for a in home_announcements[:3] %}
-        <div style="padding:12px 0;{% if not loop.last %}border-bottom:1px solid var(--hairline);{% endif %}">
-            {% if a.pinned %}
-            <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--vine);">Pinned · </span>
-            {% endif %}
-            <div style="font-weight:600;font-size:14px;">{{ a.title }}</div>
-            <div style="font-size:12px;color:var(--slate);margin-top:2px;">{% if a.author %}{{ a.author.get_display_name() }} · {% endif %}{{ a.created_at.strftime('%b %-d') }}</div>
-            <p style="font-size:13px;color:var(--slate);line-height:1.5;margin-top:6px;">{{ a.body[:140] }}{% if a.body|length > 140 %}…{% endif %}</p>
-        </div>
-        {% endfor %}
-    </div>
-    {% endif %}
 
+        <div class="l-feature-card">
+            <div class="l-feature-icon"><i data-lucide="users" style="width:22px;height:22px;"></i></div>
+            <h3>Member Directory</h3>
+            <p>A private directory of every family member — with contact info, photos, and profiles only your family can see.</p>
+        </div>
+
+        <div class="l-feature-card">
+            <div class="l-feature-icon"><i data-lucide="shield" style="width:22px;height:22px;"></i></div>
+            <h3>Invite-only Access</h3>
+            <p>Your pod is completely private. New members join by invitation or admin approval — no strangers ever.</p>
+        </div>
+
+    </div>
 </div>
 
-{# ── RIGHT: birthdays + photos ─────────────────────────────────── #}
-<div style="display:flex;flex-direction:column;gap:20px;">
-
-    {# Birthdays soon #}
-    {% if upcoming_birthdays %}
-    <div class="card">
-        <div class="card-header">
-            <h3>Birthdays soon</h3>
-            <span style="font-size:12px;color:var(--slate);">next 30 days</span>
-        </div>
-        <div style="display:flex;flex-wrap:wrap;gap:6px;padding-top:4px;">
-            {% for person, bday, days in upcoming_birthdays %}
-            <a href="/person/{{ person.id }}" class="bday-chip" style="text-decoration:none;">
-                <div class="av-xs">{{ person.name[:2].upper() }}</div>
-                {{ person.get_display_name().split()[0] }} ·
-                {% if days == 0 %}Today!{% elif days == 1 %}Tomorrow{% else %}{{ days }}d{% endif %}
-            </a>
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
-
-    {# Recent photos #}
-    {% if recent_photos %}
-    <div class="card">
-        <div class="card-header">
-            <h3>Latest photos</h3>
-            <a href="/albums" style="font-size:13px;color:var(--slate);text-decoration:none;">Albums →</a>
-        </div>
-        <div class="photo-grid-sm">
-            {% for photo in recent_photos %}
-            <a href="/albums/{{ photo.album_id }}">
-                <img src="{{ url_for('static', filename=photo.path) }}" alt="" loading="lazy">
-            </a>
-            {% endfor %}
-        </div>
-    </div>
-    {% elif current_user.is_admin or current_user.is_delegate %}
-    <div class="card">
-        <div class="card-header"><h3>Photos</h3></div>
-        <p style="font-size:13px;color:var(--slate);padding:4px 0;">No photos yet. <a href="/albums" style="color:var(--vine);">Create an album →</a></p>
-    </div>
-    {% endif %}
-
-    {# Quick links #}
-    <div class="card" style="background:var(--leaf-mist);border:none;">
-        <div style="display:flex;flex-direction:column;gap:6px;">
-            <a href="/members" class="btn btn-secondary btn-sm" style="justify-content:flex-start;"><i data-lucide="users"></i> Member directory</a>
-            <a href="/albums" class="btn btn-secondary btn-sm" style="justify-content:flex-start;"><i data-lucide="image"></i> Photo albums</a>
-            {% if me %}
-            <a href="/person/{{ me.id }}/edit" class="btn btn-secondary btn-sm" style="justify-content:flex-start;"><i data-lucide="edit-2"></i> Edit my profile</a>
-            {% endif %}
-        </div>
+{# ── Pricing ───────────────────────────────────────────────────────────── #}
+<div class="l-section" id="pricing" style="background:var(--cream-warm);border-radius:var(--r-xl);margin:0 32px 80px;">
+    <div class="l-section-header">
+        <span class="l-eyebrow">Pricing</span>
+        <h2>Start free, grow together</h2>
+        <p>Every family gets a free pod. Upgrade when you need more room to grow.</p>
     </div>
 
+    <div class="l-pricing-grid">
+
+        <div class="l-pricing-card">
+            <div class="l-pricing-tier">Free Pod</div>
+            <div class="l-pricing-price">$0<span class="per"> / month</span></div>
+            <div class="l-pricing-desc">Everything a family needs to get started.</div>
+            <ul class="l-pricing-list">
+                <li><i data-lucide="check"></i> Up to 15 members</li>
+                <li><i data-lucide="check"></i> Family tree</li>
+                <li><i data-lucide="check"></i> Events &amp; planning</li>
+                <li><i data-lucide="check"></i> Photo albums (1 GB)</li>
+                <li><i data-lucide="check"></i> Announcements</li>
+                <li><i data-lucide="check"></i> Member directory</li>
+                <li class="dim"><i data-lucide="minus"></i> Family chat</li>
+                <li class="dim"><i data-lucide="minus"></i> Calendar feed</li>
+                <li class="dim"><i data-lucide="minus"></i> Mobile app</li>
+            </ul>
+            <a href="/register" class="btn btn-secondary" style="width:100%;text-align:center;">Get started free</a>
+        </div>
+
+        <div class="l-pricing-card featured">
+            <div class="l-pricing-badge">Most popular</div>
+            <div class="l-pricing-tier">Family Plan</div>
+            <div class="l-pricing-price"><sup>$</sup>9<span class="per"> / month</span></div>
+            <div class="l-pricing-desc">For larger families who want the full experience.</div>
+            <ul class="l-pricing-list">
+                <li><i data-lucide="check"></i> Unlimited members</li>
+                <li><i data-lucide="check"></i> Everything in Free</li>
+                <li><i data-lucide="check"></i> Photo albums (25 GB)</li>
+                <li><i data-lucide="check"></i> Family chat</li>
+                <li><i data-lucide="check"></i> Calendar feed</li>
+                <li><i data-lucide="check"></i> Mobile app access</li>
+                <li><i data-lucide="check"></i> Priority support</li>
+            </ul>
+            <a href="/register" class="btn btn-primary" style="width:100%;text-align:center;">Start free trial</a>
+        </div>
+
+    </div>
+
+    <p style="text-align:center;font-size:13px;color:var(--slate);margin-top:20px;">
+        All plans include a 14-day free trial. No credit card required to start.
+    </p>
 </div>
+
+{# ── CTA band ──────────────────────────────────────────────────────────── #}
+<div style="text-align:center;padding:80px 32px 96px;">
+    <h2 style="font-size:clamp(28px,4vw,40px);font-weight:300;letter-spacing:-.025em;margin-bottom:16px;">Ready to start your pod?</h2>
+    <p style="font-size:16px;color:var(--slate);margin-bottom:32px;">It takes two minutes. Your family will thank you.</p>
+    <a href="/register" class="btn btn-primary" style="font-size:15px;padding:12px 28px;">Create your pod →</a>
 </div>
 
 {% endblock %}

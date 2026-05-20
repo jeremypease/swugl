@@ -49,7 +49,7 @@ def admin_required(f):
     def decorated_function(*args, **kwargs):
         if not current_user.is_authenticated or not current_user.is_admin:
             flash('You do not have permission to access that page.', 'error')
-            return redirect(url_for('main.index'))
+            return redirect(url_for('main.home'))
         return f(*args, **kwargs)
     return decorated_function
 
@@ -58,7 +58,7 @@ def contributor_or_admin_required(f):
     def decorated_function(*args, **kwargs):
         if not current_user.is_authenticated or not (current_user.is_admin or current_user.is_delegate):
             flash('You do not have permission to access that page.', 'error')
-            return redirect(url_for('main.index'))
+            return redirect(url_for('main.home'))
         return f(*args, **kwargs)
     return decorated_function
 
@@ -190,8 +190,14 @@ def members():
     return render_template('members.html', people=people, family=current_user.family, bday_days=bday_days)
 
 @main.route('/')
-@login_required
 def index():
+    if current_user.is_authenticated:
+        return redirect(url_for('main.home'))
+    return render_template('index.html')
+
+@main.route('/home')
+@login_required
+def home():
     people = Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
     member_count = len(people)
     today = date.today()
@@ -233,7 +239,7 @@ def index():
     home_announcements = pinned + recent
     recent_photos = Photo.query.filter_by(family_id=current_user.family_id)\
         .order_by(Photo.created_at.desc()).limit(6).all()
-    return render_template('index.html', member_count=member_count, family=current_user.family,
+    return render_template('home.html', member_count=member_count, family=current_user.family,
                            upcoming_birthdays=upcoming_birthdays, upcoming_events=upcoming_events,
                            profile_nudge=profile_nudge, me=me,
                            home_announcements=home_announcements,
@@ -244,7 +250,7 @@ def index():
 @limiter.limit('20 per minute', methods=['POST'])
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for('main.index'))
+        return redirect(url_for('main.home'))
     form = LoginForm()
     if form.validate_on_submit():
         user = User.query.filter_by(email=form.email.data).first()
@@ -262,7 +268,7 @@ def login():
         # Reject absolute URLs to prevent open redirect
         if next_page and urlparse(next_page).netloc != '':
             next_page = None
-        return redirect(next_page or url_for('main.index'))
+        return redirect(next_page or url_for('main.home'))
     return render_template('login.html', form=form)
 
 @main.route('/logout', methods=['POST'])
@@ -275,7 +281,7 @@ def logout():
 @main.route('/register', methods=['GET', 'POST'])
 def register():
     if current_user.is_authenticated:
-        return redirect(url_for('main.index'))
+        return redirect(url_for('main.home'))
     form = RegistrationForm()
     if form.validate_on_submit():
         if not form.family_name.data:
@@ -457,7 +463,7 @@ def add_parent(person_id):
     person = db.session.get(Person, person_id)
     if not person or person.family_id != current_user.family_id:
         flash('Person not found.', 'error')
-        return redirect(url_for('main.index'))
+        return redirect(url_for('main.home'))
     can_edit = current_user.is_admin or (person.user and person.user == current_user)
     if not can_edit:
         flash('You do not have permission to edit this profile.', 'error')
@@ -486,7 +492,7 @@ def add_child(person_id):
     person = db.session.get(Person, person_id)
     if not person or person.family_id != current_user.family_id:
         flash('Person not found.', 'error')
-        return redirect(url_for('main.index'))
+        return redirect(url_for('main.home'))
     can_edit = current_user.is_admin or (person.user and person.user == current_user)
     if not can_edit:
         flash('You do not have permission to edit this profile.', 'error')
@@ -518,7 +524,7 @@ def remove_parent(person_id, parent_id):
     person = db.session.get(Person, person_id)
     if not person or person.family_id != current_user.family_id:
         flash('Person not found.', 'error')
-        return redirect(url_for('main.index'))
+        return redirect(url_for('main.home'))
     can_edit = current_user.is_admin or (person.user and person.user == current_user)
     if not can_edit:
         flash('You do not have permission to edit this profile.', 'error')
@@ -537,7 +543,7 @@ SPOUSE_ROLES = [('husband', 'Husband'), ('wife', 'Wife'), ('spouse', 'Spouse'), 
 def set_spouse_role(person_id):
     person = db.session.get(Person, person_id)
     if not person or person.family_id != current_user.family_id:
-        return redirect(url_for('main.index'))
+        return redirect(url_for('main.home'))
     can_edit = current_user.is_admin or (person.user and person.user == current_user)
     if not can_edit:
         return redirect(url_for('main.person_detail', person_id=person_id))
@@ -556,7 +562,7 @@ def set_spouse_role(person_id):
 def set_parent_role(person_id, parent_id):
     person = db.session.get(Person, person_id)
     if not person or person.family_id != current_user.family_id:
-        return redirect(url_for('main.index'))
+        return redirect(url_for('main.home'))
     can_edit = current_user.is_admin or (person.user and person.user == current_user)
     if not can_edit:
         return redirect(url_for('main.person_detail', person_id=person_id))
@@ -576,7 +582,7 @@ def remove_child(person_id, child_id):
     person = db.session.get(Person, person_id)
     if not person or person.family_id != current_user.family_id:
         flash('Person not found.', 'error')
-        return redirect(url_for('main.index'))
+        return redirect(url_for('main.home'))
     can_edit = current_user.is_admin or (person.user and person.user == current_user)
     if not can_edit:
         flash('You do not have permission to edit this profile.', 'error')
@@ -621,7 +627,7 @@ def family_tree():
     matriarch = family.matriarch
     if not patriarch and not matriarch:
         flash('Set a founding couple in Family Settings first.', 'info')
-        return redirect(url_for('main.index'))
+        return redirect(url_for('main.home'))
 
     # Build root node explicitly so patriarch+matriarch always show as a couple
     # regardless of whether a SpouseRelationship record exists between them.
@@ -653,7 +659,7 @@ def family_tree():
 @main.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
     if current_user.is_authenticated:
-        return redirect(url_for('main.index'))
+        return redirect(url_for('main.home'))
     form = ForgotPasswordForm()
     if form.validate_on_submit():
         user = User.query.filter_by(email=form.email.data).first()
@@ -675,7 +681,7 @@ def forgot_password():
 @main.route('/reset-password/<token>', methods=['GET', 'POST'])
 def reset_password(token):
     if current_user.is_authenticated:
-        return redirect(url_for('main.index'))
+        return redirect(url_for('main.home'))
     user = User.query.filter_by(reset_token=token).first()
     if not user or (user.reset_token_expiry and user.reset_token_expiry < datetime.utcnow()):
         flash('This reset link is invalid or has expired.', 'error')
@@ -942,7 +948,7 @@ def invite_person(person_id):
     person = db.session.get(Person, person_id)
     if not person or person.family_id != current_user.family_id:
         flash('Person not found.', 'error')
-        return redirect(url_for('main.index'))
+        return redirect(url_for('main.home'))
     if person.user:
         flash(f'{person.get_display_name()} already has an account.', 'error')
         return redirect(url_for('main.person_detail', person_id=person_id))
@@ -988,7 +994,7 @@ def profile():
     person = current_user.person
     if not person:
         flash('No profile found. Please contact the admin.', 'error')
-        return redirect(url_for('main.index'))
+        return redirect(url_for('main.home'))
     return render_template('profile.html', person=person, relationship=None, parent_roles=PARENT_ROLES, spouse_roles=SPOUSE_ROLES)
 
 @main.route('/profile/edit', methods=['GET', 'POST'])
@@ -997,7 +1003,7 @@ def profile_edit():
     person = current_user.person
     if not person:
         flash('No profile found. Please contact the admin.', 'error')
-        return redirect(url_for('main.index'))
+        return redirect(url_for('main.home'))
     form = ProfileForm(obj=person)
     if form.validate_on_submit():
         person.nickname = form.nickname.data
@@ -1019,7 +1025,7 @@ def person_detail(person_id):
     person = db.session.get(Person, person_id)
     if not person or person.family_id != current_user.family_id:
         flash('Person not found.', 'error')
-        return redirect(url_for('main.index'))
+        return redirect(url_for('main.home'))
     relationship = get_relationship(current_user.person, person) if current_user.person else None
     return render_template('profile.html', person=person, relationship=relationship, parent_roles=PARENT_ROLES, spouse_roles=SPOUSE_ROLES)
 
@@ -1029,7 +1035,7 @@ def person_edit(person_id):
     person = db.session.get(Person, person_id)
     if not person or person.family_id != current_user.family_id:
         flash('Person not found.', 'error')
-        return redirect(url_for('main.index'))
+        return redirect(url_for('main.home'))
     can_edit = current_user.is_admin or (person.user and person.user == current_user)
     if not can_edit:
         flash('You do not have permission to edit this profile.', 'error')
@@ -1101,7 +1107,7 @@ def admin_link_spouse(person_id):
     person = db.session.get(Person, person_id)
     if not person or person.family_id != current_user.family_id:
         flash('Person not found.', 'error')
-        return redirect(url_for('main.index'))
+        return redirect(url_for('main.home'))
     if person.get_active_spouse():
         flash(f'{person.get_display_name()} already has an active spouse.', 'error')
         return redirect(url_for('main.person_detail', person_id=person_id))
@@ -1134,7 +1140,7 @@ def spouse_add():
     person = current_user.person
     if not person:
         flash('No profile found.', 'error')
-        return redirect(url_for('main.index'))
+        return redirect(url_for('main.home'))
     active_spouse = person.get_active_spouse()
     if active_spouse:
         flash('You already have an active spouse. Please end that relationship first.', 'error')
@@ -1182,7 +1188,7 @@ def spouse_invite():
     person = current_user.person
     if not person:
         flash('No profile found.', 'error')
-        return redirect(url_for('main.index'))
+        return redirect(url_for('main.home'))
     invite_form = SpouseInviteForm()
     if invite_form.validate_on_submit():
         existing = User.query.filter_by(email=invite_form.email.data).first()
@@ -1291,7 +1297,7 @@ def spouse_end():
     person = current_user.person
     if not person:
         flash('No profile found.', 'error')
-        return redirect(url_for('main.index'))
+        return redirect(url_for('main.home'))
     rel = None
     for r in person.spouse_relationships_as_p1 + person.spouse_relationships_as_p2:
         if r.status == 'active' and r.confirmed:
@@ -2105,3 +2111,14 @@ def event_sleeping_delete_spot(event_id, sid):
     db.session.commit()
     flash(f'"{spot.name}" removed.', 'info')
     return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+# ── Public pages ───────────────────────────────────────────────────────────────
+
+@main.route('/privacy')
+def privacy():
+    return render_template('privacy.html')
+
+@main.route('/terms')
+def terms():
+    return render_template('terms.html')

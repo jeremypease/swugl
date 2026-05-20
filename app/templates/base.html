@@ -25,7 +25,7 @@
         <div class="family-meta">Family</div>
 
         <nav class="nav">
-            <a href="/" {% if request.path == '/' %}class="active"{% endif %}>
+            <a href="/home" {% if request.path == '/home' %}class="active"{% endif %}>
                 <i data-lucide="home"></i> Home
             </a>
             <a href="/events" {% if request.path.startswith('/events') %}class="active"{% endif %}>
