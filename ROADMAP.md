@@ -2,7 +2,7 @@
 
 ## Vision
 
-**OurPeaPod** is a private family hub — a place for families to stay connected, plan together, and preserve their shared history. The product launches as a hosted SaaS at `ourpeapod.com` where any family can create their own "pod" in minutes.
+**OurPeaPod** is a private, AI-native family hub — a place for families to stay connected, plan together, and preserve their shared history. The product launches as a hosted SaaS at `ourpeapod.com` where any family can create their own "pod" in minutes. AI is woven into the product from day one, not bolted on later — every feature should consider how intelligence can reduce effort and surface things families didn't know to look for.
 
 ---
 
@@ -36,19 +36,25 @@
 ### 1B — Pricing & Billing
 **Tiers:**
 
-| Feature | Free Pod | Family Plan ($X/mo) |
-|---------|----------|---------------------|
+| Feature | Free Pod | Family Plan |
+|---------|----------|-------------|
+| Price | Free | $9/mo · or · $90/yr *(save 2 months)* |
 | Members | Up to 10 | Unlimited |
 | Photos | 1 GB storage | 25 GB storage |
 | Events | 3 active | Unlimited |
 | Chat | — | ✓ |
 | Calendar feed | — | ✓ |
+| AI features | — | ✓ |
 | Mobile app | — | ✓ |
+
+Annual billing offers ~17% off (equivalent to 2 months free). Price anchors are placeholders — validate with early customers before locking in.
 
 - [ ] Integrate **Stripe** (Checkout + Customer Portal)
 - [ ] `billing.py` — Stripe webhook handler (subscription created, updated, canceled, payment failed)
+- [ ] Support both monthly and annual billing intervals in Stripe (two Price objects per product)
 - [ ] Feature gate decorator `@requires_plan('paid')` for paid-only routes
-- [ ] `/billing` page for admins: current plan, upgrade/downgrade, payment history
+- [ ] `/billing` page for admins: current plan, billing interval, upgrade/downgrade, payment history
+- [ ] Annual plan: show "you're saving $18/yr" on upgrade confirmation
 - [ ] Grace period (7 days) on failed payment before downgrading
 
 ### 1C — Public Landing Page
@@ -205,13 +211,100 @@ A separate admin area for OurPeaPod staff — distinct from the family-level adm
 
 ---
 
+## Phase 6 — AI Features
+*AI is woven into OurPeaPod from day one — not bolted on later. All AI features are paid tier only. The goal is to make the product feel intelligent without requiring families to think about AI at all.*
+
+**Platform:** Built on the **Claude API** (Anthropic SDK). Model selection: default to the latest Claude Sonnet for a balance of quality and cost; surface model choice in platform admin for tuning.
+
+### 6A — Family Newsletter Generator
+Every family has a story — most of it gets lost in group chats. The newsletter generator pulls together recent events, announcements, new members, and milestones into a readable family update.
+
+- [ ] Aggregate activity from the past 30 days: new events, RSVPs, announcements, photos added, new members
+- [ ] `POST /ai/newsletter/preview` — sends activity summary to Claude, returns a draft newsletter in markdown
+- [ ] Admin reviews and edits the draft before sending
+- [ ] One-click send to all family members via email (SendGrid)
+- [ ] Newsletter archive at `/newsletters` — past issues stored and viewable in the app
+- [ ] Paid tier only
+
+### 6B — Smart Event Planning
+Planning a family reunion means dozens of decisions. AI reduces the cognitive load by suggesting what to bring, who to assign tasks to, and what meals have worked before.
+
+- [ ] **Task suggestions**: when creating an event, AI suggests a task list based on event type, size, and location (e.g. "It's a 3-day camping trip for 18 people — here are 12 suggested tasks")
+- [ ] **Meal suggestions**: suggest dishes and quantities based on group size and season, drawing on the family's Recipe collection if available
+- [ ] **Sleeping arrangement draft**: given a guest list and available rooms, suggest an arrangement
+- [ ] All suggestions are editable — AI proposes, admin decides
+- [ ] Paid tier only
+
+### 6C — Family Tree Q&A
+The family tree is a graph — AI can traverse it in natural language so members don't have to.
+
+- [ ] Input: natural language question — "How is Harold related to me?", "Who are all of Grandma's grandchildren?"
+- [ ] Backend: serialize the relevant portion of the family tree to a structured prompt, send to Claude
+- [ ] Response: plain English answer + the relationship path ("Harold is your father's brother — your uncle")
+- [ ] Accessible from the family tree page and member profiles
+- [ ] Paid tier only
+
+### 6D — Photo Caption Assistant
+Photos uploaded without captions are hard to search and eventually lose context. AI suggests captions based on available metadata.
+
+- [ ] When a photo is uploaded or viewed without a caption, show "Suggest a caption" button
+- [ ] Claude receives: person names tagged in the photo, event name (if from an event album), date, album name
+- [ ] Returns 2–3 caption options for the uploader to choose or edit
+- [ ] Batch captioning: admin can run "Caption uncaptioned photos" on an album
+- [ ] Paid tier only
+
+### 6E — Biography Draft for Member Profiles
+Every family member has a story. Most profiles sit mostly empty. AI can draft a starting biography from the structured data already in the profile.
+
+- [ ] "Draft a bio" button on member profiles (visible to admins and the member themselves)
+- [ ] Claude receives: name, birth year, hometown, education, occupation, family relationships, notable life events (from timeline if built)
+- [ ] Returns a short paragraph biography — warm, personal, suitable for a family record
+- [ ] Member reviews, edits, and saves — AI draft is a starting point, not the final word
+- [ ] Paid tier only
+
+### 6F — Gift Idea Suggestions
+The gift ideas feature (Phase 2B) gets smarter with AI.
+
+- [ ] When browsing gift ideas for a person, show "AI suggestions" alongside family-submitted ideas
+- [ ] Claude receives: person's age, interests (from profile), upcoming occasion (birthday, holiday), past gift ideas
+- [ ] Returns 5 gift ideas with brief rationale for each
+- [ ] Paid tier only
+
+### 6G — Announcement Drafting
+Writing a family announcement is a small but real friction point. AI makes it trivial.
+
+- [ ] On the New Announcement page, offer "Help me write this" — user provides 1–3 bullet points
+- [ ] Claude drafts a warm, family-appropriate announcement from the bullets
+- [ ] User reviews, edits, and posts — not sent automatically
+- [ ] Paid tier only
+
+### 6H — Event Recap Generator
+After an event passes, capture the memory before it fades.
+
+- [ ] A "Generate recap" button appears on past events (admin or event creator only)
+- [ ] Claude receives: event name, dates, location, attendee list (RSVPs), meal signups, assignment completions, photos added
+- [ ] Returns a narrative recap: "25 Peases gathered in Bear Lake last July for the annual reunion..."
+- [ ] Recap can be saved to the event and shared as an announcement or newsletter item
+- [ ] Paid tier only
+
+---
+
+### AI Design Principles
+- **Suggest, don't decide.** AI outputs are always drafts or options — a human approves before anything is saved or sent.
+- **Context-first.** Every AI call is grounded in real family data. Generic responses are a failure mode.
+- **Paid only.** AI features are the clearest value driver for the paid tier. Free users see that AI features exist but are prompted to upgrade.
+- **Cost awareness.** Each AI call is logged with token counts. Platform admin can see aggregate AI spend per pod. Rate-limit heavy users if costs spike.
+- **Privacy.** Family data sent to Claude is not used for training (Anthropic API terms). Mention this explicitly in the Privacy Policy.
+
+---
+
 ## Phase 5 — Growth & Monetization
 *After the product is stable and has real users.*
 
 - [ ] **Referral program**: "Invite another family, get 1 month free"
 - [ ] **Family history export**: download your entire pod as a PDF/ZIP archive
 - [ ] **Anniversary & birthday reminders**: email digest (weekly "coming up this week")
-- [ ] **AI features** (stretch): auto-generate family newsletter from recent activity, suggest gift ideas from past events
+- [ ] **AI-powered family newsletter**: auto-generate a shareable recap from recent activity (see Phase 6)
 - [ ] **Admin analytics dashboard**: member activity, storage used, events per month
 - [ ] **Enterprise / extended family tier**: multiple branches, branch admins, cross-branch events
 
@@ -306,7 +399,9 @@ Introduce a `FamilyScoped` mixin or query helper to enforce this at the model la
 11. **Phase 2B** — Recipes & gifts (2 weeks)
 12. **Phase 3B** — PWA (1 week)
 13. **Phase 3C/3D** — Native apps (2–3 months)
-14. **Phase 5** — Growth & monetization (ongoing)
+14. **Phase 6A** — AI newsletter generator (1–2 weeks — first AI feature, high perceived value)
+15. **Phase 6B–H** — Remaining AI features (roll out incrementally alongside other phases)
+16. **Phase 5** — Growth & monetization (ongoing)
 
 ---
 
@@ -460,4 +555,4 @@ railway run flask db upgrade
 
 ---
 
-*Last updated: 2026-05-19*
+*Last updated: 2026-05-19 — Added Phase 6 AI Features + annual billing*
