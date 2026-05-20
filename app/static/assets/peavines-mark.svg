@@ -1,10 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 120" role="img" aria-label="Peavines">
-  <!-- Pod outer shell (dark green lens, pointed ends) -->
-  <path d="M 2,60 Q 100,2 198,60 Q 100,118 2,60 Z" fill="#3D7040"/>
-  <!-- Pod interior (pale mint fill) -->
-  <path d="M 12,60 Q 100,17 188,60 Q 100,103 12,60 Z" fill="#DDEFD9"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 160" role="img" aria-label="OurPeaPod">
+  <!-- Pod shell (oval) -->
+  <ellipse cx="100" cy="80" rx="96" ry="76" fill="#3D7040"/>
+  <!-- Pod interior -->
+  <ellipse cx="100" cy="80" rx="79" ry="59" fill="#E8F5E3"/>
   <!-- Three peas -->
-  <circle cx="67"  cy="60" r="14" fill="#3D7040"/>
-  <circle cx="100" cy="60" r="14" fill="#3D7040"/>
-  <circle cx="133" cy="60" r="14" fill="#3D7040"/>
+  <circle cx="56"  cy="80" r="19" fill="#3D7040"/>
+  <circle cx="100" cy="80" r="19" fill="#3D7040"/>
+  <circle cx="144" cy="80" r="19" fill="#3D7040"/>
 </svg>
