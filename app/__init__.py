@@ -28,7 +28,7 @@ def create_app():
     app.config['SECRET_KEY'] = secret
 
     # Database — read from env so Railway/Postgres works; fall back to local SQLite
-    database_url = os.environ.get('DATABASE_URL', 'sqlite:///family.db')
+    database_url = os.environ.get('DATABASE_URL') or 'sqlite:///family.db'
     # SQLAlchemy 1.4+ requires postgresql:// not postgres://
     if database_url.startswith('postgres://'):
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
