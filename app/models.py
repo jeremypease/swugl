@@ -32,7 +32,10 @@ class Family(db.Model):
     __tablename__ = 'families'
 
     id = db.Column(db.Integer, primary_key=True)
+    account_id = db.Column(db.String(12), unique=True, nullable=True, index=True)
     name = db.Column(db.String(100), nullable=False)
+    plan = db.Column(db.String(20), nullable=False, default='free')
+    stripe_customer_id = db.Column(db.String(100), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     patriarch_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=True)

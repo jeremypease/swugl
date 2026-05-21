@@ -83,6 +83,30 @@
     </div>
 </div>
 
+{% if onboarding %}
+<div class="card" style="border-left:3px solid var(--vine);max-width:720px;margin-bottom:20px;">
+    {% set done_count = onboarding | selectattr('3') | list | length %}
+    <div style="font-weight:600;font-size:14px;margin-bottom:10px;">
+        Get your pod started
+        <span style="font-weight:400;font-size:12px;color:var(--slate);margin-left:8px;">{{ done_count }} of {{ onboarding|length }} done</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+        {% for key, label, link, done in onboarding %}
+        <div style="display:flex;align-items:center;gap:10px;">
+            <span style="width:20px;height:20px;border-radius:50%;border:2px solid {% if done %}var(--vine){% else %}var(--slate-light){% endif %};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                {% if done %}<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--vine)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>{% endif %}
+            </span>
+            {% if done %}
+            <span style="color:var(--slate);text-decoration:line-through;font-size:14px;">{{ label }}</span>
+            {% else %}
+            <a href="{{ link }}" style="font-size:14px;color:var(--vine);font-weight:500;">{{ label }}</a>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
 {% if profile_nudge and me %}
 <div class="card" style="border-left:3px solid var(--honey);max-width:720px;margin-bottom:20px;">
     {% set total = 4 %}

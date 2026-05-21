@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request,
 from flask_login import login_user, logout_user, login_required, current_user
 from .models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, ASSIGNMENT_CATEGORIES, EventRSVP, EventSleepingSpot, EventComment, Announcement, Album, Photo
 from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm, ForgotPasswordForm, ResetPasswordForm, AddPersonForm, RelativeForm, AddParentForm, FamilySettingsForm, EditPersonForm, EventForm, EventCommentForm, EventMealForm, EventMealFamilyAssignForm, EventMealItemForm, EventMealSelfSignupForm, EventMealAssignForm, EventAssignmentForm, EventAssignmentAdminAssignForm, EventSleepingSpotForm, EventSleepingAssignForm, GENDER_CHOICES_DEFAULT, GENDER_CHOICES_EXPANDED, PRONOUN_CHOICES, AnnouncementForm, AlbumForm, PhotoUploadForm
-from .email import send_verification_email, send_pending_notification, send_approval_notification, send_spouse_confirmation_email, send_spouse_invitation_email, send_password_reset_email, send_member_invitation_email
+from .email import send_verification_email, send_pending_notification, send_approval_notification, send_spouse_confirmation_email, send_spouse_invitation_email, send_password_reset_email, send_member_invitation_email, send_welcome_email
 from datetime import date, datetime, timedelta
 from functools import wraps
 from urllib.parse import urlparse
@@ -239,11 +239,26 @@ def home():
     home_announcements = pinned + recent
     recent_photos = Photo.query.filter_by(family_id=current_user.family_id)\
         .order_by(Photo.created_at.desc()).limit(6).all()
+    # Onboarding checklist — only for admins of new pods (families with account_id)
+    onboarding = None
+    if current_user.is_admin and current_user.family and current_user.family.account_id:
+        has_members = member_count > 1
+        has_patriarch_or_matriarch = bool(current_user.family.patriarch_id or current_user.family.matriarch_id)
+        has_photo = len(recent_photos) > 0
+        steps = [
+            ('members', 'Add your first family member', url_for('main.members'), has_members),
+            ('tree',    'Set your patriarch or matriarch', url_for('main.family_settings'), has_patriarch_or_matriarch),
+            ('photo',   'Upload a photo', url_for('main.albums'), has_photo),
+        ]
+        incomplete = [s for s in steps if not s[3]]
+        if incomplete:
+            onboarding = steps
     return render_template('home.html', member_count=member_count, family=current_user.family,
                            upcoming_birthdays=upcoming_birthdays, upcoming_events=upcoming_events,
                            profile_nudge=profile_nudge, me=me,
                            home_announcements=home_announcements,
                            recent_photos=recent_photos,
+                           onboarding=onboarding,
                            now=datetime.now())
 
 @main.route('/login', methods=['GET', 'POST'])
@@ -292,7 +307,8 @@ def register():
         if existing_user:
             flash('An account with that email already exists.', 'error')
             return redirect(url_for('main.register'))
-        family = Family(name=form.family_name.data)
+        account_id = 'pod_' + secrets.token_urlsafe(6)
+        family = Family(name=form.family_name.data, account_id=account_id)
         db.session.add(family)
         db.session.flush()
         full_name = f"{form.first_name.data} {form.last_name.data}"
@@ -345,6 +361,9 @@ def verify_email(token):
     user.verification_token = None
     user.verification_token_expiry = None
     db.session.commit()
+    # Send Day 0 welcome email for new pod admins (families with an account_id)
+    if current_app.config.get('MAIL_ENABLED') and user.is_admin and user.family and user.family.account_id:
+        send_welcome_email(user, user.family, url_for('main.home', _external=True))
     flash('Email verified! You can now sign in.', 'info')
     return redirect(url_for('main.login'))
 

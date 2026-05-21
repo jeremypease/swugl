@@ -109,6 +109,17 @@
             </div>
         </form>
     </div>
+
+    {% if family.account_id %}
+    <div class="card" style="margin-top:20px;background:var(--leaf-mist);border:none;">
+        <div style="font-size:13px;color:var(--slate);font-weight:600;margin-bottom:4px;">Pod ID</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+            <code id="pod-id" style="font-size:15px;letter-spacing:0.05em;background:#fff;padding:6px 10px;border-radius:var(--r-s);border:1px solid var(--hairline-strong);">{{ family.account_id }}</code>
+            <button type="button" onclick="navigator.clipboard.writeText('{{ family.account_id }}');this.textContent='Copied!';" class="btn btn-secondary btn-sm" style="font-size:12px;">Copy</button>
+        </div>
+        <div style="font-size:12px;color:var(--slate);margin-top:6px;">Quote this ID when contacting support so we can find your account.</div>
+    </div>
+    {% endif %}
 </div>
 
 </div>

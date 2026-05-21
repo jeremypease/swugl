@@ -449,6 +449,9 @@ event = Event.query.filter_by(id=event_id, family_id=current_user.family_id).fir
 ```
 Introduce a `FamilyScoped` mixin or query helper to enforce this at the model layer.
 
+### Redis (required before Chat and multi-instance scale)
+Flask-Limiter uses in-memory storage by default — this breaks as soon as you run more than one server instance. Flask-SocketIO (Chat) also needs a Redis adapter to broadcast messages across instances. Background jobs (Day 3/7 onboarding emails, AI processing) need a queue backed by Redis (Celery or RQ). Add Redis as a Railway plugin before Phase 2B ships; update Flask-Limiter to use `RedisStorage` at the same time.
+
 ### API Layer (required for mobile apps)
 - Add `/api/v1/` Blueprint with JSON responses
 - Token auth (`Authorization: Bearer <jwt>`) alongside existing session auth

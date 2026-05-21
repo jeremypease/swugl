@@ -95,6 +95,23 @@ def send_member_invitation_email(inviting_name, person_first_name, family_name, 
     """
     return send_email(to_email, subject, html_content)
 
+def send_welcome_email(user, family, dashboard_url):
+    subject = f"Welcome to OurPeaPod — your {family.name} pod is ready"
+    html_content = f"""
+    <h2>You're all set, {user.first_name}!</h2>
+    <p>Your email is verified and your <strong>{family.name}</strong> pod is ready to go.</p>
+    <p>Here's what to do first:</p>
+    <ol>
+        <li><strong>Add your first family member</strong> — invite someone or add them yourself from the Members page.</li>
+        <li><strong>Build your family tree</strong> — connect parents, children, and spouses.</li>
+        <li><strong>Upload a photo</strong> — start your family album.</li>
+    </ol>
+    <p><a href="{dashboard_url}" style="background:#3D7040;color:#fff;padding:10px 20px;text-decoration:none;border-radius:4px;display:inline-block;">Go to your pod</a></p>
+    <p style="color:#666;font-size:13px;">Your pod ID is <strong>{family.account_id}</strong> — keep this handy if you ever need to contact support.</p>
+    <p style="color:#666;font-size:13px;">— The OurPeaPod team</p>
+    """
+    return send_email(user.email, subject, html_content)
+
 def send_spouse_invitation_email(inviting_person, to_email, url):
     subject = "You've been invited to join Pease Vine"
     html_content = f"""
