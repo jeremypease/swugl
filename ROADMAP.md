@@ -245,7 +245,7 @@ A separate admin area for OurPeaPod staff — distinct from the family-level adm
 
 ---
 
-## Phase 6 — AI Features
+## Phase 5 — AI Features
 *AI is woven into OurPeaPod from day one — not bolted on later. All AI features are paid tier only. The goal is to make the product feel intelligent without requiring families to think about AI at all.*
 
 **Platform:** Built on the **Claude API** (Anthropic SDK). Model selection: default to the latest Claude Sonnet for a balance of quality and cost; surface model choice in platform admin for tuning.
@@ -327,7 +327,7 @@ After an event passes, capture the memory before it fades.
 - **Suggest, don't decide.** AI outputs are always drafts or options — a human approves before anything is saved or sent.
 - **Context-first.** Every AI call is grounded in real family data. Generic responses are a failure mode.
 - **Paid only.** AI features are the clearest value driver for the paid tier. Free users see that AI features exist but are prompted to upgrade.
-- **Cost awareness.** Each AI call is logged with token counts. Platform admin can see aggregate AI spend per pod. At $9/mo per pod, a single newsletter generation + event recap + batch photo captioning could cost more in API fees than the subscription revenue — this must be budgeted before Phase 6 ships. Implement a per-pod monthly token ceiling; when the ceiling is reached, features degrade gracefully ("AI features are resting — available again on [date]") rather than silently failing or charging more.
+- **Cost awareness.** Each AI call is logged with token counts. Platform admin can see aggregate AI spend per pod. At $9/mo per pod, a single newsletter generation + event recap + batch photo captioning could cost more in API fees than the subscription revenue — this must be budgeted before Phase 5 ships. Implement a per-pod monthly token ceiling; when the ceiling is reached, features degrade gracefully ("AI features are resting — available again on [date]") rather than silently failing or charging more.
 - **Privacy.** Family data sent to Claude is not used for training (Anthropic API terms). Mention this explicitly in the Privacy Policy.
 
 ### AI Token Budget — work items
@@ -338,14 +338,14 @@ After an event passes, capture the memory before it fades.
 
 ---
 
-## Phase 5 — Growth & Monetization
+## Phase 6 — Growth & Monetization
 *After the product is stable and has real users.*
 
 - [ ] **Referral program**: "Invite another family, get 1 month free"
 - [ ] **Shareable family moments** — opt-in public links for specific events or announcements that non-members can view without an account (e.g., share a reunion event page with extended family before they join). This is the primary organic growth lever — every shared link is a marketing impression.
 - [ ] **Family history export**: download your entire pod as a PDF/ZIP archive (also satisfies GDPR data portability)
 - [ ] **Anniversary & birthday reminders**: email digest (weekly "coming up this week")
-- [ ] **AI-powered family newsletter**: auto-generate a shareable recap from recent activity (see Phase 6)
+- [ ] **AI-powered family newsletter**: auto-generate a shareable recap from recent activity (see Phase 5)
 - [ ] **Admin analytics dashboard**: member activity, storage used, events per month
 - [ ] **Enterprise / extended family tier**: multiple branches, branch admins, cross-branch events
 
@@ -389,6 +389,53 @@ OurPeaPod stores personal information — names, birthdays, addresses, family re
 - [ ] **JWT token security** — API tokens for mobile apps need short expiry, rotation, and revocation.
 - [ ] **PII field encryption at rest** — sensitive fields (phone, address) stored in plaintext in the DB. Encrypt with a key stored in env for an extra layer against DB dump attacks.
 - [ ] **Penetration test** — before the paid tier goes live, have a third party attempt to break in.
+
+---
+
+## Content Moderation & Member Fairness
+
+Like Security, this is a constant — not a phase. OurPeaPod hosts personal content and family relationships. The platform's job is not to adjudicate family disputes, but to ensure legal compliance, protect members from abuse of power, and give AI a meaningful role in both.
+
+### Policy
+- Pod admins are responsible for their pod's content and membership decisions. OurPeaPod does not override admin decisions except in cases of illegal content or documented platform abuse.
+- A removed member always receives advance notice and time to export their data before access is revoked.
+- Disputes can be escalated to platform support, which can review pod activity and act at the pod level (e.g. suspending a pod) — but will not reinstate individual memberships.
+
+### Legal compliance (all tiers)
+- [ ] **CSAM hash-matching on every photo upload** — integrate PhotoDNA or equivalent hash-matching service to compare uploads against known illegal content databases. Required by law before the app is public. Matches trigger immediate removal and a report to NCMEC.
+- [ ] Retain a compliance log of all matches and reports.
+
+### AI-powered content moderation (paid tier)
+- [ ] **AI image moderation layer** — run every uploaded photo through an AI moderation service (AWS Rekognition or Hive Moderation) in addition to hash-matching. Catches new illegal or harmful content not yet in any hash database. Flag for human review rather than auto-removing.
+- [ ] **Context-aware text moderation** — pod admins set a content intent ("family-friendly," "strict," or "default") rather than a manual keyword list. AI interprets context: the same word used in a historical quote vs. an attack is handled differently. A keyword list cannot make that distinction.
+- [ ] Pod admin can review flagged content and dismiss or remove.
+
+### Member removal protections
+- [ ] **24-hour removal notice** — when an admin removes a member, the member receives an AI-drafted email (warm, not robotic, using the family name and context) notifying them of removal and providing a data export link. Access is revoked after 24 hours.
+- [ ] **Data export on removal** — the outgoing member can download their profile, photos, and contributions before access ends.
+- [ ] **Anomaly detection** — AI monitors for unusual admin behavior: removing multiple members in a short window, bulk-deleting content, mass role changes. Anomalies are flagged automatically to platform admin for review — no complaint needed.
+- [ ] **Support triage** — when a removed member contacts support, AI summarizes the pod's recent activity (membership changes, content deletions, admin actions) so the platform admin understands the situation in under a minute rather than digging through logs.
+
+---
+
+## Accessibility
+
+OurPeaPod's core demographic includes grandparents and older family members. Accessibility is not an edge case — it is the product. WCAG 2.1 AA compliance is the target. Like Security, this is a constant, not a phase.
+
+### Principles
+- Every new template ships accessible. Retrofitting later costs 3× more than doing it right the first time.
+- Test with a screen reader (VoiceOver on Mac, NVDA on Windows) before marking any UI feature complete.
+- Color contrast, keyboard navigation, and readable font sizes are non-negotiable.
+
+### Work items (woven into each phase as features ship)
+- [ ] Color contrast: all text meets WCAG AA ratio (4.5:1 for normal text, 3:1 for large)
+- [ ] All interactive elements reachable and operable by keyboard alone
+- [ ] All images have meaningful `alt` text (AI can suggest alt text for uploaded photos — see Phase 5D)
+- [ ] Form inputs have visible labels (no placeholder-only labels)
+- [ ] Focus indicators visible on all interactive elements
+- [ ] Error messages are descriptive and linked to the relevant field
+- [ ] `aria-live` regions for dynamic content updates (chat messages, flash notifications)
+- [ ] Mobile tap targets ≥ 44×44px
 
 ---
 
@@ -441,9 +488,9 @@ Introduce a `FamilyScoped` mixin or query helper to enforce this at the model la
 13. **Phase 2C** — Recipes & gifts (2 weeks)
 14. **Phase 2E** — GEDCOM import (1 week)
 15. **Phase 3C/3D** — Native apps (2–3 months)
-16. **Phase 6A** — AI newsletter generator (1–2 weeks — first AI feature, high perceived value)
-17. **Phase 6B–H** — Remaining AI features (roll out incrementally alongside other phases)
-18. **Phase 5** — Growth & monetization (ongoing)
+16. **Phase 5A** — AI newsletter generator (1–2 weeks — first AI feature, high perceived value)
+17. **Phase 5B–H** — Remaining AI features (roll out incrementally alongside other phases)
+18. **Phase 6** — Growth & monetization (ongoing)
 
 ---
 
@@ -606,4 +653,4 @@ railway run flask db upgrade
 
 ---
 
-*Last updated: 2026-05-20 — Decisions locked: Sentry free tier, Railway Pro for backups, Stripe Tax enabled from day one*
+*Last updated: 2026-05-20 — Added content moderation (AI-native, CSAM compliance, anomaly detection, member removal protections), accessibility cross-cutting section, phase renumbering (AI → 5, Growth → 6)*
