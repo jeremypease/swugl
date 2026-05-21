@@ -69,7 +69,7 @@ Annual billing offers ~17% off (equivalent to 2 months free). Price anchors are 
 - [ ] `/billing` page for admins: current plan, billing interval, upgrade/downgrade, payment history
 - [ ] Annual plan: show "you're saving $18/yr" on upgrade confirmation
 - [ ] Grace period (7 days) on failed payment before downgrading
-- [ ] **Stripe Tax** — enable at billing setup, before the first real payment is processed. SaaS subscriptions are taxable in ~30 US states and in the EU (VAT). Stripe Tax automates collection and reporting for 0.5% per transaction — far cheaper than the penalty for getting it wrong. Add `automatic_tax: {enabled: true}` to Checkout sessions and confirm the `ourpeapod.com` tax origin address is set in the Stripe dashboard.
+- [ ] **Enable Stripe Tax from day one** — SaaS subscriptions are taxable in ~30 US states and subject to VAT in the EU. Stripe Tax automates collection, remittance, and reporting for 0.5% per transaction. At $9/mo per pod that's $0.045 — rounds to nothing. The alternative (manually tracking economic nexus thresholds and registering state-by-state) is a compliance project, not a feature, and the penalty for getting caught is back-tax plus interest. Add `automatic_tax: {enabled: true}` to all Checkout sessions; set the `ourpeapod.com` tax origin address in the Stripe dashboard. Never revisit this.
 
 ### 1C — Public Landing Page
 **URL:** `ourpeapod.com` — for visitors who aren't logged in.
@@ -498,13 +498,13 @@ Hostgator shared hosting can't support WebSockets, which are required for Phase 
   web: gunicorn run:app
   ```
 - [ ] Confirm `requirements.txt` is up to date: `pip freeze > requirements.txt`
-- [ ] **Add error monitoring (Sentry)** — sign up for Sentry free tier, add `sentry-sdk[flask]` to `requirements.txt`, initialize in `create_app()`:
+- [ ] **Add error monitoring (Sentry)** — free tier handles 5,000 errors/month, plenty for early stage. Add `sentry-sdk[flask]` to `requirements.txt`, initialize in `create_app()`:
   ```python
   import sentry_sdk
   from sentry_sdk.integrations.flask import FlaskIntegration
   sentry_sdk.init(dsn=os.environ.get('SENTRY_DSN'), integrations=[FlaskIntegration()])
   ```
-  Add `SENTRY_DSN` to Railway environment variables. Without this, production errors are invisible until a user complains.
+  Add `SENTRY_DSN` to Railway environment variables. Do this before the Go Live smoke test so you have visibility from day one — the first week of real users will surface errors you didn't know existed.
 
 ---
 
@@ -535,10 +535,7 @@ Railway deploys from a GitHub repository.
   ```bash
   flask db upgrade
   ```
-- [ ] **Verify database backup coverage** — Railway's hobby plan ($5/mo) does not include automatic Postgres backups. Before any real family data goes in, do one of:
-  - Upgrade to Railway Pro plan (~$20/mo) which includes point-in-time recovery, **or**
-  - Set up a daily `pg_dump` cron job (Railway cron service or GitHub Actions) that writes a compressed dump to Cloudflare R2 or S3. Keep 30 days of daily dumps. Test a restore before going live.
-  - This is not optional — a bad migration or accidental delete with no backup means permanent data loss.
+- [ ] **Upgrade Railway to Pro plan (~$20/mo)** — the hobby plan ($5/mo) has no automatic Postgres backups. Pro includes point-in-time recovery with no moving parts to maintain. The $15/mo difference is not a real tradeoff for a product storing family memories and billing data. The alternative (pg_dump cron job) has a silent failure mode: if the cron stops working you won't know until you need the backup and it isn't there. Upgrade when setting up the Railway project, before any family data goes in. Test a restore before going live.
 
 ---
 
@@ -609,4 +606,4 @@ railway run flask db upgrade
 
 ---
 
-*Last updated: 2026-05-20 — Third pass: Sentry error monitoring, Railway backup gap, Stripe Tax, family name display-only with account_id for routing*
+*Last updated: 2026-05-20 — Decisions locked: Sentry free tier, Railway Pro for backups, Stripe Tax enabled from day one*
