@@ -308,7 +308,9 @@ def register():
             flash('An account with that email already exists.', 'error')
             return redirect(url_for('main.register'))
         account_id = 'pod_' + secrets.token_urlsafe(6)
-        family = Family(name=form.family_name.data, account_id=account_id)
+        trial_ends = datetime.utcnow() + timedelta(days=30)
+        family = Family(name=form.family_name.data, account_id=account_id,
+                        plan='trial', trial_ends_at=trial_ends)
         db.session.add(family)
         db.session.flush()
         full_name = f"{form.first_name.data} {form.last_name.data}"

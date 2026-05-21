@@ -38,6 +38,12 @@ def create_app():
     app.config['SENDGRID_FROM_EMAIL'] = os.environ.get('SENDGRID_FROM_EMAIL')
     app.config['MAIL_ENABLED'] = os.environ.get('MAIL_ENABLED', '').lower() == 'true'
 
+    app.config['STRIPE_SECRET_KEY'] = os.environ.get('STRIPE_SECRET_KEY')
+    app.config['STRIPE_PUBLISHABLE_KEY'] = os.environ.get('STRIPE_PUBLISHABLE_KEY')
+    app.config['STRIPE_WEBHOOK_SECRET'] = os.environ.get('STRIPE_WEBHOOK_SECRET')
+    app.config['STRIPE_MONTHLY_PRICE_ID'] = os.environ.get('STRIPE_MONTHLY_PRICE_ID')
+    app.config['STRIPE_ANNUAL_PRICE_ID'] = os.environ.get('STRIPE_ANNUAL_PRICE_ID')
+
     # Secure cookies in production (HTTPS only)
     if os.environ.get('FLASK_ENV') == 'production':
         app.config['SESSION_COOKIE_SECURE'] = True
@@ -54,11 +60,18 @@ def create_app():
 
     from .models import User, Person
     from .routes import main
+    from .billing import billing
     app.register_blueprint(main)
+    app.register_blueprint(billing)
+    csrf.exempt(app.view_functions['billing.webhook'])
 
     @app.context_processor
     def inject_now():
         return {'now': datetime.utcnow()}
+
+    @app.template_filter('datetime_format')
+    def datetime_format(ts):
+        return datetime.utcfromtimestamp(int(ts)).strftime('%b %d, %Y')
 
     # Block unauthenticated access to uploaded family files
     @app.before_request

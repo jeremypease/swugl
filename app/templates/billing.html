@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="canvas-inner" style="max-width:720px;">
+
+<div class="page-head">
+    <div style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--slate);margin-bottom:4px;">Account</div>
+    <h1 style="margin-bottom:4px;">Billing</h1>
+</div>
+
+{# ── Current plan ───────────────────────────────────────────────────────── #}
+<div class="card" style="margin-bottom:20px;">
+    <div class="card-header"><h3>Current Plan</h3></div>
+
+    {% if family.plan == 'trial' %}
+        {% if days_left is not none and days_left >= 0 %}
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+            <span style="background:var(--leaf-mist);color:var(--vine);font-weight:600;font-size:13px;padding:4px 10px;border-radius:99px;">Free Trial</span>
+            <span style="font-size:14px;color:var(--slate);">{{ days_left }} day{{ 's' if days_left != 1 }} remaining</span>
+        </div>
+        <p style="font-size:14px;color:var(--slate);margin-bottom:0;">You have access to all features during your trial. Upgrade before your trial ends to keep them.</p>
+        {% else %}
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+            <span style="background:#fdecea;color:#b94a2c;font-weight:600;font-size:13px;padding:4px 10px;border-radius:99px;">Trial Ended</span>
+        </div>
+        <p style="font-size:14px;color:var(--slate);margin-bottom:0;">Your trial has ended. Upgrade to restore access to all features.</p>
+        {% endif %}
+
+    {% elif family.plan == 'paid' %}
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+            <span style="background:var(--leaf-mist);color:var(--vine);font-weight:600;font-size:13px;padding:4px 10px;border-radius:99px;">Family Plan</span>
+        </div>
+        <p style="font-size:14px;color:var(--slate);margin-bottom:16px;">All features unlocked. Thank you for supporting OurPeaPod.</p>
+        {% if family.stripe_customer_id %}
+        <form method="POST" action="/billing/portal">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-secondary">Manage subscription</button>
+        </form>
+        {% endif %}
+
+    {% elif family.plan == 'past_due' %}
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+            <span style="background:#fdecea;color:#b94a2c;font-weight:600;font-size:13px;padding:4px 10px;border-radius:99px;">Payment Failed</span>
+        </div>
+        <p style="font-size:14px;color:var(--slate);margin-bottom:16px;">Your last payment didn't go through. Update your payment method to restore full access.</p>
+        {% if family.stripe_customer_id %}
+        <form method="POST" action="/billing/portal">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-primary">Fix payment method</button>
+        </form>
+        {% endif %}
+
+    {% else %}
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+            <span style="background:var(--hairline);color:var(--slate);font-weight:600;font-size:13px;padding:4px 10px;border-radius:99px;">Free Pod</span>
+        </div>
+        <p style="font-size:14px;color:var(--slate);margin-bottom:0;">You're on the free plan. Upgrade to unlock all features.</p>
+    {% endif %}
+</div>
+
+{# ── Upgrade options (shown when not on paid plan) ──────────────────────── #}
+{% if family.plan != 'paid' %}
+<div class="card" style="margin-bottom:20px;">
+    <div class="card-header"><h3>Upgrade to Family Plan</h3></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:8px;">
+
+        {# Monthly #}
+        <div style="border:1px solid var(--hairline-strong);border-radius:var(--r-m);padding:20px;">
+            <div style="font-weight:700;font-size:16px;margin-bottom:4px;">Monthly</div>
+            <div style="font-size:28px;font-weight:800;color:var(--vine);margin-bottom:4px;">$9<span style="font-size:14px;font-weight:400;color:var(--slate);">/mo</span></div>
+            <div style="font-size:12px;color:var(--slate);margin-bottom:16px;">Billed monthly, cancel any time</div>
+            {% if monthly_price_id %}
+            <form method="POST" action="/billing/checkout">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="price_id" value="{{ monthly_price_id }}">
+                <button type="submit" class="btn btn-secondary" style="width:100%;">Choose Monthly</button>
+            </form>
+            {% else %}
+            <button class="btn btn-secondary" style="width:100%;opacity:.5;" disabled>Coming soon</button>
+            {% endif %}
+        </div>
+
+        {# Annual #}
+        <div style="border:2px solid var(--vine);border-radius:var(--r-m);padding:20px;position:relative;">
+            <div style="position:absolute;top:-10px;left:16px;background:var(--vine);color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;letter-spacing:.04em;">BEST VALUE</div>
+            <div style="font-weight:700;font-size:16px;margin-bottom:4px;">Annual</div>
+            <div style="font-size:28px;font-weight:800;color:var(--vine);margin-bottom:4px;">$90<span style="font-size:14px;font-weight:400;color:var(--slate);">/yr</span></div>
+            <div style="font-size:12px;color:var(--vine);font-weight:600;margin-bottom:16px;">Save $18 — 2 months free</div>
+            {% if annual_price_id %}
+            <form method="POST" action="/billing/checkout">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="price_id" value="{{ annual_price_id }}">
+                <button type="submit" class="btn btn-primary" style="width:100%;">Choose Annual</button>
+            </form>
+            {% else %}
+            <button class="btn btn-primary" style="width:100%;opacity:.5;" disabled>Coming soon</button>
+            {% endif %}
+        </div>
+    </div>
+
+    <div style="margin-top:16px;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--slate);">Everything in Family Plan:</div>
+        <ul style="font-size:13px;color:var(--slate);margin:0;padding-left:18px;line-height:1.8;">
+            <li>Unlimited family members</li>
+            <li>25 GB photo storage</li>
+            <li>Unlimited events</li>
+            <li>Family chat</li>
+            <li>Calendar feed for Apple / Google / Outlook</li>
+            <li>AI features — newsletter, smart planning, family Q&amp;A, and more</li>
+            <li>Mobile app (coming soon)</li>
+        </ul>
+    </div>
+</div>
+{% endif %}
+
+{# ── Payment history ─────────────────────────────────────────────────────── #}
+{% if invoices %}
+<div class="card">
+    <div class="card-header"><h3>Payment History</h3></div>
+    <table style="width:100%;font-size:14px;border-collapse:collapse;">
+        <thead>
+            <tr style="border-bottom:1px solid var(--hairline);">
+                <th style="text-align:left;padding:8px 0;font-weight:600;color:var(--slate);">Date</th>
+                <th style="text-align:left;padding:8px 0;font-weight:600;color:var(--slate);">Amount</th>
+                <th style="text-align:left;padding:8px 0;font-weight:600;color:var(--slate);">Status</th>
+                <th style="text-align:right;padding:8px 0;font-weight:600;color:var(--slate);">Receipt</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for inv in invoices %}
+            <tr style="border-bottom:1px solid var(--hairline);">
+                <td style="padding:10px 0;">{{ inv.created | int | datetime_format }}</td>
+                <td style="padding:10px 0;">${{ '%.2f' % (inv.amount_paid / 100) }}</td>
+                <td style="padding:10px 0;">
+                    <span style="font-size:12px;padding:2px 8px;border-radius:99px;background:{% if inv.status == 'paid' %}var(--leaf-mist);color:var(--vine){% else %}#fdecea;color:#b94a2c{% endif %};">{{ inv.status }}</span>
+                </td>
+                <td style="padding:10px 0;text-align:right;">
+                    {% if inv.hosted_invoice_url %}
+                    <a href="{{ inv.hosted_invoice_url }}" target="_blank" style="font-size:13px;">View</a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+</div>
+{% endblock %}

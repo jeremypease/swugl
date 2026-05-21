@@ -51,6 +51,9 @@
             <a href="/admin/users" {% if request.path.startswith('/admin') and request.path != '/admin/family' %}class="active"{% endif %}>
                 <i data-lucide="shield"></i> Settings
             </a>
+            <a href="/billing" {% if request.path.startswith('/billing') %}class="active"{% endif %}>
+                <i data-lucide="credit-card"></i> Billing
+            </a>
             {% endif %}
         </nav>
 
@@ -99,6 +102,29 @@
             </script>
             {% endif %}
         {% endwith %}
+
+        {% if current_user.is_authenticated and current_user.is_admin and current_user.family %}
+            {% set fam = current_user.family %}
+            {% if fam.plan == 'trial' and fam.trial_ends_at %}
+                {% set days_left = ((fam.trial_ends_at - now).days) %}
+                {% if days_left >= 0 %}
+                <div style="background:var(--vine);color:#fff;padding:8px 40px;font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+                    <span><strong>Free trial</strong> — {{ days_left }} day{{ 's' if days_left != 1 }} remaining. Upgrade to keep all features after your trial ends.</span>
+                    <a href="/billing" style="color:#fff;font-weight:600;white-space:nowrap;text-decoration:underline;">Upgrade now</a>
+                </div>
+                {% else %}
+                <div style="background:var(--rust,#b94a2c);color:#fff;padding:8px 40px;font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+                    <span><strong>Your free trial has ended.</strong> Upgrade to restore access to all features.</span>
+                    <a href="/billing" style="color:#fff;font-weight:600;white-space:nowrap;text-decoration:underline;">Upgrade now</a>
+                </div>
+                {% endif %}
+            {% elif fam.plan == 'past_due' %}
+            <div style="background:#b94a2c;color:#fff;padding:8px 40px;font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+                <span><strong>Payment failed.</strong> Update your payment method to avoid losing access.</span>
+                <a href="/billing" style="color:#fff;font-weight:600;white-space:nowrap;text-decoration:underline;">Fix now</a>
+            </div>
+            {% endif %}
+        {% endif %}
 
         <div class="canvas-inner">
 {% endif %}
