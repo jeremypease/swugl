@@ -19,6 +19,7 @@
 - [ ] Harden auth: rate-limit login, add email verification on registration
 - [ ] Confirm all admin-only routes enforce `@admin_required` consistently
 - [ ] Write a basic smoke-test suite for the critical paths (login, profile edit, event CRUD)
+- [ ] **Wire up Cloudflare R2 or AWS S3 for photo storage** — Railway's filesystem is ephemeral; uploaded photos will be lost on every redeploy. This must be done before any non-test family uses the app, not just before "launch." See Security → Pre-launch must-do for details.
 
 ---
 
@@ -29,9 +30,16 @@
 **Route:** `ourpeapod.com/signup` → creates a new family + admin user in one flow.
 
 - [ ] New `signup.html` flow: family name → your info → email verification → dashboard
-- [ ] `Family` model gains: `slug` (URL-safe name, e.g. `pease`), `plan` (free/paid), `stripe_customer_id`, `created_at`
-- [ ] Optional vanity URL: `ourpeapod.com/p/pease` or subdomain `pease.ourpeapod.com` (later)
+- [ ] `Family` model gains: `name` (display only — no uniqueness constraint; two families can both be "The Smith Family"), `account_id` (system-generated short unique code, e.g. `pod_a1b2c3` — used for URLs and internal references), `plan` (free/paid), `stripe_customer_id`, `created_at`
+- [ ] All pod-scoped URLs use `account_id`, never the display name — e.g. `/p/pod_a1b2c3/events`
+- [ ] `account_id` displayed in family settings (admin only) — e.g. "Your pod ID: pod_a1b2c3" — so admins can quote it when contacting support to identify their account unambiguously
 - [ ] Onboarding checklist on first login (add members, set patriarch/matriarch, upload a photo)
+- [ ] **Onboarding email sequence** — activation lives here, not just in the checklist:
+  - Day 0: Welcome email — what to do first (add your first member, set up your tree)
+  - Day 3: Nudge if no members have been added — "Your pod is quiet, here's how to invite family"
+  - Day 7: Feature highlight — "Did you know you can plan events and assign tasks?"
+  - Day 30 (trial end): Upgrade prompt with what they'll lose on free tier
+- **Schema note:** The current model assumes one user belongs to one family. A real use case — someone married into a second family — will require a `user_families` junction table. Flag this before Phase 1A schema is finalized so it doesn't require a painful migration later.
 
 ### 1B — Pricing & Billing
 **Tiers:**
@@ -49,6 +57,11 @@
 
 Annual billing offers ~17% off (equivalent to 2 months free). Price anchors are placeholders — validate with early customers before locking in.
 
+**Member cap consideration:** The 10-member limit may frustrate large families (30+ cousins) before they've seen enough value to upgrade. If the first wall they hit is "you can't add your aunt," they bounce rather than pay. Consider whether storage or AI is a less alienating gate, or raise the free cap to 15–20. Decide before 1B ships.
+
+- [ ] **30-day free trial of paid tier on signup** — families experience the full product before hitting any wall; present the upgrade prompt at trial end, not at random feature blocks
+- [ ] "X days remaining in your trial" banner in the app header during trial
+- [ ] Trial-to-paid conversion email at Day 25 (5-day warning) and Day 30 (trial ended)
 - [ ] Integrate **Stripe** (Checkout + Customer Portal)
 - [ ] `billing.py` — Stripe webhook handler (subscription created, updated, canceled, payment failed)
 - [ ] Support both monthly and annual billing intervals in Stripe (two Price objects per product)
@@ -56,6 +69,7 @@ Annual billing offers ~17% off (equivalent to 2 months free). Price anchors are 
 - [ ] `/billing` page for admins: current plan, billing interval, upgrade/downgrade, payment history
 - [ ] Annual plan: show "you're saving $18/yr" on upgrade confirmation
 - [ ] Grace period (7 days) on failed payment before downgrading
+- [ ] **Stripe Tax** — enable at billing setup, before the first real payment is processed. SaaS subscriptions are taxable in ~30 US states and in the EU (VAT). Stripe Tax automates collection and reporting for 0.5% per transaction — far cheaper than the penalty for getting it wrong. Add `automatic_tax: {enabled: true}` to Checkout sessions and confirm the `ourpeapod.com` tax origin address is set in the Stripe dashboard.
 
 ### 1C — Public Landing Page
 **URL:** `ourpeapod.com` — for visitors who aren't logged in.
@@ -73,7 +87,16 @@ Annual billing offers ~17% off (equivalent to 2 months free). Price anchors are 
 ## Phase 2 — Communication & Content
 *Deepens engagement once families are onboarded.*
 
-### 2A — Family Chat
+### 2A — Notification Preferences *(build this first — before 2B, 2C, or 2D ship)*
+Without a unified notification system, every new feature that sends email or push notifications becomes its own ad-hoc implementation. Users get spammed or go dark. Both cause churn.
+
+- [ ] `NotificationPreference` model: `user_id`, `event_type` (new_event, rsvp_reminder, new_member, chat_message, announcement, digest), `channel` (email, push), `enabled` (bool)
+- [ ] `/profile/notifications` settings page — one toggle per event type per channel
+- [ ] Default preferences set at signup (sensible defaults: digest on, per-message chat off)
+- [ ] All notification-sending code goes through a central `notify(user, event_type, payload)` helper that checks preferences before sending
+- [ ] Weekly digest email: upcoming events, recent activity, birthdays this week (replaces per-event spam for lower-frequency users)
+
+### 2B — Family Chat
 A simple threaded group chat scoped to the family. Not a replacement for iMessage — a place for family-specific conversation that stays in the pod.
 
 - [ ] `Message` model: `id`, `family_id`, `person_id`, `body`, `created_at`, `thread_id` (nullable)
@@ -84,7 +107,7 @@ A simple threaded group chat scoped to the family. Not a replacement for iMessag
 - [ ] Push notifications on mobile (Phase 3 dependency)
 - [ ] Paid tier only
 
-### 2B — Recipes & Gift Ideas
+### 2C — Recipes & Gift Ideas
 Structured content types that members can create, browse, and save.
 
 **Recipes**
@@ -99,7 +122,7 @@ Structured content types that members can create, browse, and save.
 - [ ] Claim a gift idea (hidden from the person it's for)
 - [ ] Admins can see full claim status
 
-### 2C — Event Planning Improvements
+### 2D — Event Planning Improvements
 Building on the existing Events feature.
 
 - [ ] RSVP system: Yes / No / Maybe per person, with headcount display
@@ -109,6 +132,17 @@ Building on the existing Events feature.
 - [ ] Recurring events (annual — e.g. "Pease Christmas" auto-creates each year)
 - [ ] Email/push notifications when a new event is created
 - [ ] Event templates (save a past event as a template for next year)
+- [ ] **Timezone support** — store event times with timezone; display in each member's local time for distributed families
+
+### 2E — GEDCOM Import
+Many families already have their tree in Ancestry.com, MyHeritage, or FamilySearch. Re-entering every relationship manually is a hard sell. GEDCOM import removes the biggest adoption barrier for genealogy-minded families.
+
+- [ ] File upload at `/family/import` (admin only) — accepts `.ged` / `.gedcom` files
+- [ ] Parser: extract individuals (INDI records) and family units (FAM records) into People + relationships
+- [ ] Preview page before import: "Found 47 people, 18 families — review before importing"
+- [ ] Conflict resolution: if a person already exists (matched by name + birth year), prompt to merge or skip
+- [ ] Import log: show what was created, what was skipped, what needs manual review
+- [ ] GEDCOM export as the inverse — lets families take their data with them (also satisfies the data portability / GDPR right-to-portability requirement)
 
 ---
 
@@ -159,7 +193,7 @@ The simplest path for users to get help without leaving the app.
 - [ ] **"Get help" link** in sidebar footer — visible to all authenticated users
 - [ ] **Support request form** at `/support`: subject, description, category (billing, technical, account, other)
   - Routes to `hello@ourpeapod.com` via SendGrid
-  - Automatically includes: user email, family name, pod ID, browser/OS (from user-agent)
+  - Automatically includes: user email, family name, `account_id`, browser/OS (from user-agent) — the `account_id` is what support uses to look up the pod in the platform admin, not the display name
   - Confirms submission with a flash message
 - [ ] **Help center link** — link out to a Notion-based FAQ or help docs (lightweight, no custom build needed initially)
 - [ ] **Status page** — a simple hosted status page (Instatus or Statuspage.io) users can check during outages
@@ -293,8 +327,14 @@ After an event passes, capture the memory before it fades.
 - **Suggest, don't decide.** AI outputs are always drafts or options — a human approves before anything is saved or sent.
 - **Context-first.** Every AI call is grounded in real family data. Generic responses are a failure mode.
 - **Paid only.** AI features are the clearest value driver for the paid tier. Free users see that AI features exist but are prompted to upgrade.
-- **Cost awareness.** Each AI call is logged with token counts. Platform admin can see aggregate AI spend per pod. Rate-limit heavy users if costs spike.
+- **Cost awareness.** Each AI call is logged with token counts. Platform admin can see aggregate AI spend per pod. At $9/mo per pod, a single newsletter generation + event recap + batch photo captioning could cost more in API fees than the subscription revenue — this must be budgeted before Phase 6 ships. Implement a per-pod monthly token ceiling; when the ceiling is reached, features degrade gracefully ("AI features are resting — available again on [date]") rather than silently failing or charging more.
 - **Privacy.** Family data sent to Claude is not used for training (Anthropic API terms). Mention this explicitly in the Privacy Policy.
+
+### AI Token Budget — work items
+- [ ] `AIUsage` model: `pod_id`, `feature` (newsletter, event_planning, qa, caption, etc.), `tokens_used`, `created_at`
+- [ ] Monthly token ceiling per pod (configurable in platform admin — start conservative, tune from real usage data)
+- [ ] Platform admin view: AI spend by pod, by feature, by month — surfaces outliers before they become a cost problem
+- [ ] Graceful degradation UI when a pod hits its ceiling
 
 ---
 
@@ -302,7 +342,8 @@ After an event passes, capture the memory before it fades.
 *After the product is stable and has real users.*
 
 - [ ] **Referral program**: "Invite another family, get 1 month free"
-- [ ] **Family history export**: download your entire pod as a PDF/ZIP archive
+- [ ] **Shareable family moments** — opt-in public links for specific events or announcements that non-members can view without an account (e.g., share a reunion event page with extended family before they join). This is the primary organic growth lever — every shared link is a marketing impression.
+- [ ] **Family history export**: download your entire pod as a PDF/ZIP archive (also satisfies GDPR data portability)
 - [ ] **Anniversary & birthday reminders**: email digest (weekly "coming up this week")
 - [ ] **AI-powered family newsletter**: auto-generate a shareable recap from recent activity (see Phase 6)
 - [ ] **Admin analytics dashboard**: member activity, storage used, events per month
@@ -331,7 +372,7 @@ OurPeaPod stores personal information — names, birthdays, addresses, family re
 - `SECRET_KEY` required from environment — app refuses to start without it
 
 ### Pre-launch must-do
-- [ ] **Move uploads off the local filesystem** — photos in `static/uploads/` will vanish on Railway redeploy. Switch to Cloudflare R2 or AWS S3 with private buckets and short-lived signed URLs. Signed URLs are also stronger than the current auth-gateway approach (no URL sharing possible).
+- [ ] **Move uploads off the local filesystem** — photos in `static/uploads/` will vanish on Railway redeploy. Switch to Cloudflare R2 or AWS S3 with private buckets and short-lived signed URLs. Signed URLs are also stronger than the current auth-gateway approach (no URL sharing possible). *Also tracked in Phase 0 — must be done before any non-test family uses the app.*
 - [ ] **File content validation** — currently checks extension only. Add magic-byte validation (e.g. `python-magic`) to confirm the file is actually an image before saving.
 - [ ] **Password strength enforcement** — add minimum 10-character requirement and reject the 100 most common passwords.
 - [ ] **Dependency vulnerability scanning** — add GitHub Dependabot or run `pip audit` in CI before each deploy.
@@ -342,13 +383,12 @@ OurPeaPod stores personal information — names, birthdays, addresses, family re
 - [ ] **Rate limiting on invitation acceptance** — the `/register/invite/<token>` endpoint has no rate limit; a stolen token could be brute-forced (low risk due to token length, but worth closing).
 - [ ] **Account lockout** — after N failed logins from the same IP, lock for X minutes. Flask-Limiter handles IP-level limits; add per-account lockout on top.
 - [ ] **Email-change verification** — if a user changes their email, require re-verification of the new address before it takes effect.
+- [ ] **GDPR / CCPA data deletion** — implement a formal "delete my data" flow before taking any payments. GDPR applies to any EU resident regardless of where the company is based. CCPA applies to California residents. The flow must remove all PII and family tree entries for the requesting user and confirm deletion by email.
 
 ### Longer term (before mobile apps / public API)
 - [ ] **JWT token security** — API tokens for mobile apps need short expiry, rotation, and revocation.
 - [ ] **PII field encryption at rest** — sensitive fields (phone, address) stored in plaintext in the DB. Encrypt with a key stored in env for an extra layer against DB dump attacks.
 - [ ] **Penetration test** — before the paid tier goes live, have a third party attempt to break in.
-- [ ] **GDPR / data deletion** — implement a formal "delete my data" flow that removes all PII and family tree entries for a user.
-- [ ] **Backup verification** — test that Railway's automatic Postgres backups are restorable.
 
 ---
 
@@ -387,21 +427,23 @@ Introduce a `FamilyScoped` mixin or query helper to enforce this at the model la
 ## Recommended Execution Order
 
 1. **Go Live** — Get the existing app running on ourpeapod.com
-2. **Phase 0** — Harden what exists (1–2 weeks) ✓ done
+2. **Phase 0** — Harden what exists + wire up S3/R2 for photos (1–2 weeks) ✓ done (except S3)
 3. **Phase 1C** — Landing page (1 week) ✓ done
-4. **Phase 1A** — Self-serve pod signup (2–3 weeks)
-5. **Phase 1B** — Stripe billing (2 weeks)
+4. **Phase 1A** — Self-serve pod signup + onboarding email sequence (2–3 weeks)
+5. **Phase 1B** — Stripe billing + 30-day trial (2 weeks)
 6. **Phase 4A** — In-app support form (1 day — do this before taking any money)
-7. **Phase 4B** — Platform admin panel (2–3 weeks — needed once multiple pods exist)
-8. **Phase 3A** — Calendar feed (1 week, quick win)
-9. **Phase 2C** — Event improvements (2 weeks)
-10. **Phase 2A** — Chat (3–4 weeks)
-11. **Phase 2B** — Recipes & gifts (2 weeks)
-12. **Phase 3B** — PWA (1 week)
-13. **Phase 3C/3D** — Native apps (2–3 months)
-14. **Phase 6A** — AI newsletter generator (1–2 weeks — first AI feature, high perceived value)
-15. **Phase 6B–H** — Remaining AI features (roll out incrementally alongside other phases)
-16. **Phase 5** — Growth & monetization (ongoing)
+7. **Phase 2A** — Notification preferences (1 week — must exist before any Phase 2 feature ships)
+8. **Phase 3B** — PWA (1 week — do this before Chat so Chat ships with a native-feeling mobile experience)
+9. **Phase 4B** — Platform admin panel (2–3 weeks — needed once multiple pods exist)
+10. **Phase 3A** — Calendar feed (1 week, quick win)
+11. **Phase 2D** — Event improvements (2 weeks)
+12. **Phase 2B** — Chat (3–4 weeks)
+13. **Phase 2C** — Recipes & gifts (2 weeks)
+14. **Phase 2E** — GEDCOM import (1 week)
+15. **Phase 3C/3D** — Native apps (2–3 months)
+16. **Phase 6A** — AI newsletter generator (1–2 weeks — first AI feature, high perceived value)
+17. **Phase 6B–H** — Remaining AI features (roll out incrementally alongside other phases)
+18. **Phase 5** — Growth & monetization (ongoing)
 
 ---
 
@@ -456,6 +498,13 @@ Hostgator shared hosting can't support WebSockets, which are required for Phase 
   web: gunicorn run:app
   ```
 - [ ] Confirm `requirements.txt` is up to date: `pip freeze > requirements.txt`
+- [ ] **Add error monitoring (Sentry)** — sign up for Sentry free tier, add `sentry-sdk[flask]` to `requirements.txt`, initialize in `create_app()`:
+  ```python
+  import sentry_sdk
+  from sentry_sdk.integrations.flask import FlaskIntegration
+  sentry_sdk.init(dsn=os.environ.get('SENTRY_DSN'), integrations=[FlaskIntegration()])
+  ```
+  Add `SENTRY_DSN` to Railway environment variables. Without this, production errors are invisible until a user complains.
 
 ---
 
@@ -478,6 +527,7 @@ Railway deploys from a GitHub repository.
 - [ ] Set remaining environment variables in Railway → Variables:
   - `SECRET_KEY` — generate with `python3 -c "import secrets; print(secrets.token_hex(32))"`
   - `FLASK_ENV=production`
+  - `SENTRY_DSN` — from Sentry project settings
   - `MAIL_*` keys (once email is configured in Step 5)
 - [ ] Railway will auto-detect the `Procfile` and deploy on every push to `main`
 - [ ] Open the Railway-provided URL (e.g. `ourpeapod-production.up.railway.app`) and verify it works
@@ -485,6 +535,10 @@ Railway deploys from a GitHub repository.
   ```bash
   flask db upgrade
   ```
+- [ ] **Verify database backup coverage** — Railway's hobby plan ($5/mo) does not include automatic Postgres backups. Before any real family data goes in, do one of:
+  - Upgrade to Railway Pro plan (~$20/mo) which includes point-in-time recovery, **or**
+  - Set up a daily `pg_dump` cron job (Railway cron service or GitHub Actions) that writes a compressed dump to Cloudflare R2 or S3. Keep 30 days of daily dumps. Test a restore before going live.
+  - This is not optional — a bad migration or accidental delete with no backup means permanent data loss.
 
 ---
 
@@ -555,4 +609,4 @@ railway run flask db upgrade
 
 ---
 
-*Last updated: 2026-05-19 — Added Phase 6 AI Features + annual billing*
+*Last updated: 2026-05-20 — Third pass: Sentry error monitoring, Railway backup gap, Stripe Tax, family name display-only with account_id for routing*
