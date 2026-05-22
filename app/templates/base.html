@@ -68,8 +68,8 @@
             </div>
             <form method="POST" action="/logout" style="margin-left: auto;">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="btn btn-ghost btn-sm" title="Sign out" style="padding: 6px;">
-                    <i data-lucide="log-out"></i>
+                <button type="submit" class="btn btn-ghost btn-sm" title="Sign out" style="padding: 6px; display:flex; align-items:center; gap:4px; font-size:12px;">
+                    <i data-lucide="log-out"></i> Sign out
                 </button>
             </form>
         </div>
