@@ -2156,8 +2156,7 @@ def support():
     form = SupportForm()
     if form.validate_on_submit():
         support_email = current_app.config.get('SUPPORT_EMAIL', 'jeremypease@me.com')
-        api_key = current_app.config.get('SENDGRID_API_KEY')
-        if api_key:
+        if current_app.config.get('RESEND_API_KEY'):
             send_support_email(
                 user=current_user,
                 family=current_user.family,

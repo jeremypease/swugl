@@ -28,7 +28,7 @@
 
         <div class="form-group">
             {{ form.message.label(class="form-label") }}
-            {{ form.message(class="form-control", rows=6, placeholder="Describe your issue or question…") }}
+            {{ form.message(class="form-control", rows=8, placeholder="Describe your issue or question…", style="min-height:180px;") }}
             {% for error in form.message.errors %}
             <div class="form-error">{{ error }}</div>
             {% endfor %}
