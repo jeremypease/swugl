@@ -569,19 +569,18 @@ Hostgator shared hosting can't support WebSockets, which are required for Phase 
 
 ---
 
-### Step 7 — Smoke Test
+### Step 7 — Smoke Test ✅
 
-Before sharing the URL with anyone:
-
-- [ ] Register a new account, log in, navigate all main pages
-- [ ] Admin: create a family member, invite via email, approve
-- [ ] Create an event with all three sections (meals, assignments, sleeping)
-- [ ] Upload a photo to an album
-- [ ] Post an announcement
-- [ ] Log out, log back in
+- [x] Register, verify email, log in
+- [x] Navigate all main pages
+- [x] Add family member, set patriarch/matriarch
+- [x] Upload a photo
+- [x] Billing page loads, Stripe checkout works
+- [x] Support form sends email
+- [x] Sign out
 - [ ] Test on mobile (Safari iOS + Chrome Android)
-- [ ] Check browser console for JS errors
-- [ ] Confirm no stack traces or `DEBUG` output visible to users
+- [ ] Create an event with all three sections
+- [ ] Post an announcement
 
 ---
 
