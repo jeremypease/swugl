@@ -468,7 +468,7 @@ Flask-Limiter uses in-memory storage by default — this breaks as soon as you r
 
 ### Hosting
 - **Target:** Railway (PaaS) — deploy from GitHub, supports WebSockets, no server management
-- **DNS:** GoDaddy → Railway (CNAME to Railway's provided domain)
+- **DNS:** GoDaddy (registrar) → Cloudflare (nameservers/DNS) → Railway
 - **Hostgator:** Can be cancelled once Railway is live; not needed
 - HTTPS is required for PWA + Web Push (Railway provides it automatically)
 
@@ -502,8 +502,10 @@ Flask-Limiter uses in-memory storage by default — this breaks as soon as you r
 *Everything needed to get the app running at ourpeapod.com. Target platform: **Railway**.*
 
 ### What We Have
-- **Domain:** `ourpeapod.com` registered at GoDaddy
-- **DNS:** Currently pointing to Hostgator — will be redirected to Railway
+- **Domain:** `ourpeapod.com` registered at GoDaddy; nameservers point to Cloudflare
+- **DNS:** Managed in Cloudflare
+- **Email:** Resend domain verified via Cloudflare DNS records — ready to send from `ourpeapod.com`
+- **Hosting:** Railway connected through Cloudflare
 - **Hostgator Baby Plan:** Not needed once Railway is live; can be cancelled
 - **App:** Flask + SQLite, currently running locally
 
@@ -592,7 +594,7 @@ Railway deploys from a GitHub repository.
 ### Step 5 — Email
 
 - [ ] Sign up for **Resend** (https://resend.com) — free tier includes 3,000 emails/month
-- [ ] Add and verify the `ourpeapod.com` domain in Resend (adds DNS records in GoDaddy: SPF, DKIM, DMARC)
+- [x] Add and verify the `ourpeapod.com` domain in Resend via Cloudflare DNS (SPF, DKIM, DMARC) — already done
 - [ ] Add to Railway environment variables:
   ```
   MAIL_ENABLED=true
@@ -608,11 +610,10 @@ Railway deploys from a GitHub repository.
 
 - [ ] In Railway → Settings → Domains → Add custom domain: `ourpeapod.com`
 - [ ] Railway will show a CNAME target (e.g. `abc123.up.railway.app`)
-- [ ] In **GoDaddy** DNS:
-  - Remove the current A record pointing to Hostgator
-  - Add CNAME: `www` → Railway's provided domain
-  - For the apex domain (`ourpeapod.com`), GoDaddy supports ALIAS/ANAME — add that pointing to Railway, or redirect apex → www
-- [ ] Railway provisions SSL (Let's Encrypt) automatically once DNS propagates (~5–30 min)
+- [ ] In **Cloudflare** DNS:
+  - Add CNAME: `www` → Railway's provided domain (proxy enabled)
+  - Add CNAME: `ourpeapod.com` (apex) → Railway's provided domain, or redirect apex → www
+- [ ] Railway provisions SSL automatically once DNS propagates (~5–30 min)
 - [ ] Verify `https://ourpeapod.com` loads with a valid SSL cert
 - [ ] Cancel Hostgator Baby Plan once confirmed working
 
