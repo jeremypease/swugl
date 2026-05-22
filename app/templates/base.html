@@ -46,6 +46,9 @@
             <a href="/profile" {% if request.path == '/profile' %}class="active"{% endif %}>
                 <i data-lucide="user"></i> My Profile
             </a>
+            <a href="/support" {% if request.path == '/support' %}class="active"{% endif %}>
+                <i data-lucide="life-buoy"></i> Help
+            </a>
             {% if current_user.is_admin %}
             <div class="nav-section">Admin</div>
             <a href="/admin/users" {% if request.path.startswith('/admin') and request.path != '/admin/family' %}class="active"{% endif %}>

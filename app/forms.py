@@ -267,3 +267,14 @@ class ResetPasswordForm(FlaskForm):
         EqualTo('password', message='Passwords must match')
     ])
     submit = SubmitField('Reset Password')
+
+class SupportForm(FlaskForm):
+    category = SelectField('What can we help with?', choices=[
+        ('billing',   'Billing or subscription'),
+        ('account',   'Account or access issue'),
+        ('technical', 'Technical problem'),
+        ('feature',   'Feature request'),
+        ('other',     'Something else'),
+    ], validators=[DataRequired()])
+    message = TextAreaField('Message', validators=[DataRequired(), Length(min=10, max=2000)])
+    submit = SubmitField('Send Message')

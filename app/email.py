@@ -112,6 +112,49 @@ def send_welcome_email(user, family, dashboard_url):
     """
     return send_email(user.email, subject, html_content)
 
+def send_support_email(user, family, category, message, support_email):
+    category_labels = {
+        'billing':   'Billing or subscription',
+        'account':   'Account or access issue',
+        'technical': 'Technical problem',
+        'feature':   'Feature request',
+        'other':     'Something else',
+    }
+    category_label = category_labels.get(category, category)
+    pod_id = family.account_id if family and family.account_id else 'n/a'
+    subject = f"[Support] {category_label} — {family.name if family else 'Unknown'} ({pod_id})"
+    html_content = f"""
+    <h2>Support Request</h2>
+    <table style="border-collapse:collapse;font-size:14px;">
+        <tr><td style="padding:4px 12px 4px 0;color:#666;">From</td><td><strong>{user.get_full_name()}</strong> &lt;{user.email}&gt;</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;color:#666;">Pod</td><td>{family.name if family else '—'} (<code>{pod_id}</code>)</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;color:#666;">Category</td><td>{category_label}</td></tr>
+    </table>
+    <hr style="margin:16px 0;">
+    <p style="white-space:pre-wrap;">{message}</p>
+    """
+    api_key = current_app.config['SENDGRID_API_KEY']
+    from_email = current_app.config['SENDGRID_FROM_EMAIL']
+    data = {
+        "personalizations": [{"to": [{"email": support_email}]}],
+        "from": {"email": from_email},
+        "reply_to": {"email": user.email, "name": user.get_full_name()},
+        "subject": subject,
+        "content": [{"type": "text/html", "value": html_content}]
+    }
+    try:
+        import certifi as _certifi
+        response = requests.post(
+            "https://api.sendgrid.com/v3/mail/send",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json=data,
+            verify=_certifi.where()
+        )
+        return response.status_code == 202
+    except Exception as e:
+        print(f"Support email error: {e}")
+        return False
+
 def send_spouse_invitation_email(inviting_person, to_email, url):
     subject = "You've been invited to join Pease Vine"
     html_content = f"""

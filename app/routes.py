@@ -1,8 +1,8 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, send_file
 from flask_login import login_user, logout_user, login_required, current_user
 from .models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, ASSIGNMENT_CATEGORIES, EventRSVP, EventSleepingSpot, EventComment, Announcement, Album, Photo
-from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm, ForgotPasswordForm, ResetPasswordForm, AddPersonForm, RelativeForm, AddParentForm, FamilySettingsForm, EditPersonForm, EventForm, EventCommentForm, EventMealForm, EventMealFamilyAssignForm, EventMealItemForm, EventMealSelfSignupForm, EventMealAssignForm, EventAssignmentForm, EventAssignmentAdminAssignForm, EventSleepingSpotForm, EventSleepingAssignForm, GENDER_CHOICES_DEFAULT, GENDER_CHOICES_EXPANDED, PRONOUN_CHOICES, AnnouncementForm, AlbumForm, PhotoUploadForm
-from .email import send_verification_email, send_pending_notification, send_approval_notification, send_spouse_confirmation_email, send_spouse_invitation_email, send_password_reset_email, send_member_invitation_email, send_welcome_email
+from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm, ForgotPasswordForm, ResetPasswordForm, AddPersonForm, RelativeForm, AddParentForm, FamilySettingsForm, EditPersonForm, EventForm, EventCommentForm, EventMealForm, EventMealFamilyAssignForm, EventMealItemForm, EventMealSelfSignupForm, EventMealAssignForm, EventAssignmentForm, EventAssignmentAdminAssignForm, EventSleepingSpotForm, EventSleepingAssignForm, GENDER_CHOICES_DEFAULT, GENDER_CHOICES_EXPANDED, PRONOUN_CHOICES, AnnouncementForm, AlbumForm, PhotoUploadForm, SupportForm
+from .email import send_verification_email, send_pending_notification, send_approval_notification, send_spouse_confirmation_email, send_spouse_invitation_email, send_password_reset_email, send_member_invitation_email, send_welcome_email, send_support_email
 from datetime import date, datetime, timedelta
 from functools import wraps
 from urllib.parse import urlparse
@@ -2145,3 +2145,26 @@ def privacy():
 @main.route('/terms')
 def terms():
     return render_template('terms.html')
+
+
+# ── Support ────────────────────────────────────────────────────────────────────
+
+@main.route('/support', methods=['GET', 'POST'])
+@login_required
+@limiter.limit('3 per hour')
+def support():
+    form = SupportForm()
+    if form.validate_on_submit():
+        support_email = current_app.config.get('SUPPORT_EMAIL', 'jeremypease@me.com')
+        api_key = current_app.config.get('SENDGRID_API_KEY')
+        if api_key:
+            send_support_email(
+                user=current_user,
+                family=current_user.family,
+                category=form.category.data,
+                message=form.message.data,
+                support_email=support_email
+            )
+        flash("Your message has been sent. We'll get back to you soon.", 'info')
+        return redirect(url_for('main.support'))
+    return render_template('support.html', form=form)

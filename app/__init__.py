@@ -44,6 +44,8 @@ def create_app():
     app.config['STRIPE_MONTHLY_PRICE_ID'] = os.environ.get('STRIPE_MONTHLY_PRICE_ID')
     app.config['STRIPE_ANNUAL_PRICE_ID'] = os.environ.get('STRIPE_ANNUAL_PRICE_ID')
 
+    app.config['SUPPORT_EMAIL'] = os.environ.get('SUPPORT_EMAIL', 'jeremypease@me.com')
+
     # Secure cookies in production (HTTPS only)
     if os.environ.get('FLASK_ENV') == 'production':
         app.config['SESSION_COOKIE_SECURE'] = True
