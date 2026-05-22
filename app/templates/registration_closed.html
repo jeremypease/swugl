@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}Registration Closed — Peavines{% endblock %}
+
+{% block content %}
+<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:40px 20px;background:var(--cream);">
+    <div style="width:100%;max-width:400px;text-align:center;">
+        <img src="{{ url_for('static', filename='assets/peavines-mark.svg') }}" alt="Peavines" style="height:52px;margin-bottom:24px;">
+        <h1 style="font-size:22px;margin-bottom:12px;">Registration is by invitation only</h1>
+        <p style="color:var(--ink-2);margin-bottom:28px;">
+            New accounts can only be created via an invitation link.<br>
+            If you received an invitation, check your email for the link.
+        </p>
+        <a href="/login" class="btn btn-primary">Sign in</a>
+    </div>
+</div>
+{% endblock %}

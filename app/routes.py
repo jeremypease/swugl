@@ -298,6 +298,8 @@ def logout():
 def register():
     if current_user.is_authenticated:
         return redirect(url_for('main.home'))
+    if not current_app.config.get('REGISTRATION_OPEN'):
+        return render_template('registration_closed.html'), 403
     form = RegistrationForm()
     if form.validate_on_submit():
         if not form.family_name.data:

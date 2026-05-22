@@ -49,6 +49,8 @@ def create_app():
         'pool_recycle': 300,
     }
 
+    app.config['REGISTRATION_OPEN'] = os.environ.get('REGISTRATION_OPEN', '').lower() == 'true'
+
     app.config['RESEND_API_KEY'] = os.environ.get('RESEND_API_KEY')
     app.config['RESEND_FROM_EMAIL'] = os.environ.get('RESEND_FROM_EMAIL', 'Peavines <noreply@ourpeapod.com>')
     app.config['MAIL_ENABLED'] = os.environ.get('MAIL_ENABLED', '').lower() == 'true'
