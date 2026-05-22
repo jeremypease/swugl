@@ -192,7 +192,7 @@ The simplest path for users to get help without leaving the app.
 
 - [ ] **"Get help" link** in sidebar footer — visible to all authenticated users
 - [ ] **Support request form** at `/support`: subject, description, category (billing, technical, account, other)
-  - Routes to `hello@ourpeapod.com` via SendGrid
+  - Routes to `hello@ourpeapod.com` via Resend
   - Automatically includes: user email, family name, `account_id`, browser/OS (from user-agent) — the `account_id` is what support uses to look up the pod in the platform admin, not the display name
   - Confirms submission with a flash message
 - [ ] **Help center link** — link out to a Notion-based FAQ or help docs (lightweight, no custom build needed initially)
@@ -256,7 +256,7 @@ Every family has a story — most of it gets lost in group chats. The newsletter
 - [ ] Aggregate activity from the past 30 days: new events, RSVPs, announcements, photos added, new members
 - [ ] `POST /ai/newsletter/preview` — sends activity summary to Claude, returns a draft newsletter in markdown
 - [ ] Admin reviews and edits the draft before sending
-- [ ] One-click send to all family members via email (SendGrid)
+- [ ] One-click send to all family members via email (Resend)
 - [ ] Newsletter archive at `/newsletters` — past issues stored and viewable in the app
 - [ ] Paid tier only
 
@@ -464,7 +464,7 @@ Flask-Limiter uses in-memory storage by default — this breaks as soon as you r
 
 ### Email
 - Current: likely SMTP or none
-- Target: **SendGrid** or **Postmark** for transactional email (invites, event reminders, billing receipts)
+- Target: **Resend** for transactional email (invites, event reminders, billing receipts)
 
 ### Hosting
 - **Target:** Railway (PaaS) — deploy from GitHub, supports WebSockets, no server management
@@ -591,17 +591,15 @@ Railway deploys from a GitHub repository.
 
 ### Step 5 — Email
 
-- [ ] Sign up for **SendGrid** free tier (100 emails/day free) or **Postmark**
+- [ ] Sign up for **Resend** (https://resend.com) — free tier includes 3,000 emails/month
+- [ ] Add and verify the `ourpeapod.com` domain in Resend (adds DNS records in GoDaddy: SPF, DKIM, DMARC)
 - [ ] Add to Railway environment variables:
   ```
-  MAIL_SERVER=smtp.sendgrid.net
-  MAIL_PORT=587
-  MAIL_USE_TLS=true
-  MAIL_USERNAME=apikey
-  MAIL_PASSWORD=<sendgrid_api_key>
-  MAIL_DEFAULT_SENDER=noreply@ourpeapod.com
+  MAIL_ENABLED=true
+  RESEND_API_KEY=re_...
+  RESEND_FROM_EMAIL=Peavines <noreply@ourpeapod.com>
+  SUPPORT_EMAIL=support@ourpeapod.com
   ```
-- [ ] Verify `noreply@ourpeapod.com` as a sender in SendGrid (requires DNS TXT records in GoDaddy)
 - [ ] Test: send a member invite from the live site and confirm delivery
 
 ---

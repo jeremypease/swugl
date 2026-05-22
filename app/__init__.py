@@ -34,8 +34,8 @@ def create_app():
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 
-    app.config['SENDGRID_API_KEY'] = os.environ.get('SENDGRID_API_KEY')
-    app.config['SENDGRID_FROM_EMAIL'] = os.environ.get('SENDGRID_FROM_EMAIL')
+    app.config['RESEND_API_KEY'] = os.environ.get('RESEND_API_KEY')
+    app.config['RESEND_FROM_EMAIL'] = os.environ.get('RESEND_FROM_EMAIL', 'Peavines <noreply@ourpeapod.com>')
     app.config['MAIL_ENABLED'] = os.environ.get('MAIL_ENABLED', '').lower() == 'true'
 
     app.config['STRIPE_SECRET_KEY'] = os.environ.get('STRIPE_SECRET_KEY')
