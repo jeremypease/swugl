@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 160" role="img" aria-label="OurPeaPod">
   <!-- Pod shell (oval) -->
-  <ellipse cx="100" cy="80" rx="96" ry="76" fill="#1f3a2b"/>
+  <ellipse cx="100" cy="80" rx="96" ry="76" fill="#3D7040"/>
   <!-- Pod interior -->
   <ellipse cx="100" cy="80" rx="79" ry="59" fill="#E8EEDF"/>
   <!-- Three peas -->
-  <circle cx="56"  cy="80" r="19" fill="#1f3a2b"/>
-  <circle cx="100" cy="80" r="19" fill="#1f3a2b"/>
-  <circle cx="144" cy="80" r="19" fill="#1f3a2b"/>
+  <circle cx="56"  cy="80" r="19" fill="#3D7040"/>
+  <circle cx="100" cy="80" r="19" fill="#3D7040"/>
+  <circle cx="144" cy="80" r="19" fill="#3D7040"/>
 </svg>

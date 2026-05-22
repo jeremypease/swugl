@@ -16,10 +16,10 @@
      ========================================================= */
 
   /* Greens — leaves and vines */
-  --vine:        #1f3a2b;   /* primary action, dark headlines */
-  --vine-deep:   #161a14;   /* hover/pressed on Vine */
-  --pea:         #3a5a40;   /* links, secondary accents */
-  --pea-soft:    #5b7a52;   /* hover-tints, decorative */
+  --vine:        #3D7040;   /* primary action, dark headlines */
+  --vine-deep:   #2d5430;   /* hover/pressed on Vine */
+  --pea:         #5b8a52;   /* links, secondary accents */
+  --pea-soft:    #7aaa6e;   /* hover-tints, decorative */
   --sprout:      #a3b18a;   /* hover wash, illustration fill */
   --sprout-soft: #cfdcb8;   /* selected row tint */
   --leaf-mist:   #E8EEDF;   /* green accent pill, active states */
