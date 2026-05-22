@@ -7,11 +7,22 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from dotenv import load_dotenv
 from datetime import datetime
+import sentry_sdk
+from sentry_sdk.integrations.flask import FlaskIntegration
 import os
 
 load_dotenv()
 import certifi
 os.environ['SSL_CERT_FILE'] = certifi.where()
+
+sentry_dsn = os.environ.get('SENTRY_DSN')
+if sentry_dsn:
+    sentry_sdk.init(
+        dsn=sentry_dsn,
+        integrations=[FlaskIntegration()],
+        traces_sample_rate=0.1,
+        send_default_pii=False,
+    )
 
 db = SQLAlchemy()
 login_manager = LoginManager()
