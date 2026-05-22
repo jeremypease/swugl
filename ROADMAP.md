@@ -514,108 +514,58 @@ Hostgator shared hosting can't support WebSockets, which are required for Phase 
 
 ---
 
-### Step 1 — Database: Switch from SQLite to PostgreSQL
+### Step 1 — Database: Switch from SQLite to PostgreSQL ✅
 
-**This is the most important pre-launch change.** Railway's filesystem is ephemeral — every redeploy wipes local files, including a SQLite database. The fix is to use Railway's built-in PostgreSQL plugin, which is a persistent managed database.
+- [x] Add `psycopg2-binary` to `requirements.txt`
+- [x] `DATABASE_URL` read from environment; falls back to SQLite locally
+- [x] PostgreSQL provisioned on Railway; `DATABASE_URL` auto-injected
+- [x] `flask db upgrade` runs automatically on every deploy (Procfile)
 
-- [ ] Add `psycopg2-binary` to `requirements.txt`
-- [ ] Update `config.py` to read `DATABASE_URL` from environment:
-  ```python
-  SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', 'sqlite:///local.db')
-  ```
-  Railway injects `DATABASE_URL` automatically when a Postgres plugin is attached.
-- [ ] Test locally with SQLite still (no change to local dev workflow)
-- [ ] After Railway deploy: run `flask db upgrade` once via Railway's shell to initialize the schema
-
-> **Note on photos:** Uploaded photo files face the same ephemeral filesystem problem. Short-term workaround: store photos in the database as blobs (not ideal) or skip uploads until Cloudflare R2 / S3 is wired up (see Technical Architecture Notes). For the initial launch with just the Pease family, this can be deferred.
+> **Note on photos:** Uploaded photo files face the same ephemeral filesystem problem. Must switch to Cloudflare R2 before any non-test family uses the app. See Phase 0.
 
 ---
 
-### Step 2 — Prepare the App for Production
+### Step 2 — Prepare the App for Production ✅
 
-- [ ] Create `config.py` with a `ProductionConfig` class:
-  ```python
-  class ProductionConfig:
-      SECRET_KEY = os.environ.get('SECRET_KEY')   # never hardcode
-      DEBUG = False
-      SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')
-      SESSION_COOKIE_SECURE = True
-      SESSION_COOKIE_HTTPONLY = True
-      WTF_CSRF_ENABLED = True
-  ```
-- [ ] Create `.env.example` (committed, no real values) and ensure `.env` is in `.gitignore`
-- [ ] Add `gunicorn` to `requirements.txt`
-- [ ] Create `Procfile` in the project root:
-  ```
-  web: gunicorn run:app
-  ```
-- [ ] Confirm `requirements.txt` is up to date: `pip freeze > requirements.txt`
-- [ ] **Add error monitoring (Sentry)** — free tier handles 5,000 errors/month, plenty for early stage. Add `sentry-sdk[flask]` to `requirements.txt`, initialize in `create_app()`:
-  ```python
-  import sentry_sdk
-  from sentry_sdk.integrations.flask import FlaskIntegration
-  sentry_sdk.init(dsn=os.environ.get('SENTRY_DSN'), integrations=[FlaskIntegration()])
-  ```
-  Add `SENTRY_DSN` to Railway environment variables. Do this before the Go Live smoke test so you have visibility from day one — the first week of real users will surface errors you didn't know existed.
+- [x] `.env.example` committed; `.env` gitignored
+- [x] `gunicorn` in `requirements.txt`; Procfile runs `flask db upgrade && gunicorn`
+- [x] Production config (secure cookies, secret key from env) already in `app/__init__.py`
+- [ ] **Add error monitoring (Sentry)** — free tier, 5,000 errors/month. Add `sentry-sdk[flask]` to `requirements.txt`, init in `create_app()`, add `SENTRY_DSN` to Railway env vars. Do before smoke test.
 
 ---
 
-### Step 3 — Push to GitHub
+### Step 3 — Push to GitHub ✅
 
-Railway deploys from a GitHub repository.
-
-- [ ] Create a GitHub repo (private) if one doesn't exist
-- [ ] Push the project: `git remote add origin <repo-url> && git push -u origin main`
-- [ ] Confirm `.env`, `instance/`, and `*.db` files are in `.gitignore` and not committed
+- [x] Repo on GitHub; Railway deploys automatically on push to `main`
+- [x] `.env`, `instance/`, `*.db` gitignored
 
 ---
 
-### Step 4 — Set Up Railway
+### Step 4 — Set Up Railway ✅
 
-- [ ] Sign up at [railway.app](https://railway.app) (GitHub login)
-- [ ] New Project → "Deploy from GitHub repo" → select the repo
-- [ ] Add a **PostgreSQL plugin** to the project (Railway dashboard → + New → Database → PostgreSQL)
-  - Railway automatically sets `DATABASE_URL` in the app's environment
-- [ ] Set remaining environment variables in Railway → Variables:
-  - `SECRET_KEY` — generate with `python3 -c "import secrets; print(secrets.token_hex(32))"`
-  - `FLASK_ENV=production`
-  - `SENTRY_DSN` — from Sentry project settings
-  - `MAIL_*` keys (once email is configured in Step 5)
-- [ ] Railway will auto-detect the `Procfile` and deploy on every push to `main`
-- [ ] Open the Railway-provided URL (e.g. `ourpeapod-production.up.railway.app`) and verify it works
-- [ ] Run the initial migration via Railway shell:
-  ```bash
-  flask db upgrade
-  ```
-- [ ] **Upgrade Railway to Pro plan (~$20/mo)** — the hobby plan ($5/mo) has no automatic Postgres backups. Pro includes point-in-time recovery with no moving parts to maintain. The $15/mo difference is not a real tradeoff for a product storing family memories and billing data. The alternative (pg_dump cron job) has a silent failure mode: if the cron stops working you won't know until you need the backup and it isn't there. Upgrade when setting up the Railway project, before any family data goes in. Test a restore before going live.
+- [x] Project on Railway, connected to GitHub repo, auto-deploys on push to `main`
+- [x] PostgreSQL service provisioned; `DATABASE_URL` auto-injected
+- [x] All environment variables set (`SECRET_KEY`, `FLASK_ENV`, Resend, Stripe, `SUPPORT_EMAIL`)
+- [x] App live at `ourpeapod.com`
+- [x] `flask db upgrade` runs automatically on every deploy
+- [ ] **Upgrade Railway to Pro plan (~$20/mo)** — includes point-in-time Postgres backups. Do before any non-test family data goes in.
 
 ---
 
-### Step 5 — Email
+### Step 5 — Email ✅
 
-- [ ] Sign up for **Resend** (https://resend.com) — free tier includes 3,000 emails/month
-- [x] Add and verify the `ourpeapod.com` domain in Resend via Cloudflare DNS (SPF, DKIM, DMARC) — already done
-- [ ] Add to Railway environment variables:
-  ```
-  MAIL_ENABLED=true
-  RESEND_API_KEY=re_...
-  RESEND_FROM_EMAIL=Peavines <noreply@ourpeapod.com>
-  SUPPORT_EMAIL=support@ourpeapod.com
-  ```
+- [x] Resend account set up; `ourpeapod.com` domain verified via Cloudflare DNS
+- [x] `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `MAIL_ENABLED`, `SUPPORT_EMAIL` set in Railway
 - [ ] Test: send a member invite from the live site and confirm delivery
 
 ---
 
-### Step 6 — Custom Domain & DNS
+### Step 6 — Custom Domain & DNS ✅
 
-- [ ] In Railway → Settings → Domains → Add custom domain: `ourpeapod.com`
-- [ ] Railway will show a CNAME target (e.g. `abc123.up.railway.app`)
-- [ ] In **Cloudflare** DNS:
-  - Add CNAME: `www` → Railway's provided domain (proxy enabled)
-  - Add CNAME: `ourpeapod.com` (apex) → Railway's provided domain, or redirect apex → www
-- [ ] Railway provisions SSL automatically once DNS propagates (~5–30 min)
-- [ ] Verify `https://ourpeapod.com` loads with a valid SSL cert
-- [ ] Cancel Hostgator Baby Plan once confirmed working
+- [x] `ourpeapod.com` added as custom domain in Railway
+- [x] Cloudflare: apex CNAME → Railway; `www` CNAME → `ourpeapod.com` (Cloudflare handles www redirect; Railway plan supports one custom domain)
+- [x] SSL provisioned automatically
+- [ ] Cancel Hostgator Baby Plan once confirmed no longer needed
 
 ---
 
