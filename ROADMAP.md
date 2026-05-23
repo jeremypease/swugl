@@ -48,6 +48,19 @@
 - [x] Privacy Policy and Terms of Service
 - [x] `/` → `/home` if logged in, else landing page
 
+### 1D — Multi-Pod Membership
+*Do before the user base grows — migrating existing single-family data later is painful.*
+
+Right now `User.family_id` is a single FK. A person who married into a second family (or has step-families, or helps administer a parent's pod) cannot belong to two pods under one login. The schema note in 1A flagged this; here is the concrete work.
+
+- [ ] `UserPodMembership` join table: `user_id`, `family_id`, `role` (admin / member), `joined_at` — replaces `User.family_id`
+- [ ] Add `active_family_id` to the server-side session (set on login to the user's primary pod; updated by switcher)
+- [ ] Migrate existing `User.family_id` rows into `UserPodMembership`; keep `User.family_id` as a deprecated read-only column until all routes are updated
+- [ ] Replace every `current_user.family_id` in routes (~80 call sites) with `current_user.active_family_id` helper property
+- [ ] Pod switcher in top nav — visible only when a user belongs to ≥ 2 pods; shows pod name + avatar, switches `active_family_id` in session and redirects to `/home`
+- [ ] Invite flow supports adding a user who already has an account to a second pod (admin sends invite → user accepts → new membership row created)
+- [ ] Each pod membership has its own role — being admin in Pod A does not make you admin in Pod B
+
 ---
 
 ## Phase 2 — Communication & Content
@@ -56,11 +69,12 @@
 ### 2A — Notification Preferences *(build this first — before 2B, 2C, or 2D ship)*
 Without a unified notification system, every new feature that sends email or push notifications becomes its own ad-hoc implementation. Users get spammed or go dark. Both cause churn.
 
-- [ ] `NotificationPreference` model: `user_id`, `event_type` (new_event, rsvp_reminder, new_member, chat_message, announcement, digest), `channel` (email, push), `enabled` (bool)
+- [ ] `NotificationPreference` model: `user_id`, `event_type` (new_event, rsvp_reminder, new_member, chat_message, announcement, birthday_digest, digest), `channel` (email, push), `enabled` (bool)
 - [ ] `/profile/notifications` settings page — one toggle per event type per channel
 - [ ] Default preferences set at signup (sensible defaults: digest on, per-message chat off)
 - [ ] All notification-sending code goes through a central `notify(user, event_type, payload)` helper that checks preferences before sending
-- [ ] Weekly digest email: upcoming events, recent activity, birthdays this week (replaces per-event spam for lower-frequency users)
+- [ ] Weekly digest email: upcoming events, recent activity, new photos, birthdays and anniversaries this week — this is the primary retention driver; members with no reason to open the app will open a good digest
+- [ ] **Birthday & anniversary reminders** — birthday/anniversary data is already in the DB; the digest is the delivery mechanism. Show the next 7 days of birthdays/anniversaries in each weekly email. No new model needed — query `Person.birth_date` and `SpouseRelationship.anniversary` within each pod.
 
 ### 2B — Family Chat
 A simple threaded group chat scoped to the family. Not a replacement for iMessage — a place for family-specific conversation that stays in the pod.
@@ -126,9 +140,17 @@ An iCal/CalDAV feed that members subscribe to in Apple Calendar, Google Calendar
 - [ ] Events created/edited in the app auto-update in subscribed calendars (clients poll the feed)
 - [ ] Paid tier only
 
-### 3B — Progressive Web App (PWA) — Stepping Stone to Native
-Before building native apps, ship a PWA to get mobile-friendly fast.
+### 3B — Mobile Audit + Progressive Web App (PWA)
+Most family members will use OurPeaPod on their phone — checking events, viewing RSVPs, signing up for meals. Before building a PWA, audit every key flow at 390px.
 
+**Mobile audit (prerequisite to PWA ship):**
+- [ ] Walk every core flow on an actual phone: login → home → events → meal signup → task claim → sleeping assignment → family tree → member profile → photo upload
+- [ ] Tap targets ≥ 44×44px on all interactive elements (see Accessibility)
+- [ ] Tables replaced with card/list layouts at small breakpoints (event detail sections are the most likely pain point)
+- [ ] Event detail page with all three sections active tested on 390px
+- [ ] Sidebar nav collapses/slides correctly on mobile
+
+**PWA:**
 - [ ] `manifest.json` with app name, icons, theme color, `display: standalone`
 - [ ] Service worker: cache shell + static assets, offline fallback page
 - [ ] "Add to Home Screen" prompt (iOS Safari / Android Chrome)
@@ -310,7 +332,6 @@ After an event passes, capture the memory before it fades.
 - [ ] **Referral program**: "Invite another family, get 1 month free"
 - [ ] **Shareable family moments** — opt-in public links for specific events or announcements that non-members can view without an account (e.g., share a reunion event page with extended family before they join). This is the primary organic growth lever — every shared link is a marketing impression.
 - [ ] **Family history export**: download your entire pod as a PDF/ZIP archive (also satisfies GDPR data portability)
-- [ ] **Anniversary & birthday reminders**: email digest (weekly "coming up this week")
 - [ ] **AI-powered family newsletter**: auto-generate a shareable recap from recent activity (see Phase 5)
 - [ ] **Admin analytics dashboard**: member activity, storage used, events per month
 - [ ] **Enterprise / extended family tier**: multiple branches, branch admins, cross-branch events
@@ -343,6 +364,10 @@ OurPeaPod stores personal information — names, birthdays, addresses, family re
 - [ ] **Password strength enforcement** — add minimum 10-character requirement and reject the 100 most common passwords.
 - [ ] **Dependency vulnerability scanning** — add GitHub Dependabot or run `pip audit` in CI before each deploy.
 - [ ] **Secure token comparison** — use `hmac.compare_digest()` when validating invitation/reset tokens to prevent timing attacks.
+- [ ] **HSTS header** — add `Strict-Transport-Security: max-age=63072000; includeSubDomains` to `set_security_headers()`. Prevents protocol downgrade attacks. One line; no reason to delay.
+- [ ] **Remove `unsafe-inline` from CSP** — the current CSP allows inline `<script>` and `<style>` tags, which largely defeats XSS protection. Move all inline scripts to `.js` files and inline styles to CSS classes, then remove `'unsafe-inline'` from both `script-src` and `style-src`. Replace with a per-request nonce if any inline script is genuinely unavoidable.
+- [ ] **Session lifetime** — set `PERMANENT_SESSION_LIFETIME` (e.g. 14 days) and `REMEMBER_COOKIE_DURATION` (e.g. 30 days) in `create_app()`. Currently both are unbounded — a "remember me" cookie lives forever by default.
+- [ ] **Hash reset/invite tokens before DB storage** — tokens are currently stored plaintext. If an attacker reads a DB dump, all outstanding reset and invite tokens are immediately valid. Store `sha256(token)` in the DB; compare `sha256(submitted_token)` on redemption. Token length (32 bytes urlsafe) already prevents brute force; hashing adds defense-in-depth against DB exfiltration.
 
 ### Near-term (before paid tier)
 - [ ] **Audit log** — record admin actions (approving members, changing roles, deleting content) to a log table. Families deserve to know who did what.
@@ -442,24 +467,26 @@ Flask-Limiter uses in-memory storage by default — this breaks as soon as you r
 
 ## Recommended Execution Order
 
-1. **Go Live** — Get the existing app running on ourpeapod.com
-2. **Phase 0** — Harden what exists + wire up S3/R2 for photos (1–2 weeks) ✓ done (except S3)
-3. **Phase 1C** — Landing page (1 week) ✓ done
-4. **Phase 1A** — Self-serve pod signup + onboarding email sequence (2–3 weeks)
-5. **Phase 1B** — Stripe billing + 30-day trial (2 weeks)
-6. **Phase 4A** — In-app support form (1 day — do this before taking any money)
-7. **Phase 2A** — Notification preferences (1 week — must exist before any Phase 2 feature ships)
-8. **Phase 3B** — PWA (1 week — do this before Chat so Chat ships with a native-feeling mobile experience)
-9. **Phase 4B** — Platform admin panel (2–3 weeks — needed once multiple pods exist)
-10. **Phase 3A** — Calendar feed (1 week, quick win)
-11. **Phase 2D** — Event improvements (2 weeks)
-12. **Phase 2B** — Chat (3–4 weeks)
-13. **Phase 2C** — Recipes & gifts (2 weeks)
-14. **Phase 2E** — GEDCOM import (1 week)
-15. **Phase 3C/3D** — Native apps (2–3 months)
-16. **Phase 5A** — AI newsletter generator (1–2 weeks — first AI feature, high perceived value)
-17. **Phase 5B–H** — Remaining AI features (roll out incrementally alongside other phases)
-18. **Phase 6** — Growth & monetization (ongoing)
+1. **Go Live** — Get the existing app running on ourpeapod.com ✓ done
+2. **Phase 0** — Harden what exists + wire up S3/R2 for photos ✓ done (except S3)
+3. **Phase 1C** — Landing page ✓ done
+4. **Phase 1A** — Self-serve pod signup + onboarding email sequence ✓ done
+5. **Phase 1B** — Stripe billing + 30-day trial ✓ done
+6. **Security pre-launch** — HSTS, CSP unsafe-inline removal, session lifetime, token hashing (days — do before real families use the app)
+7. **Phase 1D** — Multi-pod membership (1–2 weeks — do before user base grows; gets painful to migrate later)
+8. **Phase 4A** — In-app support form (1 day — do before taking any money) ✓ done
+9. **Phase 2A** — Notification preferences + weekly digest + birthday reminders (1–2 weeks — must exist before any Phase 2 feature ships; digest is the #1 retention driver)
+10. **Phase 3B** — Mobile audit + PWA (1–2 weeks — do before Chat so Chat ships with a native-feeling mobile experience)
+11. **Phase 4B** — Platform admin panel (2–3 weeks — needed once multiple pods exist)
+12. **Phase 3A** — Calendar feed (1 week, quick win)
+13. **Phase 2D** — Event improvements (2 weeks)
+14. **Phase 2B** — Chat (3–4 weeks)
+15. **Phase 2C** — Recipes & gifts (2 weeks)
+16. **Phase 2E** — GEDCOM import (1 week)
+17. **Phase 3C/3D** — Native apps (2–3 months)
+18. **Phase 5A** — AI newsletter generator (1–2 weeks — first AI feature, high perceived value)
+19. **Phase 5B–H** — Remaining AI features (roll out incrementally alongside other phases)
+20. **Phase 6** — Growth & monetization (ongoing)
 
 ---
 
@@ -570,4 +597,4 @@ railway run flask db upgrade
 
 ---
 
-*Last updated: 2026-05-20 — Added content moderation (AI-native, CSAM compliance, anomaly detection, member removal protections), accessibility cross-cutting section, phase renumbering (AI → 5, Growth → 6)*
+*Last updated: 2026-05-23 — Added Phase 1D (multi-pod membership), Security pre-launch items (HSTS, CSP unsafe-inline, session lifetime, token hashing), Phase 3B mobile audit, birthday/anniversary reminders moved from Phase 6 into Phase 2A weekly digest, execution order updated*
