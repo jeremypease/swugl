@@ -10,7 +10,7 @@
         <h1>Members</h1>
         <p class="sub" id="result-count">{{ people|length }} member{{ 's' if people|length != 1 else '' }}</p>
     </div>
-    {% if current_user.is_admin or current_user.is_delegate %}
+    {% if current_user.active_is_admin or current_user.active_is_delegate %}
     <a href="/admin/add-member" class="btn btn-primary">
         <i data-lucide="user-plus"></i> Add member
     </a>

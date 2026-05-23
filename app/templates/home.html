@@ -153,13 +153,13 @@
             </a>
             {% endfor %}
         </div>
-        {% if current_user.is_admin %}
+        {% if current_user.active_is_admin %}
         <div style="padding-top:10px;margin-top:4px;border-top:1px solid var(--hairline);">
             <a href="/events/add" class="btn btn-ghost btn-sm"><i data-lucide="plus"></i> New event</a>
         </div>
         {% endif %}
         {% else %}
-        <p style="font-size:14px;color:var(--slate);padding:4px 0;">No upcoming events.{% if current_user.is_admin %} <a href="/events/add" style="color:var(--vine);">Create one →</a>{% endif %}</p>
+        <p style="font-size:14px;color:var(--slate);padding:4px 0;">No upcoming events.{% if current_user.active_is_admin %} <a href="/events/add" style="color:var(--vine);">Create one →</a>{% endif %}</p>
         {% endif %}
     </div>
 
@@ -222,7 +222,7 @@
             {% endfor %}
         </div>
     </div>
-    {% elif current_user.is_admin or current_user.is_delegate %}
+    {% elif current_user.active_is_admin or current_user.active_is_delegate %}
     <div class="card">
         <div class="card-header"><h3>Photos</h3></div>
         <p style="font-size:13px;color:var(--slate);padding:4px 0;">No photos yet. <a href="/albums" style="color:var(--vine);">Create an album →</a></p>

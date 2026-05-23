@@ -22,8 +22,30 @@
         <div class="brand">
             <img src="{{ url_for('static', filename='assets/peavines-mark.svg') }}" alt="Peavines">
         </div>
-        <div class="family-name">{{ current_user.family.name }}</div>
+        {% if current_user.memberships|length > 1 %}
+        <div class="pod-switcher">
+            <div class="family-name">{{ current_user.active_family.name }}</div>
+            <details class="pod-switcher-menu">
+                <summary title="Switch pod"><i data-lucide="chevrons-up-down" style="width:14px;height:14px;"></i></summary>
+                <ul>
+                    {% for m in current_user.memberships %}
+                    {% if m.family_id != current_user.active_family_id %}
+                    <li>
+                        <form method="POST" action="{{ url_for('main.switch_pod', family_id=m.family_id) }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit">{{ m.family.name }}</button>
+                        </form>
+                    </li>
+                    {% endif %}
+                    {% endfor %}
+                </ul>
+            </details>
+        </div>
+        <div class="family-meta">{{ current_user.active_is_admin and 'Admin' or 'Member' }} · Switch pod above</div>
+        {% else %}
+        <div class="family-name">{{ current_user.active_family.name }}</div>
         <div class="family-meta">Family</div>
+        {% endif %}
 
         <nav class="nav">
             <a href="/home" {% if request.path == '/home' %}class="active"{% endif %}>
@@ -50,7 +72,7 @@
             <a href="/support" {% if request.path == '/support' %}class="active"{% endif %}>
                 <i data-lucide="life-buoy"></i> Help
             </a>
-            {% if current_user.is_admin %}
+            {% if current_user.active_is_admin %}
             <div class="nav-section">Admin</div>
             <a href="/admin/users" {% if request.path.startswith('/admin') and request.path != '/admin/family' %}class="active"{% endif %}>
                 <i data-lucide="shield"></i> Settings
@@ -65,7 +87,7 @@
             <div class="av av-sm" style="background: var(--vine); color: var(--cream);">{{ current_user.first_name[0] }}{{ current_user.last_name[0] }}</div>
             <div>
                 <div class="name">{{ current_user.get_full_name() }}</div>
-                <div class="role">{% if current_user.is_admin %}Admin{% else %}Member{% endif %}</div>
+                <div class="role">{% if current_user.active_is_admin %}Admin{% else %}Member{% endif %}</div>
             </div>
             <form method="POST" action="/logout" style="margin-left: auto;">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -107,7 +129,7 @@
             {% endif %}
         {% endwith %}
 
-        {% if current_user.is_authenticated and current_user.is_admin and current_user.family %}
+        {% if current_user.is_authenticated and current_user.active_is_admin and current_user.family %}
             {% set fam = current_user.family %}
             {% if fam.plan == 'trial' and fam.trial_ends_at %}
                 {% set days_left = ((fam.trial_ends_at - now).days) %}

@@ -15,7 +15,7 @@
 
 <div style="max-width: 480px;display:flex;flex-direction:column;gap:16px;">
 
-    {% if current_user.is_admin or current_user.is_delegate %}
+    {% if current_user.active_is_admin or current_user.active_is_delegate %}
     {% if action == 'child' %}
     <a href="/admin/add-member?parent1_id={{ subject.id }}{% if next_page %}&next={{ next_page }}{% endif %}" class="btn btn-primary">
         <i data-lucide="user-plus"></i> Create new child

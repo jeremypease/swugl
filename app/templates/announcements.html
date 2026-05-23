@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from "_macros.html" import av %}
 
-{% block title %}Announcements — {{ current_user.family.name }}{% endblock %}
+{% block title %}Announcements — {{ current_user.active_family.name }}{% endblock %}
 
 {% block head %}
 <style>
@@ -18,10 +18,10 @@
 {% block content %}
 <div class="page-head">
     <div>
-        <div class="eyebrow">{{ current_user.family.name }}</div>
+        <div class="eyebrow">{{ current_user.active_family.name }}</div>
         <h1>Announcements</h1>
     </div>
-    {% if current_user.is_admin or current_user.is_delegate %}
+    {% if current_user.active_is_admin or current_user.active_is_delegate %}
     <button class="btn btn-primary" onclick="document.getElementById('post-modal').style.display='flex'">
         <i data-lucide="plus"></i> Post
     </button>
@@ -46,7 +46,7 @@
                 </div>
             </div>
             <div style="display:flex;gap:4px;flex-shrink:0;">
-                {% if current_user.is_admin %}
+                {% if current_user.active_is_admin %}
                 <form method="POST" action="/announcements/{{ a.id }}/pin">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-ghost btn-sm" title="{{ 'Unpin' if a.pinned else 'Pin' }}">
@@ -54,7 +54,7 @@
                     </button>
                 </form>
                 {% endif %}
-                {% if current_user.is_admin or (current_user.person and a.author_id == current_user.person.id) %}
+                {% if current_user.active_is_admin or (current_user.person and a.author_id == current_user.person.id) %}
                 <form method="POST" action="/announcements/{{ a.id }}/delete" onsubmit="return confirm('Delete this announcement?')">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);">
@@ -76,7 +76,7 @@
 </div>
 {% endif %}
 
-{% if current_user.is_admin or current_user.is_delegate %}
+{% if current_user.active_is_admin or current_user.active_is_delegate %}
 <div id="post-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;align-items:center;justify-content:center;padding:20px;">
     <div class="card" style="width:100%;max-width:560px;max-height:90vh;overflow-y:auto;">
         <div class="card-header">
@@ -97,7 +97,7 @@
                 {{ form.body(rows=5, placeholder="What would you like to share?") }}
                 {% for e in form.body.errors %}<span class="msg">{{ e }}</span>{% endfor %}
             </div>
-            {% if current_user.is_admin %}
+            {% if current_user.active_is_admin %}
             <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;margin-bottom:14px;">
                 {{ form.pinned() }} Pin to top
             </label>

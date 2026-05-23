@@ -1,5 +1,6 @@
 from . import db, login_manager
 from flask_login import UserMixin
+from flask import session, has_request_context
 from datetime import date, datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -52,6 +53,7 @@ class Family(db.Model):
 
     people = db.relationship('Person', back_populates='family', foreign_keys='Person.family_id')
     users = db.relationship('User', back_populates='family', foreign_keys='User.family_id')
+    pod_members = db.relationship('UserPodMembership', back_populates='family', cascade='all, delete-orphan')
     patriarch = db.relationship('Person', foreign_keys=[patriarch_id])
     matriarch = db.relationship('Person', foreign_keys=[matriarch_id])
 
@@ -174,6 +176,24 @@ class Person(db.Model):
         return age
 
 
+class UserPodMembership(db.Model):
+    """One row per (user, family) pair — replaces the single User.family_id FK
+    for multi-pod support.  The original User.family_id remains as the
+    'home' pod used as a fallback when no session value is present."""
+    __tablename__ = 'user_pod_memberships'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    family_id = db.Column(db.Integer, db.ForeignKey('families.id'), nullable=False)
+    role = db.Column(db.String(20), nullable=False, default='member')  # 'admin' | 'member' | 'delegate'
+    joined_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', back_populates='memberships')
+    family = db.relationship('Family', back_populates='pod_members')
+
+    __table_args__ = (db.UniqueConstraint('user_id', 'family_id'),)
+
+
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
 
@@ -219,9 +239,46 @@ class User(UserMixin, db.Model):
     totp_enabled = db.Column(db.Boolean, nullable=False, server_default='0')
     passkeys = db.relationship('UserCredential', backref='user', cascade='all, delete-orphan')
 
+    # Multi-pod memberships
+    memberships = db.relationship('UserPodMembership', back_populates='user',
+                                  cascade='all, delete-orphan', lazy='select')
+
     @property
     def has_2fa(self):
         return self.totp_enabled or bool(self.passkeys)
+
+    @property
+    def active_family_id(self):
+        """Family the user is currently browsing — reads from session, validated
+        against actual memberships, falls back to home family_id."""
+        if has_request_context():
+            fid = session.get('active_family_id')
+            if fid is not None and any(m.family_id == fid for m in self.memberships):
+                return fid
+        return self.family_id
+
+    @property
+    def active_family(self):
+        fid = self.active_family_id
+        if fid == self.family_id:
+            return self.family
+        return db.session.get(Family, fid)
+
+    @property
+    def active_is_admin(self):
+        fid = self.active_family_id
+        for m in self.memberships:
+            if m.family_id == fid:
+                return m.role == 'admin'
+        return self.is_admin
+
+    @property
+    def active_is_delegate(self):
+        fid = self.active_family_id
+        for m in self.memberships:
+            if m.family_id == fid:
+                return m.role in ('admin', 'delegate')
+        return self.is_admin or self.is_delegate
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)

@@ -20,7 +20,7 @@
             <i data-lucide="download"></i> Download All
         </a>
         {% endif %}
-        {% if current_user.is_admin %}
+        {% if current_user.active_is_admin %}
         <form method="POST" action="/albums/{{ album.id }}/delete"
               onsubmit="return confirm('Delete this entire album and all its photos?')">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -81,7 +81,7 @@
             <a id="lb-download" href="#" download class="btn btn-ghost btn-sm" style="color:#fff;border-color:rgba(255,255,255,0.3);">
                 <i data-lucide="download" style="width:14px;height:14px;"></i> Download
             </a>
-            {% if current_user.is_admin %}
+            {% if current_user.active_is_admin %}
             <form id="lb-delete-form" method="POST" style="display:inline"
                   onsubmit="return confirm('Delete this photo?')">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

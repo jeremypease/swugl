@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Events — {{ current_user.family.name }}{% endblock %}
+{% block title %}Events — {{ current_user.active_family.name }}{% endblock %}
 
 {% block head %}
 <style>
@@ -39,10 +39,10 @@
 {% block content %}
 <div class="page-head">
     <div>
-        <div class="eyebrow">{{ current_user.family.name }}</div>
+        <div class="eyebrow">{{ current_user.active_family.name }}</div>
         <h1>Events</h1>
     </div>
-    {% if current_user.is_admin %}
+    {% if current_user.active_is_admin %}
     <a href="/events/add" class="btn btn-primary"><i data-lucide="plus"></i> New Event</a>
     {% endif %}
 </div>
@@ -52,7 +52,7 @@
     <i data-lucide="calendar" style="width:48px;height:48px;color:var(--sprout);margin-bottom:16px;"></i>
     <div style="font-weight:600;font-size:16px;margin-bottom:6px;">No events yet</div>
     <div style="color:var(--slate);font-size:14px;margin-bottom:20px;">Plan a reunion, holiday gathering, or any get-together.</div>
-    {% if current_user.is_admin %}
+    {% if current_user.active_is_admin %}
     <a href="/events/add" class="btn btn-primary"><i data-lucide="plus"></i> Create first event</a>
     {% endif %}
 </div>

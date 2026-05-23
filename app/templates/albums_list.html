@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Photos — {{ current_user.family.name }}{% endblock %}
+{% block title %}Photos — {{ current_user.active_family.name }}{% endblock %}
 
 {% block head %}
 <style>
@@ -60,10 +60,10 @@
 {% block content %}
 <div class="page-head">
     <div>
-        <div class="eyebrow">{{ current_user.family.name }}</div>
+        <div class="eyebrow">{{ current_user.active_family.name }}</div>
         <h1>Photos</h1>
     </div>
-    {% if current_user.is_admin or current_user.is_delegate %}
+    {% if current_user.active_is_admin or current_user.active_is_delegate %}
     <button class="btn btn-primary" onclick="document.getElementById('new-album-modal').style.display='flex'">
         <i data-lucide="plus"></i> New Album
     </button>
@@ -137,7 +137,7 @@
             </div>
         </a>
         {% endfor %}
-        {% if current_user.is_admin or current_user.is_delegate %}
+        {% if current_user.active_is_admin or current_user.active_is_delegate %}
         <div class="album-tile-new" style="border-radius:var(--r-m);" onclick="document.getElementById('new-album-modal').style.display='flex'">
             <i data-lucide="plus" style="width:20px;height:20px;margin-right:6px;"></i> New album
         </div>
@@ -152,7 +152,7 @@
     <i data-lucide="image" style="width:48px;height:48px;color:var(--sprout);margin-bottom:16px;"></i>
     <div style="font-weight:600;font-size:16px;margin-bottom:6px;">No albums yet</div>
     <div style="color:var(--slate);font-size:14px;margin-bottom:20px;">Create an album to share photos with the family.</div>
-    {% if current_user.is_admin or current_user.is_delegate %}
+    {% if current_user.active_is_admin or current_user.active_is_delegate %}
     <button class="btn btn-primary" onclick="document.getElementById('new-album-modal').style.display='flex'">
         <i data-lucide="plus"></i> Create first album
     </button>
@@ -160,7 +160,7 @@
 </div>
 {% endif %}
 
-{% if current_user.is_admin or current_user.is_delegate %}
+{% if current_user.active_is_admin or current_user.active_is_delegate %}
 <div id="new-album-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;align-items:center;justify-content:center;padding:20px;">
     <div class="card" style="width:100%;max-width:480px;max-height:90vh;overflow-y:auto;">
         <div class="card-header">

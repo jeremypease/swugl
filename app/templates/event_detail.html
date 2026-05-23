@@ -186,7 +186,7 @@ details[open] .details-chevron { transform: rotate(180deg); }
                 {{ event.date_range_display() }}{% if event.location %} · {{ event.location }}{% endif %}
             </div>
         </div>
-        {% if current_user.is_admin %}
+        {% if current_user.active_is_admin %}
         <div style="display:flex;gap:8px;">
             <button class="btn btn-secondary" onclick="document.getElementById('edit-event-modal').style.display='flex'">
                 <i data-lucide="edit-2"></i> Edit
@@ -219,7 +219,7 @@ details[open] .details-chevron { transform: rotate(180deg); }
         <div class="card-header">
             <h3>Meals</h3>
             <div style="display:flex;gap:6px;align-items:center;">
-                {% if current_user.is_admin %}
+                {% if current_user.active_is_admin %}
                 <button class="btn btn-ghost btn-sm" onclick="toggleForm('meal-add-form')">
                     <i data-lucide="plus"></i> Add meal
                 </button>
@@ -235,7 +235,7 @@ details[open] .details-chevron { transform: rotate(180deg); }
             </div>
         </div>
 
-        {% if current_user.is_admin %}
+        {% if current_user.active_is_admin %}
         <div id="meal-add-form" style="display:none;padding:12px 0;border-bottom:1px solid var(--hairline);">
             <form method="POST" action="/events/{{ event.id }}/meals/add">
                 {{ meal_form.hidden_tag() }}
@@ -259,13 +259,13 @@ details[open] .details-chevron { transform: rotate(180deg); }
                     {% if meal.meal_time %}<span style="font-size:13px;color:var(--slate);">{{ meal.meal_time }}</span>{% endif %}
                     {% if meal.assigned_family %}
                     <span style="font-size:13px;color:var(--slate);">Host: <strong>{{ meal.assigned_family.get_couple_name() }}</strong></span>
-                    {% if current_user.is_admin %}
+                    {% if current_user.active_is_admin %}
                     <form method="POST" action="/events/{{ event.id }}/meals/{{ meal.id }}/unassign-family">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn btn-ghost btn-sm">Clear</button>
                     </form>
                     {% endif %}
-                    {% elif current_user.is_admin %}
+                    {% elif current_user.active_is_admin %}
                     <form method="POST" action="/events/{{ event.id }}/meals/{{ meal.id }}/assign-family" style="display:flex;gap:4px;align-items:center;">
                         {{ meal_family_forms[meal.id].hidden_tag() }}
                         <span style="font-size:13px;color:var(--slate);white-space:nowrap;">Host:</span>
@@ -273,7 +273,7 @@ details[open] .details-chevron { transform: rotate(180deg); }
                         <button type="submit" class="btn btn-ghost btn-sm">Set</button>
                     </form>
                     {% endif %}
-                    {% if current_user.is_admin %}
+                    {% if current_user.active_is_admin %}
                     <form method="POST" action="/events/{{ event.id }}/meals/{{ meal.id }}/delete" style="margin-left:auto;">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);">Remove</button>
@@ -299,7 +299,7 @@ details[open] .details-chevron { transform: rotate(180deg); }
                                 {{ item_assign_forms[item.id].person_id(style="font-size:13px;padding:3px 6px;") }}
                                 <button type="submit" class="btn btn-ghost btn-sm">Assign</button>
                             </form>
-                            {% if current_user.is_admin %}
+                            {% if current_user.active_is_admin %}
                             {% if item.assigned_to %}
                             <form method="POST" action="/events/{{ event.id }}/meals/{{ meal.id }}/items/{{ item.id }}/unassign">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -327,7 +327,7 @@ details[open] .details-chevron { transform: rotate(180deg); }
                 </form>
                 {% endif %}
 
-                {% if current_user.is_admin %}
+                {% if current_user.active_is_admin %}
                 <form method="POST" action="/events/{{ event.id }}/meals/{{ meal.id }}/items/add" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px;padding-top:6px;border-top:1px dashed var(--hairline);">
                     {{ meal_item_form.hidden_tag() }}
                     {{ meal_item_form.label(placeholder="Add item (e.g. Rolls)", style="flex:1;min-width:160px;font-size:13px;") }}
@@ -339,10 +339,10 @@ details[open] .details-chevron { transform: rotate(180deg); }
             </div>
             {% endfor %}
         {% else %}
-        <p style="color:var(--slate);font-size:14px;padding:8px 0;">No meals added yet.{% if current_user.is_admin %} Click "Add meal" to get started.{% endif %}</p>
+        <p style="color:var(--slate);font-size:14px;padding:8px 0;">No meals added yet.{% if current_user.active_is_admin %} Click "Add meal" to get started.{% endif %}</p>
         {% endif %}
     </div>
-    {% elif current_user.is_admin %}
+    {% elif current_user.active_is_admin %}
     <form method="POST" action="/events/{{ event.id }}/enable-section">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="section" value="meals">
@@ -358,7 +358,7 @@ details[open] .details-chevron { transform: rotate(180deg); }
         <div class="card-header">
             <h3>Assignments</h3>
             <div style="display:flex;gap:6px;align-items:center;">
-                {% if current_user.is_admin %}
+                {% if current_user.active_is_admin %}
                 <button class="btn btn-ghost btn-sm" onclick="toggleForm('assign-add-form')">
                     <i data-lucide="plus"></i> Add task
                 </button>
@@ -374,7 +374,7 @@ details[open] .details-chevron { transform: rotate(180deg); }
             </div>
         </div>
 
-        {% if current_user.is_admin %}
+        {% if current_user.active_is_admin %}
         <div id="assign-add-form" style="display:none;padding:12px 0;border-bottom:1px solid var(--hairline);">
             <form method="POST" action="/events/{{ event.id }}/assignments/add">
                 {{ assign_form.hidden_tag() }}
@@ -406,7 +406,7 @@ details[open] .details-chevron { transform: rotate(180deg); }
                 {% if a.claimed_by_id %}
                 <form method="POST" action="/events/{{ event.id }}/assignments/{{ a.id }}/done" style="display:contents;">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    {% if current_user.is_admin or (my_person and a.claimed_by_id == my_person.id) %}
+                    {% if current_user.active_is_admin or (my_person and a.claimed_by_id == my_person.id) %}
                     <button type="submit" class="task-check {% if a.is_done %}task-done{% endif %}" title="Toggle done"></button>
                     {% else %}
                     <span class="task-check {% if a.is_done %}task-done{% endif %}" style="cursor:default;"></span>
@@ -422,7 +422,7 @@ details[open] .details-chevron { transform: rotate(180deg); }
                 </div>
                 {% if a.claimed_by %}
                 <span style="font-size:13px;color:var(--slate);">{{ a.claimed_by.get_display_name() }}</span>
-                {% if current_user.is_admin or (my_person and a.claimed_by_id == my_person.id) %}
+                {% if current_user.active_is_admin or (my_person and a.claimed_by_id == my_person.id) %}
                 <form method="POST" action="/events/{{ event.id }}/assignments/{{ a.id }}/unclaim">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-ghost btn-sm">Unclaim</button>
@@ -435,7 +435,7 @@ details[open] .details-chevron { transform: rotate(180deg); }
                     <button type="submit" class="btn btn-ghost btn-sm">Claim</button>
                 </form>
                 {% endif %}
-                {% if current_user.is_admin and assign_admin_forms[a.id] %}
+                {% if current_user.active_is_admin and assign_admin_forms[a.id] %}
                 <form method="POST" action="/events/{{ event.id }}/assignments/{{ a.id }}/assign" style="display:flex;gap:4px;align-items:center;">
                     {{ assign_admin_forms[a.id].hidden_tag() }}
                     {{ assign_admin_forms[a.id].person_id(style="font-size:13px;padding:3px 6px;") }}
@@ -443,7 +443,7 @@ details[open] .details-chevron { transform: rotate(180deg); }
                 </form>
                 {% endif %}
                 {% endif %}
-                {% if current_user.is_admin %}
+                {% if current_user.active_is_admin %}
                 <form method="POST" action="/events/{{ event.id }}/assignments/{{ a.id }}/delete">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);">×</button>
@@ -454,10 +454,10 @@ details[open] .details-chevron { transform: rotate(180deg); }
             {% endfor %}
         </div>
         {% else %}
-        <p style="color:var(--slate);font-size:14px;padding:8px 0;">No tasks added yet.{% if current_user.is_admin %} Click "Add task".{% endif %}</p>
+        <p style="color:var(--slate);font-size:14px;padding:8px 0;">No tasks added yet.{% if current_user.active_is_admin %} Click "Add task".{% endif %}</p>
         {% endif %}
     </div>
-    {% elif current_user.is_admin %}
+    {% elif current_user.active_is_admin %}
     <form method="POST" action="/events/{{ event.id }}/enable-section">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="section" value="assignments">
@@ -473,7 +473,7 @@ details[open] .details-chevron { transform: rotate(180deg); }
         <div class="card-header">
             <h3>Sleeping Arrangements</h3>
             <div style="display:flex;gap:6px;align-items:center;">
-                {% if current_user.is_admin %}
+                {% if current_user.active_is_admin %}
                 <button class="btn btn-ghost btn-sm" onclick="toggleForm('spot-add-form')">
                     <i data-lucide="plus"></i> Add spot
                 </button>
@@ -488,7 +488,7 @@ details[open] .details-chevron { transform: rotate(180deg); }
                 {% endif %}
             </div>
         </div>
-        {% if current_user.is_admin %}
+        {% if current_user.active_is_admin %}
         <div id="spot-add-form" style="display:none;padding:12px 0;border-bottom:1px solid var(--hairline);">
             <form method="POST" action="/events/{{ event.id }}/sleeping/add-spot">
                 {{ spot_form.hidden_tag() }}
@@ -520,7 +520,7 @@ details[open] .details-chevron { transform: rotate(180deg); }
                         {% for person in spot.people %}
                         <span class="badge b-active" style="display:inline-flex;align-items:center;gap:6px;">
                             <span class="dot"></span>{{ person.get_display_name() }}
-                            {% if current_user.is_admin %}
+                            {% if current_user.active_is_admin %}
                             <form method="POST" action="/events/{{ event.id }}/sleeping/{{ spot.id }}/unassign/{{ person.id }}" style="display:contents;">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;line-height:1;color:inherit;">×</button>
@@ -531,7 +531,7 @@ details[open] .details-chevron { transform: rotate(180deg); }
                         {% if not spot.people %}<span style="font-size:13px;color:var(--slate);">No one assigned</span>{% endif %}
                     </div>
                 </div>
-                {% if current_user.is_admin %}
+                {% if current_user.active_is_admin %}
                 <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
                     {% if sleeping_assign_forms[spot.id] and not at_capacity %}
                     <form method="POST" action="/events/{{ event.id }}/sleeping/{{ spot.id }}/assign" style="display:flex;gap:6px;align-items:center;">
@@ -552,10 +552,10 @@ details[open] .details-chevron { transform: rotate(180deg); }
             {% endfor %}
         </div>
         {% else %}
-        <p style="color:var(--slate);font-size:14px;padding:8px 0;">No spots added yet.{% if current_user.is_admin %} Click "Add spot".{% endif %}</p>
+        <p style="color:var(--slate);font-size:14px;padding:8px 0;">No spots added yet.{% if current_user.active_is_admin %} Click "Add spot".{% endif %}</p>
         {% endif %}
     </div>
-    {% elif current_user.is_admin %}
+    {% elif current_user.active_is_admin %}
     <form method="POST" action="/events/{{ event.id }}/enable-section">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="section" value="sleeping">
@@ -566,11 +566,11 @@ details[open] .details-chevron { transform: rotate(180deg); }
     {% endif %}
 
     {# ── PHOTOS ──────────────────────────────────────────────────────── #}
-    {% if event.albums or current_user.is_admin or current_user.is_delegate %}
+    {% if event.albums or current_user.active_is_admin or current_user.active_is_delegate %}
     <div class="card">
         <div class="card-header">
             <h3>Photos</h3>
-            {% if current_user.is_admin or current_user.is_delegate %}
+            {% if current_user.active_is_admin or current_user.active_is_delegate %}
             <a href="/albums" class="btn btn-ghost btn-sm" onclick="sessionStorage.setItem('newAlbumEvent','{{ event.id }}')">
                 <i data-lucide="plus"></i> New Album
             </a>
@@ -676,11 +676,11 @@ details[open] .details-chevron { transform: rotate(180deg); }
         {% if rsvp_groups or family_groups %}
         <div style="border-top:1px solid var(--hairline);padding-top:12px;margin-top:10px;">
             <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);margin-bottom:8px;">
-                {% if current_user.is_admin or current_user.is_delegate %}All Families{% else %}Responses{% endif %}
+                {% if current_user.active_is_admin or current_user.active_is_delegate %}All Families{% else %}Responses{% endif %}
             </div>
 
             {# Admin full roster #}
-            {% if current_user.is_admin or current_user.is_delegate %}
+            {% if current_user.active_is_admin or current_user.active_is_delegate %}
             {% if family_groups %}
             <div style="display:flex;flex-direction:column;gap:2px;">
                 {% for group in family_groups %}
@@ -763,7 +763,7 @@ details[open] .details-chevron { transform: rotate(180deg); }
                     <div><span class="comment-name">{{ comment.person.get_display_name() }}</span>{{ comment.body }}</div>
                     <div class="comment-time">{{ comment.created_at.strftime('%-I:%M %p · %b %-d') }}</div>
                 </div>
-                {% if current_user.is_admin or (current_user.person and comment.person_id == current_user.person.id) %}
+                {% if current_user.active_is_admin or (current_user.person and comment.person_id == current_user.person.id) %}
                 <form method="POST" action="/events/{{ event.id }}/comments/{{ comment.id }}/delete">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" style="background:none;border:none;cursor:pointer;color:var(--slate-soft);font-size:14px;padding:0;line-height:1;" title="Delete">×</button>
@@ -807,7 +807,7 @@ details[open] .details-chevron { transform: rotate(180deg); }
 
 
 {# ── Edit event modal ──────────────────────────────────────────────── #}
-{% if current_user.is_admin %}
+{% if current_user.active_is_admin %}
 <div id="edit-event-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;align-items:center;justify-content:center;padding:20px;">
     <div class="card" style="width:100%;max-width:560px;max-height:90vh;overflow-y:auto;">
         <div class="card-header">

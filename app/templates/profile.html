@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ person.get_display_name() }} — {{ current_user.family.name }}{% endblock %}
+{% block title %}{{ person.get_display_name() }} — {{ current_user.active_family.name }}{% endblock %}
 
 {% from "_macros.html" import av %}
 
@@ -43,7 +43,7 @@
 {% block content %}
 
 {% set is_own_profile = person.user == current_user %}
-{% set can_edit = current_user.is_admin or is_own_profile %}
+{% set can_edit = current_user.active_is_admin or is_own_profile %}
 
 {% set pending = person.get_pending_spouse_request() %}
 {% if pending and pending.person1_id != person.id and is_own_profile %}
@@ -121,7 +121,7 @@
                 <i data-lucide="shield"></i> Security
             </a>
             {% endif %}
-            {% set can_invite = (current_user.is_admin or current_user.is_delegate) and not person.user and not person.deathday and (not person.get_age() or person.get_age() > 12) %}
+            {% set can_invite = (current_user.active_is_admin or current_user.active_is_delegate) and not person.user and not person.deathday and (not person.get_age() or person.get_age() > 12) %}
             {% if can_invite %}
             {% if person.email %}
             <form method="POST" action="/person/{{ person.id }}/invite">
@@ -136,7 +136,7 @@
             </a>
             {% endif %}
             {% endif %}
-            {% if current_user.is_admin and not is_own_profile %}
+            {% if current_user.active_is_admin and not is_own_profile %}
             <form method="POST" action="/admin/toggle-directory/{{ person.id }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="btn btn-ghost btn-sm" style="width:100%;justify-content:flex-start;color:var(--slate);">
@@ -160,7 +160,7 @@
             <h3>Family</h3>
             {% if is_own_profile %}
             <a href="/spouse/add" class="btn btn-ghost btn-sm"><i data-lucide="plus"></i> Add spouse</a>
-            {% elif current_user.is_admin and not active_spouse and not pending_request %}
+            {% elif current_user.active_is_admin and not active_spouse and not pending_request %}
             <a href="/person/{{ person.id }}/link-spouse" class="btn btn-ghost btn-sm"><i data-lucide="link"></i> Link spouse</a>
             {% endif %}
         </div>

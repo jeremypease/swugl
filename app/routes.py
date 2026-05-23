@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, send_file
+from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, send_file, session
 from flask_login import login_user, logout_user, login_required, current_user
 from .models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, ASSIGNMENT_CATEGORIES, EventRSVP, EventSleepingSpot, EventComment, Announcement, Album, Photo
 from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm, ForgotPasswordForm, ResetPasswordForm, AddPersonForm, RelativeForm, AddParentForm, FamilySettingsForm, EditPersonForm, EventForm, EventCommentForm, EventMealForm, EventMealFamilyAssignForm, EventMealItemForm, EventMealSelfSignupForm, EventMealAssignForm, EventAssignmentForm, EventAssignmentAdminAssignForm, EventSleepingSpotForm, EventSleepingAssignForm, GENDER_CHOICES_DEFAULT, GENDER_CHOICES_EXPANDED, PRONOUN_CHOICES, AnnouncementForm, AlbumForm, PhotoUploadForm, SupportForm
@@ -58,7 +58,7 @@ def format_birthplace(raw):
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated or not current_user.is_admin:
+        if not current_user.is_authenticated or not current_user.active_is_admin:
             flash('You do not have permission to access that page.', 'error')
             return redirect(url_for('main.home'))
         return f(*args, **kwargs)
@@ -67,7 +67,7 @@ def admin_required(f):
 def contributor_or_admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated or not (current_user.is_admin or current_user.is_delegate):
+        if not current_user.is_authenticated or not (current_user.active_is_admin or current_user.active_is_delegate):
             flash('You do not have permission to access that page.', 'error')
             return redirect(url_for('main.home'))
         return f(*args, **kwargs)
@@ -183,7 +183,7 @@ def get_core_ids(node):
 @main.route('/members')
 @login_required
 def members():
-    people = Person.query.filter_by(family_id=current_user.family_id, in_directory=True).order_by(Person.name).all()
+    people = Person.query.filter_by(family_id=current_user.active_family_id, in_directory=True).order_by(Person.name).all()
     today = date.today()
     bday_days = {}
     for p in people:
@@ -198,7 +198,7 @@ def members():
                 except ValueError:
                     bday = p.birthday.replace(year=today.year + 1, day=28)
             bday_days[p.id] = (bday - today).days
-    return render_template('members.html', people=people, family=current_user.family, bday_days=bday_days)
+    return render_template('members.html', people=people, family=current_user.active_family, bday_days=bday_days)
 
 @main.route('/')
 def index():
@@ -209,7 +209,7 @@ def index():
 @main.route('/home')
 @login_required
 def home():
-    people = Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
+    people = Person.query.filter_by(family_id=current_user.active_family_id).order_by(Person.name).all()
     member_count = len(people)
     today = date.today()
     upcoming_birthdays = []
@@ -228,7 +228,7 @@ def home():
             if days <= 30:
                 upcoming_birthdays.append((person, bday, days))
     upcoming_birthdays.sort(key=lambda x: x[2])
-    upcoming_events = Event.query.filter_by(family_id=current_user.family_id).filter(
+    upcoming_events = Event.query.filter_by(family_id=current_user.active_family_id).filter(
         Event.start_date >= today
     ).order_by(Event.start_date).limit(3).all()
     # Profile completeness nudge
@@ -243,18 +243,18 @@ def home():
             profile_nudge.append(('gender', 'Set your gender'))
         if not me.birthplace:
             profile_nudge.append(('birthplace', 'Add your birthplace'))
-    pinned = Announcement.query.filter_by(family_id=current_user.family_id, pinned=True)\
+    pinned = Announcement.query.filter_by(family_id=current_user.active_family_id, pinned=True)\
         .order_by(Announcement.created_at.desc()).all()
-    recent = Announcement.query.filter_by(family_id=current_user.family_id, pinned=False)\
+    recent = Announcement.query.filter_by(family_id=current_user.active_family_id, pinned=False)\
         .order_by(Announcement.created_at.desc()).limit(3).all()
     home_announcements = pinned + recent
-    recent_photos = Photo.query.filter_by(family_id=current_user.family_id)\
+    recent_photos = Photo.query.filter_by(family_id=current_user.active_family_id)\
         .order_by(Photo.created_at.desc()).limit(6).all()
     # Onboarding checklist — only for admins of new pods (families with account_id)
     onboarding = None
-    if current_user.is_admin and current_user.family and current_user.family.account_id:
+    if current_user.active_is_admin and current_user.family and current_user.active_family.account_id:
         has_members = member_count > 1
-        has_patriarch_or_matriarch = bool(current_user.family.patriarch_id or current_user.family.matriarch_id)
+        has_patriarch_or_matriarch = bool(current_user.active_family.patriarch_id or current_user.active_family.matriarch_id)
         has_photo = len(recent_photos) > 0
         steps = [
             ('members', 'Add your first family member', url_for('main.members'), has_members),
@@ -264,7 +264,7 @@ def home():
         incomplete = [s for s in steps if not s[3]]
         if incomplete:
             onboarding = steps
-    return render_template('home.html', member_count=member_count, family=current_user.family,
+    return render_template('home.html', member_count=member_count, family=current_user.active_family,
                            upcoming_birthdays=upcoming_birthdays, upcoming_events=upcoming_events,
                            profile_nudge=profile_nudge, me=me,
                            home_announcements=home_announcements,
@@ -294,6 +294,7 @@ def login():
             session['pending_2fa_remember'] = form.remember_me.data
             return redirect(url_for('tf.login_2fa'))
         login_user(user, remember=form.remember_me.data)
+        session['active_family_id'] = user.family_id
         next_page = request.args.get('next')
         # Reject absolute URLs to prevent open redirect
         if next_page and urlparse(next_page).netloc != '':
@@ -305,8 +306,21 @@ def login():
 @login_required
 def logout():
     logout_user()
+    session.pop('active_family_id', None)
     flash('You have been logged out.', 'info')
     return redirect(url_for('main.login'))
+
+
+@main.route('/switch-pod/<int:family_id>', methods=['POST'])
+@login_required
+def switch_pod(family_id):
+    membership = next((m for m in current_user.memberships if m.family_id == family_id), None)
+    if not membership:
+        flash('You are not a member of that pod.', 'error')
+        return redirect(url_for('main.home'))
+    session['active_family_id'] = family_id
+    return redirect(url_for('main.home'))
+
 
 @main.route('/register', methods=['GET', 'POST'])
 @limiter.limit('10 per hour', methods=['POST'])
@@ -431,18 +445,18 @@ def add_member():
     purpose = request.args.get('purpose')  # 'parent' = adding someone from outside the family
     parent1 = db.session.get(Person, parent1_id) if parent1_id else None
     parent2 = db.session.get(Person, parent2_id) if parent2_id else None
-    if parent1 and parent1.family_id != current_user.family_id:
+    if parent1 and parent1.family_id != current_user.active_family_id:
         parent1 = None
-    if parent2 and parent2.family_id != current_user.family_id:
+    if parent2 and parent2.family_id != current_user.active_family_id:
         parent2 = None
     form = AddPersonForm()
-    form.gender.choices = GENDER_CHOICES_EXPANDED if current_user.family.has_lgbtq_options else GENDER_CHOICES_DEFAULT
+    form.gender.choices = GENDER_CHOICES_EXPANDED if current_user.active_family.has_lgbtq_options else GENDER_CHOICES_DEFAULT
     if form.validate_on_submit():
         first = form.first_name.data.strip()
         last  = form.last_name.data.strip()
         # Duplicate check — skip if user already confirmed
         if not request.form.get('confirm_duplicate'):
-            existing = Person.query.filter_by(family_id=current_user.family_id).all()
+            existing = Person.query.filter_by(family_id=current_user.active_family_id).all()
             similar = []
             for p in existing:
                 parts = p.name.lower().split()
@@ -467,7 +481,7 @@ def add_member():
                                        purpose=purpose, link_spouse_for=link_spouse_for)
         person = Person(
             name=f"{first} {last}",
-            family_id=current_user.family_id,
+            family_id=current_user.active_family_id,
             email=form.email.data or None,
             phone=format_phone(form.phone.data),
             gender=form.gender.data or None,
@@ -500,23 +514,23 @@ def add_member():
 @login_required
 def add_parent(person_id):
     person = db.session.get(Person, person_id)
-    if not person or person.family_id != current_user.family_id:
+    if not person or person.family_id != current_user.active_family_id:
         flash('Person not found.', 'error')
         return redirect(url_for('main.home'))
-    can_edit = current_user.is_admin or (person.user and person.user == current_user)
+    can_edit = current_user.active_is_admin or (person.user and person.user == current_user)
     if not can_edit:
         flash('You do not have permission to edit this profile.', 'error')
         return redirect(url_for('main.person_detail', person_id=person_id))
     existing_parent_ids = {p.id for p in person.parents}
     eligible = [
-        p for p in Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
+        p for p in Person.query.filter_by(family_id=current_user.active_family_id).order_by(Person.name).all()
         if p.id != person.id and p.id not in existing_parent_ids
     ]
     form = AddParentForm()
     form.relative_id.choices = [(0, '-- Select --')] + [(p.id, p.get_display_name()) for p in eligible]
     if form.validate_on_submit():
         parent_person = db.session.get(Person, form.relative_id.data)
-        if not parent_person or parent_person.family_id != current_user.family_id:
+        if not parent_person or parent_person.family_id != current_user.active_family_id:
             flash('Person not found.', 'error')
             return redirect(url_for('main.add_parent', person_id=person_id))
         db.session.add(ParentRelationship(parent_id=parent_person.id, child_id=person.id, role=form.role.data))
@@ -529,16 +543,16 @@ def add_parent(person_id):
 @login_required
 def add_child(person_id):
     person = db.session.get(Person, person_id)
-    if not person or person.family_id != current_user.family_id:
+    if not person or person.family_id != current_user.active_family_id:
         flash('Person not found.', 'error')
         return redirect(url_for('main.home'))
-    can_edit = current_user.is_admin or (person.user and person.user == current_user)
+    can_edit = current_user.active_is_admin or (person.user and person.user == current_user)
     if not can_edit:
         flash('You do not have permission to edit this profile.', 'error')
         return redirect(url_for('main.person_detail', person_id=person_id))
     existing_child_ids = {c.id for c in person.children}
     eligible = [
-        p for p in Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
+        p for p in Person.query.filter_by(family_id=current_user.active_family_id).order_by(Person.name).all()
         if p.id != person.id and p.id not in existing_child_ids
     ]
     form = RelativeForm()
@@ -546,7 +560,7 @@ def add_child(person_id):
     next_page = request.args.get('next')
     if form.validate_on_submit():
         child_person = db.session.get(Person, form.relative_id.data)
-        if not child_person or child_person.family_id != current_user.family_id:
+        if not child_person or child_person.family_id != current_user.active_family_id:
             flash('Person not found.', 'error')
             return redirect(url_for('main.add_child', person_id=person_id))
         db.session.add(ParentRelationship(parent_id=person.id, child_id=child_person.id, role=_default_parent_role(person)))
@@ -561,15 +575,15 @@ def add_child(person_id):
 @login_required
 def remove_parent(person_id, parent_id):
     person = db.session.get(Person, person_id)
-    if not person or person.family_id != current_user.family_id:
+    if not person or person.family_id != current_user.active_family_id:
         flash('Person not found.', 'error')
         return redirect(url_for('main.home'))
-    can_edit = current_user.is_admin or (person.user and person.user == current_user)
+    can_edit = current_user.active_is_admin or (person.user and person.user == current_user)
     if not can_edit:
         flash('You do not have permission to edit this profile.', 'error')
         return redirect(url_for('main.person_detail', person_id=person_id))
     parent_person = db.session.get(Person, parent_id)
-    if parent_person and parent_person.family_id == current_user.family_id:
+    if parent_person and parent_person.family_id == current_user.active_family_id:
         ParentRelationship.query.filter_by(parent_id=parent_person.id, child_id=person.id).delete()
         db.session.commit()
         flash(f'{parent_person.get_display_name()} removed as a parent.', 'info')
@@ -581,9 +595,9 @@ SPOUSE_ROLES = [('husband', 'Husband'), ('wife', 'Wife'), ('spouse', 'Spouse'), 
 @login_required
 def set_spouse_role(person_id):
     person = db.session.get(Person, person_id)
-    if not person or person.family_id != current_user.family_id:
+    if not person or person.family_id != current_user.active_family_id:
         return redirect(url_for('main.home'))
-    can_edit = current_user.is_admin or (person.user and person.user == current_user)
+    can_edit = current_user.active_is_admin or (person.user and person.user == current_user)
     if not can_edit:
         return redirect(url_for('main.person_detail', person_id=person_id))
     role = request.form.get('role', 'spouse')
@@ -600,9 +614,9 @@ def set_spouse_role(person_id):
 @login_required
 def set_parent_role(person_id, parent_id):
     person = db.session.get(Person, person_id)
-    if not person or person.family_id != current_user.family_id:
+    if not person or person.family_id != current_user.active_family_id:
         return redirect(url_for('main.home'))
-    can_edit = current_user.is_admin or (person.user and person.user == current_user)
+    can_edit = current_user.active_is_admin or (person.user and person.user == current_user)
     if not can_edit:
         return redirect(url_for('main.person_detail', person_id=person_id))
     role = request.form.get('role', 'parent')
@@ -610,7 +624,7 @@ def set_parent_role(person_id, parent_id):
     if role not in valid_roles:
         role = 'parent'
     parent_person = db.session.get(Person, parent_id)
-    if not parent_person or parent_person.family_id != current_user.family_id:
+    if not parent_person or parent_person.family_id != current_user.active_family_id:
         return redirect(url_for('main.person_detail', person_id=person_id))
     pr = ParentRelationship.query.filter_by(parent_id=parent_id, child_id=person_id).first()
     if pr:
@@ -622,15 +636,15 @@ def set_parent_role(person_id, parent_id):
 @login_required
 def remove_child(person_id, child_id):
     person = db.session.get(Person, person_id)
-    if not person or person.family_id != current_user.family_id:
+    if not person or person.family_id != current_user.active_family_id:
         flash('Person not found.', 'error')
         return redirect(url_for('main.home'))
-    can_edit = current_user.is_admin or (person.user and person.user == current_user)
+    can_edit = current_user.active_is_admin or (person.user and person.user == current_user)
     if not can_edit:
         flash('You do not have permission to edit this profile.', 'error')
         return redirect(url_for('main.person_detail', person_id=person_id))
     child_person = db.session.get(Person, child_id)
-    if child_person and child_person.family_id == current_user.family_id:
+    if child_person and child_person.family_id == current_user.active_family_id:
         ParentRelationship.query.filter_by(parent_id=person.id, child_id=child_person.id).delete()
         db.session.commit()
         flash(f'{child_person.get_display_name()} removed as a child.', 'info')
@@ -641,7 +655,7 @@ def remove_child(person_id, child_id):
 @admin_required
 def family_settings():
     family = current_user.family
-    people = Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
+    people = Person.query.filter_by(family_id=current_user.active_family_id).order_by(Person.name).all()
     choices = [(0, '-- None --')] + [(p.id, p.get_display_name()) for p in people]
     form = FamilySettingsForm()
     form.patriarch_id.choices = choices
@@ -684,17 +698,17 @@ def family_tree():
         for c in matriarch.children:
             if c not in all_root_children:
                 all_root_children.append(c)
-    all_root_children = [c for c in all_root_children if c.family_id == current_user.family_id]
+    all_root_children = [c for c in all_root_children if c.family_id == current_user.active_family_id]
     all_root_children.sort(key=lambda c: c.birthday or date.max)
 
     tree = {
         "person": patriarch or matriarch,
         "spouse": matriarch if patriarch else None,
-        "children": [n for c in all_root_children if (n := build_tree_node(c, current_user.family_id, visited))]
+        "children": [n for c in all_root_children if (n := build_tree_node(c, current_user.active_family_id, visited))]
     }
 
     core_ids = get_core_ids(tree)
-    all_people = Person.query.filter_by(family_id=current_user.family_id).all()
+    all_people = Person.query.filter_by(family_id=current_user.active_family_id).all()
     extended = [p for p in all_people if p.id not in core_ids]
     return render_template('family_tree.html', tree=tree, extended=extended, family=family)
 
@@ -748,10 +762,10 @@ def _save_photo_file(file, album_id):
 @main.route('/albums')
 @login_required
 def albums():
-    all_albums = Album.query.filter_by(family_id=current_user.family_id)\
+    all_albums = Album.query.filter_by(family_id=current_user.active_family_id)\
         .order_by(Album.created_at.desc()).all()
     form = AlbumForm()
-    events = Event.query.filter_by(family_id=current_user.family_id).order_by(Event.start_date.desc()).all()
+    events = Event.query.filter_by(family_id=current_user.active_family_id).order_by(Event.start_date.desc()).all()
     form.event_id.choices = [(0, '-- None --')] + [(e.id, e.name) for e in events]
     return render_template('albums_list.html', albums=all_albums, form=form)
 
@@ -759,12 +773,12 @@ def albums():
 @login_required
 @contributor_or_admin_required
 def add_album():
-    events = Event.query.filter_by(family_id=current_user.family_id).all()
+    events = Event.query.filter_by(family_id=current_user.active_family_id).all()
     form = AlbumForm()
     form.event_id.choices = [(0, '-- None --')] + [(e.id, e.name) for e in events]
     if form.validate_on_submit():
         album = Album(
-            family_id=current_user.family_id,
+            family_id=current_user.active_family_id,
             created_by_id=current_user.person.id if current_user.person else None,
             name=form.name.data.strip(),
             description=form.description.data or None,
@@ -781,7 +795,7 @@ def add_album():
 @login_required
 def album_detail(album_id):
     album = db.session.get(Album, album_id)
-    if not album or album.family_id != current_user.family_id:
+    if not album or album.family_id != current_user.active_family_id:
         flash('Album not found.', 'error')
         return redirect(url_for('main.albums'))
     upload_form = PhotoUploadForm()
@@ -791,7 +805,7 @@ def album_detail(album_id):
 @login_required
 def upload_photos(album_id):
     album = db.session.get(Album, album_id)
-    if not album or album.family_id != current_user.family_id:
+    if not album or album.family_id != current_user.active_family_id:
         return redirect(url_for('main.albums'))
     files = request.files.getlist('photos')
     caption = request.form.get('caption', '').strip() or None
@@ -802,7 +816,7 @@ def upload_photos(album_id):
             if path:
                 photo = Photo(
                     album_id=album_id,
-                    family_id=current_user.family_id,
+                    family_id=current_user.active_family_id,
                     uploaded_by_id=current_user.person.id if current_user.person else None,
                     path=path,
                     caption=caption,
@@ -818,7 +832,7 @@ def upload_photos(album_id):
 @login_required
 def download_album(album_id):
     album = db.session.get(Album, album_id)
-    if not album or album.family_id != current_user.family_id:
+    if not album or album.family_id != current_user.active_family_id:
         return redirect(url_for('main.albums'))
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
@@ -837,9 +851,9 @@ def download_album(album_id):
 @login_required
 def delete_photo(album_id, photo_id):
     photo = db.session.get(Photo, photo_id)
-    if not photo or photo.family_id != current_user.family_id:
+    if not photo or photo.family_id != current_user.active_family_id:
         return redirect(url_for('main.album_detail', album_id=album_id))
-    can_delete = current_user.is_admin or (current_user.person and photo.uploaded_by_id == current_user.person.id)
+    can_delete = current_user.active_is_admin or (current_user.person and photo.uploaded_by_id == current_user.person.id)
     if can_delete:
         delete_object(photo.path)
         db.session.delete(photo)
@@ -852,7 +866,7 @@ def delete_photo(album_id, photo_id):
 @admin_required
 def delete_album(album_id):
     album = db.session.get(Album, album_id)
-    if not album or album.family_id != current_user.family_id:
+    if not album or album.family_id != current_user.active_family_id:
         return redirect(url_for('main.albums'))
     for photo in album.photos:
         delete_object(photo.path)
@@ -864,7 +878,7 @@ def delete_album(album_id):
 @main.route('/announcements')
 @login_required
 def announcements():
-    items = Announcement.query.filter_by(family_id=current_user.family_id)\
+    items = Announcement.query.filter_by(family_id=current_user.active_family_id)\
         .order_by(Announcement.pinned.desc(), Announcement.created_at.desc()).all()
     form = AnnouncementForm()
     return render_template('announcements.html', announcements=items, form=form)
@@ -876,11 +890,11 @@ def add_announcement():
     form = AnnouncementForm()
     if form.validate_on_submit():
         a = Announcement(
-            family_id=current_user.family_id,
+            family_id=current_user.active_family_id,
             author_id=current_user.person.id if current_user.person else None,
             title=form.title.data.strip(),
             body=form.body.data.strip(),
-            pinned=form.pinned.data and current_user.is_admin,
+            pinned=form.pinned.data and current_user.active_is_admin,
         )
         db.session.add(a)
         db.session.commit()
@@ -892,7 +906,7 @@ def add_announcement():
 @admin_required
 def pin_announcement(ann_id):
     a = db.session.get(Announcement, ann_id)
-    if a and a.family_id == current_user.family_id:
+    if a and a.family_id == current_user.active_family_id:
         a.pinned = not a.pinned
         db.session.commit()
     return redirect(url_for('main.announcements'))
@@ -901,9 +915,9 @@ def pin_announcement(ann_id):
 @login_required
 def delete_announcement(ann_id):
     a = db.session.get(Announcement, ann_id)
-    if not a or a.family_id != current_user.family_id:
+    if not a or a.family_id != current_user.active_family_id:
         return redirect(url_for('main.announcements'))
-    can_delete = current_user.is_admin or (current_user.person and a.author_id == current_user.person.id)
+    can_delete = current_user.active_is_admin or (current_user.person and a.author_id == current_user.person.id)
     if can_delete:
         db.session.delete(a)
         db.session.commit()
@@ -914,9 +928,9 @@ def delete_announcement(ann_id):
 @login_required
 @admin_required
 def admin_users():
-    pending = User.query.filter_by(status='pending', family_id=current_user.family_id).all()
-    people = Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
-    non_directory = Person.query.filter_by(family_id=current_user.family_id, in_directory=False).order_by(Person.name).all()
+    pending = User.query.filter_by(status='pending', family_id=current_user.active_family_id).all()
+    people = Person.query.filter_by(family_id=current_user.active_family_id).order_by(Person.name).all()
+    non_directory = Person.query.filter_by(family_id=current_user.active_family_id, in_directory=False).order_by(Person.name).all()
     return render_template('admin_users.html', pending=pending, people=people, non_directory=non_directory)
 
 @main.route('/admin/approve/<int:user_id>', methods=['POST'])
@@ -924,7 +938,7 @@ def admin_users():
 @admin_required
 def approve_user(user_id):
     user = db.session.get(User, user_id)
-    if not user or user.family_id != current_user.family_id:
+    if not user or user.family_id != current_user.active_family_id:
         flash('User not found.', 'error')
         return redirect(url_for('main.admin_users'))
     user.status = 'approved'
@@ -941,7 +955,7 @@ def approve_user(user_id):
 @admin_required
 def reject_user(user_id):
     user = db.session.get(User, user_id)
-    if not user or user.family_id != current_user.family_id:
+    if not user or user.family_id != current_user.active_family_id:
         flash('User not found.', 'error')
         return redirect(url_for('main.admin_users'))
     user.status = 'rejected'
@@ -954,7 +968,7 @@ def reject_user(user_id):
 @admin_required
 def set_role(user_id):
     user = db.session.get(User, user_id)
-    if not user or user.family_id != current_user.family_id or user.id == current_user.id:
+    if not user or user.family_id != current_user.active_family_id or user.id == current_user.id:
         flash('Invalid request.', 'error')
         return redirect(url_for('main.admin_users'))
     role = request.form.get('role')
@@ -969,7 +983,7 @@ def set_role(user_id):
 @admin_required
 def toggle_directory(person_id):
     person = db.session.get(Person, person_id)
-    if not person or person.family_id != current_user.family_id:
+    if not person or person.family_id != current_user.active_family_id:
         flash('Person not found.', 'error')
         return redirect(url_for('main.admin_users'))
     person.in_directory = not person.in_directory
@@ -981,7 +995,7 @@ def toggle_directory(person_id):
 @contributor_or_admin_required
 def invite_person(person_id):
     person = db.session.get(Person, person_id)
-    if not person or person.family_id != current_user.family_id:
+    if not person or person.family_id != current_user.active_family_id:
         flash('Person not found.', 'error')
         return redirect(url_for('main.home'))
     if person.user:
@@ -1002,7 +1016,7 @@ def invite_person(person_id):
     last = ' '.join(names[1:]) if len(names) > 1 else ''
     token = secrets.token_urlsafe(32)
     invited_user = User(
-        family_id=current_user.family_id,
+        family_id=current_user.active_family_id,
         email=email,
         first_name=first,
         last_name=last,
@@ -1017,7 +1031,7 @@ def invite_person(person_id):
     inviting_name = current_user.person.get_display_name() if current_user.person else current_user.get_full_name()
     if current_app.config.get('MAIL_ENABLED'):
         send_member_invitation_email(
-            inviting_name, first, current_user.family.name,
+            inviting_name, first, current_user.active_family.name,
             email, url_for('main.register_invited', token=token, _external=True)
         )
     flash(f'Invitation sent to {email}.', 'info')
@@ -1058,7 +1072,7 @@ def profile_edit():
 @login_required
 def person_detail(person_id):
     person = db.session.get(Person, person_id)
-    if not person or person.family_id != current_user.family_id:
+    if not person or person.family_id != current_user.active_family_id:
         flash('Person not found.', 'error')
         return redirect(url_for('main.home'))
     relationship = get_relationship(current_user.person, person) if current_user.person else None
@@ -1068,14 +1082,14 @@ def person_detail(person_id):
 @login_required
 def person_edit(person_id):
     person = db.session.get(Person, person_id)
-    if not person or person.family_id != current_user.family_id:
+    if not person or person.family_id != current_user.active_family_id:
         flash('Person not found.', 'error')
         return redirect(url_for('main.home'))
-    can_edit = current_user.is_admin or (person.user and person.user == current_user)
+    can_edit = current_user.active_is_admin or (person.user and person.user == current_user)
     if not can_edit:
         flash('You do not have permission to edit this profile.', 'error')
         return redirect(url_for('main.person_detail', person_id=person_id))
-    lgbtq = current_user.family.has_lgbtq_options
+    lgbtq = current_user.active_family.has_lgbtq_options
     form = EditPersonForm(obj=person)
     form.gender.choices = GENDER_CHOICES_EXPANDED if lgbtq else GENDER_CHOICES_DEFAULT
     if form.validate_on_submit():
@@ -1117,7 +1131,7 @@ def search():
     results = []
     if q:
         results = Person.query.filter(
-            Person.family_id == current_user.family_id,
+            Person.family_id == current_user.active_family_id,
             db.or_(
                 Person.name.ilike(f'%{q}%'),
                 Person.nickname.ilike(f'%{q}%'),
@@ -1130,21 +1144,21 @@ def search():
 @admin_required
 def admin_link_spouse(person_id):
     person = db.session.get(Person, person_id)
-    if not person or person.family_id != current_user.family_id:
+    if not person or person.family_id != current_user.active_family_id:
         flash('Person not found.', 'error')
         return redirect(url_for('main.home'))
     if person.get_active_spouse():
         flash(f'{person.get_display_name()} already has an active spouse.', 'error')
         return redirect(url_for('main.person_detail', person_id=person_id))
     eligible = [
-        p for p in Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
+        p for p in Person.query.filter_by(family_id=current_user.active_family_id).order_by(Person.name).all()
         if p.id != person.id and not p.get_active_spouse()
     ]
     form = SpouseForm()
     form.spouse_id.choices = [(0, '-- Select --')] + [(p.id, p.get_display_name()) for p in eligible]
     if form.validate_on_submit():
         spouse_person = db.session.get(Person, form.spouse_id.data)
-        if not spouse_person or spouse_person.family_id != current_user.family_id:
+        if not spouse_person or spouse_person.family_id != current_user.active_family_id:
             flash('Person not found.', 'error')
             return redirect(url_for('main.admin_link_spouse', person_id=person_id))
         rel = SpouseRelationship(
@@ -1171,7 +1185,7 @@ def spouse_add():
         flash('You already have an active spouse. Please end that relationship first.', 'error')
         return redirect(url_for('main.profile'))
     eligible = [
-        p for p in Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
+        p for p in Person.query.filter_by(family_id=current_user.active_family_id).order_by(Person.name).all()
         if p.id != person.id and not p.get_active_spouse()
     ]
     form = SpouseForm()
@@ -1179,7 +1193,7 @@ def spouse_add():
     invite_form = SpouseInviteForm()
     if form.submit.data and form.validate_on_submit():
         spouse_person = db.session.get(Person, form.spouse_id.data)
-        if not spouse_person or spouse_person.family_id != current_user.family_id:
+        if not spouse_person or spouse_person.family_id != current_user.active_family_id:
             flash('Person not found.', 'error')
             return redirect(url_for('main.spouse_add'))
         token = secrets.token_urlsafe(32)
@@ -1221,12 +1235,12 @@ def spouse_invite():
             flash('An account with that email already exists.', 'error')
             return redirect(url_for('main.spouse_add'))
         full_name = f"{invite_form.first_name.data} {invite_form.last_name.data}"
-        spouse_person = Person.query.filter_by(name=full_name, family_id=current_user.family_id).first()
+        spouse_person = Person.query.filter_by(name=full_name, family_id=current_user.active_family_id).first()
         if not spouse_person:
             spouse_person = Person(
                 name=full_name,
                 email=invite_form.email.data,
-                family_id=current_user.family_id,
+                family_id=current_user.active_family_id,
             )
             db.session.add(spouse_person)
             db.session.flush()
@@ -1248,7 +1262,7 @@ def spouse_invite():
             invitation_token=_hash_token(invitation_token),
             invitation_token_expiry=datetime.utcnow() + timedelta(days=7),
             invited_by_id=current_user.id,
-            family_id=current_user.family_id,
+            family_id=current_user.active_family_id,
             person_id=spouse_person.id,
         )
         db.session.add(invited_user)
@@ -1263,7 +1277,7 @@ def spouse_invite():
         return redirect(url_for('main.profile'))
     form = SpouseForm()
     eligible = [
-        p for p in Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
+        p for p in Person.query.filter_by(family_id=current_user.active_family_id).order_by(Person.name).all()
         if p.id != person.id and not p.get_active_spouse()
     ]
     form.spouse_id.choices = [(0, '-- Select --')] + [(p.id, p.get_display_name()) for p in eligible]
@@ -1347,7 +1361,7 @@ def spouse_end():
 @login_required
 def events_list():
     today = date.today()
-    all_events = Event.query.filter_by(family_id=current_user.family_id).order_by(Event.start_date).all()
+    all_events = Event.query.filter_by(family_id=current_user.active_family_id).order_by(Event.start_date).all()
     upcoming = [e for e in all_events if e.start_date >= today]
     past = [e for e in all_events if e.start_date < today]
     past.reverse()
@@ -1361,7 +1375,7 @@ def event_add():
     form = EventForm()
     if form.validate_on_submit():
         event = Event(
-            family_id=current_user.family_id,
+            family_id=current_user.active_family_id,
             name=form.name.data,
             description=form.description.data or None,
             location=form.location.data or None,
@@ -1391,10 +1405,10 @@ def event_add():
 @login_required
 def event_detail(event_id):
     event = db.session.get(Event, event_id)
-    if not event or event.family_id != current_user.family_id:
+    if not event or event.family_id != current_user.active_family_id:
         flash('Event not found.', 'error')
         return redirect(url_for('main.events_list'))
-    all_people = Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
+    all_people = Person.query.filter_by(family_id=current_user.active_family_id).order_by(Person.name).all()
     dir_people = [p for p in all_people if p.in_directory]
     people_choices = [(0, '— Select —')] + [(p.id, p.get_display_name()) for p in dir_people]
 
@@ -1418,7 +1432,7 @@ def event_detail(event_id):
     assign_form = EventAssignmentForm()
     # Per-assignment admin-assign forms — directory members only
     assign_admin_forms = {}
-    if current_user.is_admin:
+    if current_user.active_is_admin:
         for a in event.assignments:
             f = EventAssignmentAdminAssignForm(prefix=f'a_{a.id}')
             f.person_id.choices = people_choices
@@ -1426,7 +1440,7 @@ def event_detail(event_id):
 
     spot_form = EventSleepingSpotForm()
     sleeping_assign_forms = {}
-    if current_user.is_admin:
+    if current_user.active_is_admin:
         for spot in event.sleeping_spots:
             spot_assigned_ids = {p.id for p in spot.people}
             available = [(p.id, p.get_display_name()) for p in all_people if p.in_directory and p.id not in spot_assigned_ids]
@@ -1463,7 +1477,7 @@ def event_detail(event_id):
     # Build grouped RSVP summary: one entry per household unit
     rsvp_groups = _build_rsvp_groups(event, all_people)
     # Full family groups for admin/contributor view
-    family_groups = _build_family_groups(all_people, rsvp_map) if (current_user.is_admin or current_user.is_delegate) else []
+    family_groups = _build_family_groups(all_people, rsvp_map) if (current_user.active_is_admin or current_user.active_is_delegate) else []
 
     return render_template('event_detail.html',
         event=event,
@@ -1494,7 +1508,7 @@ def event_detail(event_id):
 @admin_required
 def event_edit(event_id):
     event = db.session.get(Event, event_id)
-    if not event or event.family_id != current_user.family_id:
+    if not event or event.family_id != current_user.active_family_id:
         flash('Event not found.', 'error')
         return redirect(url_for('main.events_list'))
     form = EventForm(obj=event)
@@ -1526,7 +1540,7 @@ def event_edit(event_id):
 @admin_required
 def event_delete(event_id):
     event = db.session.get(Event, event_id)
-    if not event or event.family_id != current_user.family_id:
+    if not event or event.family_id != current_user.active_family_id:
         flash('Event not found.', 'error')
         return redirect(url_for('main.events_list'))
     db.session.delete(event)
@@ -1540,7 +1554,7 @@ def event_delete(event_id):
 @admin_required
 def event_enable_section(event_id):
     event = db.session.get(Event, event_id)
-    if not event or event.family_id != current_user.family_id:
+    if not event or event.family_id != current_user.active_family_id:
         return redirect(url_for('main.events_list'))
     section = request.form.get('section')
     if section == 'meals':
@@ -1558,7 +1572,7 @@ def event_enable_section(event_id):
 @admin_required
 def event_disable_section(event_id):
     event = db.session.get(Event, event_id)
-    if not event or event.family_id != current_user.family_id:
+    if not event or event.family_id != current_user.active_family_id:
         return redirect(url_for('main.events_list'))
     section = request.form.get('section')
     if section == 'meals':
@@ -1577,7 +1591,7 @@ def event_disable_section(event_id):
 @login_required
 def event_comment_add(event_id):
     event = db.session.get(Event, event_id)
-    if not event or event.family_id != current_user.family_id:
+    if not event or event.family_id != current_user.active_family_id:
         return redirect(url_for('main.events_list'))
     if not current_user.person:
         flash('You need a family profile to comment.', 'error')
@@ -1599,9 +1613,9 @@ def event_comment_add(event_id):
 def event_comment_delete(event_id, comment_id):
     event = db.session.get(Event, event_id)
     comment = db.session.get(EventComment, comment_id)
-    if not event or event.family_id != current_user.family_id or not comment or comment.event_id != event_id:
+    if not event or event.family_id != current_user.active_family_id or not comment or comment.event_id != event_id:
         return redirect(url_for('main.events_list'))
-    can_delete = current_user.is_admin or (current_user.person and comment.person_id == current_user.person.id)
+    can_delete = current_user.active_is_admin or (current_user.person and comment.person_id == current_user.person.id)
     if can_delete:
         db.session.delete(comment)
         db.session.commit()
@@ -1614,7 +1628,7 @@ def event_comment_delete(event_id, comment_id):
 @login_required
 def event_rsvp(event_id):
     event = db.session.get(Event, event_id)
-    if not event or event.family_id != current_user.family_id:
+    if not event or event.family_id != current_user.active_family_id:
         return redirect(url_for('main.events_list'))
     person_id = request.form.get('person_id', type=int)
     status = request.form.get('status')
@@ -1622,10 +1636,10 @@ def event_rsvp(event_id):
         return redirect(url_for('main.event_detail', event_id=event_id))
     # Verify this person belongs to the family
     person = db.session.get(Person, person_id)
-    if not person or person.family_id != current_user.family_id:
+    if not person or person.family_id != current_user.active_family_id:
         return redirect(url_for('main.event_detail', event_id=event_id))
     # Only allow editing RSVPs for your own household (admin can edit anyone)
-    if not current_user.is_admin:
+    if not current_user.active_is_admin:
         household_ids = _get_household_ids(current_user.person)
         if person_id not in household_ids:
             return redirect(url_for('main.event_detail', event_id=event_id))
@@ -1791,7 +1805,7 @@ def _build_rsvp_groups(event, all_people):
 @admin_required
 def event_meal_add(event_id):
     event = db.session.get(Event, event_id)
-    if not event or event.family_id != current_user.family_id:
+    if not event or event.family_id != current_user.active_family_id:
         flash('Event not found.', 'error')
         return redirect(url_for('main.events_list'))
     form = EventMealForm()
@@ -1814,7 +1828,7 @@ def event_meal_add(event_id):
 @admin_required
 def event_meal_delete(event_id, meal_id):
     meal = db.session.get(EventMeal, meal_id)
-    if not meal or meal.event.family_id != current_user.family_id:
+    if not meal or meal.event.family_id != current_user.active_family_id:
         flash('Meal not found.', 'error')
         return redirect(url_for('main.event_detail', event_id=event_id))
     db.session.delete(meal)
@@ -1828,10 +1842,10 @@ def event_meal_delete(event_id, meal_id):
 @admin_required
 def event_meal_assign_family(event_id, meal_id):
     meal = db.session.get(EventMeal, meal_id)
-    if not meal or meal.event.family_id != current_user.family_id:
+    if not meal or meal.event.family_id != current_user.active_family_id:
         flash('Meal not found.', 'error')
         return redirect(url_for('main.event_detail', event_id=event_id))
-    all_people = Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
+    all_people = Person.query.filter_by(family_id=current_user.active_family_id).order_by(Person.name).all()
     couple_people = [p for p in all_people if p.in_directory and (not p.get_active_spouse() or p.id < p.get_active_spouse().id)]
     form = EventMealFamilyAssignForm(prefix=f'meal_fam_{meal_id}')
     form.assigned_family_id.choices = [(0, '— None —')] + [(p.id, p.get_couple_name()) for p in couple_people]
@@ -1847,7 +1861,7 @@ def event_meal_assign_family(event_id, meal_id):
 @admin_required
 def event_meal_unassign_family(event_id, meal_id):
     meal = db.session.get(EventMeal, meal_id)
-    if not meal or meal.event.family_id != current_user.family_id:
+    if not meal or meal.event.family_id != current_user.active_family_id:
         flash('Meal not found.', 'error')
         return redirect(url_for('main.event_detail', event_id=event_id))
     meal.assigned_family_id = None
@@ -1860,7 +1874,7 @@ def event_meal_unassign_family(event_id, meal_id):
 @admin_required
 def event_meal_item_add(event_id, meal_id):
     meal = db.session.get(EventMeal, meal_id)
-    if not meal or meal.event.family_id != current_user.family_id:
+    if not meal or meal.event.family_id != current_user.active_family_id:
         flash('Meal not found.', 'error')
         return redirect(url_for('main.event_detail', event_id=event_id))
     form = EventMealItemForm()
@@ -1880,7 +1894,7 @@ def event_meal_item_add(event_id, meal_id):
 @login_required
 def event_meal_self_signup(event_id, meal_id):
     meal = db.session.get(EventMeal, meal_id)
-    if not meal or meal.event.family_id != current_user.family_id:
+    if not meal or meal.event.family_id != current_user.active_family_id:
         return redirect(url_for('main.event_detail', event_id=event_id))
     form = EventMealSelfSignupForm()
     if form.validate_on_submit() and current_user.person:
@@ -1899,15 +1913,15 @@ def event_meal_self_signup(event_id, meal_id):
 @login_required
 def event_meal_item_assign(event_id, meal_id, item_id):
     item = db.session.get(EventMealItem, item_id)
-    if not item or item.meal.event.family_id != current_user.family_id:
+    if not item or item.meal.event.family_id != current_user.active_family_id:
         flash('Item not found.', 'error')
         return redirect(url_for('main.event_detail', event_id=event_id))
-    all_people = Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
+    all_people = Person.query.filter_by(family_id=current_user.active_family_id).order_by(Person.name).all()
     form = EventMealAssignForm(prefix=f'item_{item_id}')
     form.person_id.choices = [(0, '— Select —')] + [(p.id, p.get_display_name()) for p in all_people]
     if form.validate_on_submit() and form.person_id.data:
         person = db.session.get(Person, form.person_id.data)
-        if person and person.family_id == current_user.family_id:
+        if person and person.family_id == current_user.active_family_id:
             item.assigned_to_id = person.id
             db.session.commit()
     return redirect(url_for('main.event_detail', event_id=event_id))
@@ -1917,10 +1931,10 @@ def event_meal_item_assign(event_id, meal_id, item_id):
 @login_required
 def event_meal_item_unassign(event_id, meal_id, item_id):
     item = db.session.get(EventMealItem, item_id)
-    if not item or item.meal.event.family_id != current_user.family_id:
+    if not item or item.meal.event.family_id != current_user.active_family_id:
         flash('Item not found.', 'error')
         return redirect(url_for('main.event_detail', event_id=event_id))
-    if not current_user.is_admin:
+    if not current_user.active_is_admin:
         flash('Only admins can unassign items.', 'error')
         return redirect(url_for('main.event_detail', event_id=event_id))
     item.assigned_to_id = None
@@ -1933,7 +1947,7 @@ def event_meal_item_unassign(event_id, meal_id, item_id):
 @admin_required
 def event_meal_item_delete(event_id, meal_id, item_id):
     item = db.session.get(EventMealItem, item_id)
-    if not item or item.meal.event.family_id != current_user.family_id:
+    if not item or item.meal.event.family_id != current_user.active_family_id:
         flash('Item not found.', 'error')
         return redirect(url_for('main.event_detail', event_id=event_id))
     db.session.delete(item)
@@ -1948,7 +1962,7 @@ def event_meal_item_delete(event_id, meal_id, item_id):
 @admin_required
 def event_assignment_add(event_id):
     event = db.session.get(Event, event_id)
-    if not event or event.family_id != current_user.family_id:
+    if not event or event.family_id != current_user.active_family_id:
         flash('Event not found.', 'error')
         return redirect(url_for('main.events_list'))
     form = EventAssignmentForm()
@@ -1970,7 +1984,7 @@ def event_assignment_add(event_id):
 @login_required
 def event_assignment_claim(event_id, aid):
     a = db.session.get(EventAssignment, aid)
-    if not a or a.event.family_id != current_user.family_id:
+    if not a or a.event.family_id != current_user.active_family_id:
         flash('Task not found.', 'error')
         return redirect(url_for('main.event_detail', event_id=event_id))
     if not current_user.person:
@@ -1989,11 +2003,11 @@ def event_assignment_claim(event_id, aid):
 @login_required
 def event_assignment_unclaim(event_id, aid):
     a = db.session.get(EventAssignment, aid)
-    if not a or a.event.family_id != current_user.family_id:
+    if not a or a.event.family_id != current_user.active_family_id:
         flash('Task not found.', 'error')
         return redirect(url_for('main.event_detail', event_id=event_id))
     is_own = current_user.person and a.claimed_by_id == current_user.person.id
-    if not is_own and not current_user.is_admin:
+    if not is_own and not current_user.active_is_admin:
         flash('You can only unclaim your own tasks.', 'error')
         return redirect(url_for('main.event_detail', event_id=event_id))
     a.claimed_by_id = None
@@ -2007,11 +2021,11 @@ def event_assignment_unclaim(event_id, aid):
 @login_required
 def event_assignment_done(event_id, aid):
     a = db.session.get(EventAssignment, aid)
-    if not a or a.event.family_id != current_user.family_id:
+    if not a or a.event.family_id != current_user.active_family_id:
         flash('Task not found.', 'error')
         return redirect(url_for('main.event_detail', event_id=event_id))
     is_own = current_user.person and a.claimed_by_id == current_user.person.id
-    if not is_own and not current_user.is_admin:
+    if not is_own and not current_user.active_is_admin:
         flash('Only the person assigned can mark this done.', 'error')
         return redirect(url_for('main.event_detail', event_id=event_id))
     a.is_done = not a.is_done
@@ -2024,7 +2038,7 @@ def event_assignment_done(event_id, aid):
 @admin_required
 def event_assignment_delete(event_id, aid):
     a = db.session.get(EventAssignment, aid)
-    if not a or a.event.family_id != current_user.family_id:
+    if not a or a.event.family_id != current_user.active_family_id:
         flash('Task not found.', 'error')
         return redirect(url_for('main.event_detail', event_id=event_id))
     db.session.delete(a)
@@ -2038,9 +2052,9 @@ def event_assignment_delete(event_id, aid):
 @admin_required
 def event_assignment_admin_assign(event_id, aid):
     a = db.session.get(EventAssignment, aid)
-    if not a or a.event.family_id != current_user.family_id:
+    if not a or a.event.family_id != current_user.active_family_id:
         return redirect(url_for('main.event_detail', event_id=event_id))
-    all_people = Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
+    all_people = Person.query.filter_by(family_id=current_user.active_family_id).order_by(Person.name).all()
     form = EventAssignmentAdminAssignForm(prefix=f'a_{aid}')
     form.person_id.choices = [(0, '— Select —')] + [(p.id, p.get_display_name()) for p in all_people]
     if form.validate_on_submit():
@@ -2058,7 +2072,7 @@ def event_assignment_admin_assign(event_id, aid):
 @admin_required
 def event_sleeping_add_spot(event_id):
     event = db.session.get(Event, event_id)
-    if not event or event.family_id != current_user.family_id:
+    if not event or event.family_id != current_user.active_family_id:
         flash('Event not found.', 'error')
         return redirect(url_for('main.events_list'))
     form = EventSleepingSpotForm()
@@ -2080,16 +2094,16 @@ def event_sleeping_add_spot(event_id):
 @admin_required
 def event_sleeping_assign(event_id, sid):
     spot = db.session.get(EventSleepingSpot, sid)
-    if not spot or spot.event.family_id != current_user.family_id:
+    if not spot or spot.event.family_id != current_user.active_family_id:
         flash('Spot not found.', 'error')
         return redirect(url_for('main.event_detail', event_id=event_id))
     form = EventSleepingAssignForm(prefix=f'spot_{sid}')
-    eligible = Person.query.filter_by(family_id=current_user.family_id).order_by(Person.name).all()
+    eligible = Person.query.filter_by(family_id=current_user.active_family_id).order_by(Person.name).all()
     spot_assigned_ids = {p.id for p in spot.people}
     form.person_id.choices = [(0, '— Select —')] + [(p.id, p.get_display_name()) for p in eligible if p.id not in spot_assigned_ids]
     if form.validate_on_submit() and form.person_id.data:
         person = db.session.get(Person, form.person_id.data)
-        if person and person.family_id == current_user.family_id and person not in spot.people:
+        if person and person.family_id == current_user.active_family_id and person not in spot.people:
             if spot.capacity and len(spot.people) >= spot.capacity:
                 flash(f'"{spot.name}" is at capacity ({spot.capacity}).', 'error')
             else:
@@ -2104,11 +2118,11 @@ def event_sleeping_assign(event_id, sid):
 @admin_required
 def event_sleeping_unassign(event_id, sid, pid):
     spot = db.session.get(EventSleepingSpot, sid)
-    if not spot or spot.event.family_id != current_user.family_id:
+    if not spot or spot.event.family_id != current_user.active_family_id:
         flash('Spot not found.', 'error')
         return redirect(url_for('main.event_detail', event_id=event_id))
     person = db.session.get(Person, pid)
-    if person and person.family_id == current_user.family_id and person in spot.people:
+    if person and person.family_id == current_user.active_family_id and person in spot.people:
         spot.people.remove(person)
         db.session.commit()
         flash(f'{person.get_display_name()} removed from {spot.name}.', 'info')
@@ -2120,7 +2134,7 @@ def event_sleeping_unassign(event_id, sid, pid):
 @admin_required
 def event_sleeping_delete_spot(event_id, sid):
     spot = db.session.get(EventSleepingSpot, sid)
-    if not spot or spot.event.family_id != current_user.family_id:
+    if not spot or spot.event.family_id != current_user.active_family_id:
         flash('Spot not found.', 'error')
         return redirect(url_for('main.event_detail', event_id=event_id))
     db.session.delete(spot)
@@ -2152,7 +2166,7 @@ def support():
         if current_app.config.get('RESEND_API_KEY'):
             send_support_email(
                 user=current_user,
-                family=current_user.family,
+                family=current_user.active_family,
                 category=form.category.data,
                 message=form.message.data,
                 support_email=support_email
@@ -2166,8 +2180,8 @@ def support():
 def serve_photo(key):
     """Proxy route: serves R2 photos through Flask when no R2_PUBLIC_URL is set."""
     from flask import Response, abort
-    photo = Photo.query.filter_by(family_id=current_user.family_id, path=key).first()
-    person = None if photo else Person.query.filter_by(family_id=current_user.family_id, photo_path=key).first()
+    photo = Photo.query.filter_by(family_id=current_user.active_family_id, path=key).first()
+    person = None if photo else Person.query.filter_by(family_id=current_user.active_family_id, photo_path=key).first()
     if not photo and not person:
         abort(403)
     data, content_type = get_object_bytes(key)

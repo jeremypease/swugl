@@ -184,6 +184,7 @@ def login_2fa():
         if user.totp_enabled and user.totp_secret and pyotp.TOTP(user.totp_secret).verify(code, valid_window=1):
             session.pop('pending_2fa_user_id', None)
             login_user(user, remember=session.pop('pending_2fa_remember', False))
+            session['active_family_id'] = user.family_id
             return redirect(url_for('main.home'))
         flash('Invalid code. Please try again.', 'error')
 
@@ -245,4 +246,5 @@ def login_2fa_passkey_complete():
     db.session.commit()
     session.pop('pending_2fa_user_id', None)
     login_user(user, remember=session.pop('pending_2fa_remember', False))
+    session['active_family_id'] = user.family_id
     return jsonify({'success': True, 'redirect': url_for('main.home')})
