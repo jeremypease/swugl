@@ -9,8 +9,18 @@ from urllib.parse import urlparse
 from . import db, limiter
 from .storage import upload_photo, delete_object, get_object_bytes
 import secrets
+import hashlib
 import re
 import os
+
+
+def _hash_token(token: str) -> str:
+    """SHA-256 hash a token before storing in the DB.
+
+    The raw token travels in email URLs; only the hash lives in the DB so a
+    dump of the database cannot be used to redeem outstanding tokens.
+    """
+    return hashlib.sha256(token.encode()).hexdigest()
 import uuid
 import zipfile
 import io
@@ -335,7 +345,7 @@ def register():
             last_name=form.last_name.data,
             email=form.email.data,
             phone=format_phone(form.phone.data),
-            verification_token=token,
+            verification_token=_hash_token(token),
             verification_token_expiry=datetime.utcnow() + timedelta(hours=24),
             email_verified=False,
             # Family creator is auto-approved — email verification is the only gate
@@ -359,7 +369,7 @@ def register():
 
 @main.route('/verify/<token>')
 def verify_email(token):
-    user = User.query.filter_by(verification_token=token).first()
+    user = User.query.filter_by(verification_token=_hash_token(token)).first()
     if not user:
         flash('Invalid or expired verification link.', 'error')
         return redirect(url_for('main.login'))
@@ -378,7 +388,7 @@ def verify_email(token):
 
 @main.route('/register/invite/<token>', methods=['GET', 'POST'])
 def register_invited(token):
-    invited_user = User.query.filter_by(invitation_token=token).first()
+    invited_user = User.query.filter_by(invitation_token=_hash_token(token)).first()
     if not invited_user or invited_user.status != 'invited':
         flash('Invalid or expired invitation link.', 'error')
         return redirect(url_for('main.login'))
@@ -698,7 +708,7 @@ def forgot_password():
         user = User.query.filter_by(email=form.email.data).first()
         if user and user.status == 'approved':
             token = secrets.token_urlsafe(32)
-            user.reset_token = token
+            user.reset_token = _hash_token(token)
             user.reset_token_expiry = datetime.utcnow() + timedelta(hours=1)
             db.session.commit()
             reset_url = url_for('main.reset_password', token=token, _external=True)
@@ -716,7 +726,7 @@ def forgot_password():
 def reset_password(token):
     if current_user.is_authenticated:
         return redirect(url_for('main.home'))
-    user = User.query.filter_by(reset_token=token).first()
+    user = User.query.filter_by(reset_token=_hash_token(token)).first()
     if not user or (user.reset_token_expiry and user.reset_token_expiry < datetime.utcnow()):
         flash('This reset link is invalid or has expired.', 'error')
         return redirect(url_for('main.forgot_password'))
@@ -998,7 +1008,7 @@ def invite_person(person_id):
         last_name=last,
         password_hash='',
         status='invited',
-        invitation_token=token,
+        invitation_token=_hash_token(token),
         invitation_token_expiry=datetime.utcnow() + timedelta(days=7),
         person_id=person.id,
     )
@@ -1235,7 +1245,7 @@ def spouse_invite():
             password_hash='invited',
             email_verified=False,
             status='invited',
-            invitation_token=invitation_token,
+            invitation_token=_hash_token(invitation_token),
             invitation_token_expiry=datetime.utcnow() + timedelta(days=7),
             invited_by_id=current_user.id,
             family_id=current_user.family_id,

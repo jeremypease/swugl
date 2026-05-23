@@ -364,10 +364,10 @@ OurPeaPod stores personal information — names, birthdays, addresses, family re
 - [ ] **Password strength enforcement** — add minimum 10-character requirement and reject the 100 most common passwords.
 - [ ] **Dependency vulnerability scanning** — add GitHub Dependabot or run `pip audit` in CI before each deploy.
 - [ ] **Secure token comparison** — use `hmac.compare_digest()` when validating invitation/reset tokens to prevent timing attacks.
-- [ ] **HSTS header** — add `Strict-Transport-Security: max-age=63072000; includeSubDomains` to `set_security_headers()`. Prevents protocol downgrade attacks. One line; no reason to delay.
-- [ ] **Remove `unsafe-inline` from CSP** — the current CSP allows inline `<script>` and `<style>` tags, which largely defeats XSS protection. Move all inline scripts to `.js` files and inline styles to CSS classes, then remove `'unsafe-inline'` from both `script-src` and `style-src`. Replace with a per-request nonce if any inline script is genuinely unavoidable.
-- [ ] **Session lifetime** — set `PERMANENT_SESSION_LIFETIME` (e.g. 14 days) and `REMEMBER_COOKIE_DURATION` (e.g. 30 days) in `create_app()`. Currently both are unbounded — a "remember me" cookie lives forever by default.
-- [ ] **Hash reset/invite tokens before DB storage** — tokens are currently stored plaintext. If an attacker reads a DB dump, all outstanding reset and invite tokens are immediately valid. Store `sha256(token)` in the DB; compare `sha256(submitted_token)` on redemption. Token length (32 bytes urlsafe) already prevents brute force; hashing adds defense-in-depth against DB exfiltration.
+- [x] **HSTS header** — `Strict-Transport-Security: max-age=63072000; includeSubDomains` added to `set_security_headers()` (production only).
+- [x] **Remove `unsafe-inline` from `script-src`** — per-request nonce generated in `before_request`, injected into CSP header and every inline `<script nonce="...">` tag. `unsafe-inline` removed from `script-src`. Note: `style-src` still has `unsafe-inline` — removing it requires migrating 663 inline `style=` attributes to CSS classes (ongoing, tracked in Accessibility).
+- [x] **Session lifetime** — `PERMANENT_SESSION_LIFETIME=14d`, `REMEMBER_COOKIE_DURATION=30d` set in `create_app()`.
+- [x] **Hash reset/invite/verification tokens before DB storage** — `sha256(token)` stored in DB; raw token travels only in email URLs. Applied to `reset_token`, `verification_token`, and `invitation_token`.
 
 ### Near-term (before paid tier)
 - [ ] **Audit log** — record admin actions (approving members, changing roles, deleting content) to a log table. Families deserve to know who did what.

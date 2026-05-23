@@ -157,7 +157,7 @@
         All plans include a 30-day free trial. No credit card required to start.
     </p>
 
-    <script>
+    <script nonce="{{ g.csp_nonce }}">
     function setPricing(period) {
         document.querySelectorAll('#pricingToggle button').forEach(function(btn) {
             btn.classList.toggle('active', btn.dataset.period === period);

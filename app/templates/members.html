@@ -121,7 +121,7 @@
 .initial-btn.active { background:var(--vine); color:#fff; border-color:var(--vine); }
 </style>
 
-<script>
+<script nonce="{{ g.csp_nonce }}">
 const cards = Array.from(document.querySelectorAll('.member-card'));
 let activeFilters = { gender: '', status: '', photo: '', upcoming: false };
 let activeInitial = '';

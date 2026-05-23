@@ -97,7 +97,7 @@
                 </div>
                 {% endfor %}
             </div>
-            <script>
+            <script nonce="{{ g.csp_nonce }}">
             document.getElementById('flash-container').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             setTimeout(function() {
                 var flashes = document.querySelectorAll('.flash-animate');
@@ -148,6 +148,6 @@
 </div>
 {% endif %}
 
-<script>lucide.createIcons();</script>
+<script nonce="{{ g.csp_nonce }}">lucide.createIcons();</script>
 </body>
 </html>

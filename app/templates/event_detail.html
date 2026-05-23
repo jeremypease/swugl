@@ -851,7 +851,7 @@ details[open] .details-chevron { transform: rotate(180deg); }
 </div>
 {% endif %}
 
-<script>
+<script nonce="{{ g.csp_nonce }}">
 function toggleForm(id) {
     const el = document.getElementById(id);
     el.style.display = el.style.display === 'none' ? 'block' : 'none';

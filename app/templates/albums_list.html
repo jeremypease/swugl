@@ -197,7 +197,7 @@
         </form>
     </div>
 </div>
-<script>
+<script nonce="{{ g.csp_nonce }}">
 const modal = document.getElementById('new-album-modal');
 const presetEvent = sessionStorage.getItem('newAlbumEvent');
 if (presetEvent) {

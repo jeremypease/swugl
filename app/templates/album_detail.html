@@ -107,7 +107,7 @@
     <button onclick="nextPhoto()" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.15);border:none;border-radius:50%;width:44px;height:44px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;">›</button>
 </div>
 
-<script>
+<script nonce="{{ g.csp_nonce }}">
 const photos = [
     {% for photo in album.photos %}
     {

@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, g
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, current_user
 from flask_migrate import Migrate
@@ -6,9 +6,10 @@ from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, timedelta
 import sentry_sdk
 from sentry_sdk.integrations.flask import FlaskIntegration
+import secrets
 import os
 
 load_dotenv()
@@ -77,6 +78,10 @@ def create_app(test_config=None):
     app.config['WEBAUTHN_RP_NAME'] = os.environ.get('WEBAUTHN_RP_NAME', 'OurPeaPod')
     app.config['WEBAUTHN_ORIGIN'] = os.environ.get('WEBAUTHN_ORIGIN', 'http://localhost:5000')
 
+    # Session lifetime
+    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=14)
+    app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=30)
+
     # Secure cookies in production (HTTPS only)
     if os.environ.get('FLASK_ENV') == 'production':
         app.config['SESSION_COOKIE_SECURE'] = True
@@ -120,6 +125,12 @@ def create_app(test_config=None):
             if not current_user.is_authenticated:
                 return redirect(url_for('main.login', next=request.path))
 
+    # Generate a fresh CSP nonce for every request so inline scripts can be
+    # whitelisted without 'unsafe-inline'.
+    @app.before_request
+    def set_csp_nonce():
+        g.csp_nonce = secrets.token_urlsafe(16)
+
     # Security headers on every response
     @app.after_request
     def set_security_headers(response):
@@ -127,12 +138,14 @@ def create_app(test_config=None):
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
         response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
-        # Tight CSP: same-origin only, plus the specific CDNs we use
+        if os.environ.get('FLASK_ENV') == 'production':
+            response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains'
+        nonce = getattr(g, 'csp_nonce', '')
         r2_url = app.config.get('R2_PUBLIC_URL', '').rstrip('/')
         img_src = f"'self' data: {r2_url}" if r2_url else "'self' data:"
         response.headers['Content-Security-Policy'] = (
             "default-src 'self'; "
-            "script-src 'self' https://unpkg.com 'unsafe-inline'; "
+            f"script-src 'self' https://unpkg.com 'nonce-{nonce}'; "
             "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; "
             "font-src 'self' https://fonts.gstatic.com; "
             f"img-src {img_src}; "

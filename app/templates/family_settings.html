@@ -97,7 +97,7 @@
                     </label>
                 </div>
             </details>
-            <script>
+            <script nonce="{{ g.csp_nonce }}">
             document.querySelector('details').addEventListener('toggle', function() {
                 this.querySelector('.details-chevron').style.transform = this.open ? 'rotate(180deg)' : '';
             });

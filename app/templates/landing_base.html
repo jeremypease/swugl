@@ -54,7 +54,7 @@
     </div>
 </footer>
 
-<script>
+<script nonce="{{ g.csp_nonce }}">
 lucide.createIcons();
 document.getElementById('navToggle').addEventListener('click', function() {
     document.getElementById('navMobile').classList.toggle('open');
