@@ -256,6 +256,60 @@
 
 /* ── Pricing ─────────────────────────────────────────────────────────────── */
 
+.l-pricing-toggle {
+    display: flex;
+    gap: 4px;
+    background: var(--cream);
+    border: 1px solid var(--hairline-mid);
+    border-radius: 999px;
+    padding: 4px;
+    width: fit-content;
+    margin: 32px auto 0;
+}
+
+.l-pricing-toggle button {
+    background: none;
+    border: none;
+    border-radius: 999px;
+    padding: 7px 20px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--slate);
+    cursor: pointer;
+    transition: background .15s, color .15s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: inherit;
+}
+
+.l-pricing-toggle button.active {
+    background: var(--vine);
+    color: #fff;
+}
+
+.l-pricing-toggle .save-tag {
+    font-size: 11px;
+    font-weight: 700;
+    background: var(--pea);
+    color: #fff;
+    padding: 2px 7px;
+    border-radius: 999px;
+    line-height: 1.6;
+}
+
+.l-pricing-toggle button.active .save-tag {
+    background: rgba(255,255,255,.28);
+}
+
+.l-pricing-annual-note {
+    font-size: 13px;
+    color: var(--vine);
+    font-weight: 600;
+    margin-bottom: 4px;
+    margin-top: 2px;
+}
+
 .l-pricing-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;

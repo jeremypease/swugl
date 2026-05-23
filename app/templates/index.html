@@ -103,6 +103,11 @@
         <p>Every family gets a free pod. Upgrade when you need more room to grow.</p>
     </div>
 
+    <div class="l-pricing-toggle" id="pricingToggle">
+        <button class="active" data-period="monthly" onclick="setPricing('monthly')">Monthly</button>
+        <button data-period="annual" onclick="setPricing('annual')">Annually <span class="save-tag">Save 17%</span></button>
+    </div>
+
     <div class="l-pricing-grid">
 
         <div class="l-pricing-card">
@@ -126,7 +131,13 @@
         <div class="l-pricing-card featured">
             <div class="l-pricing-badge">Most popular</div>
             <div class="l-pricing-tier">Family Plan</div>
-            <div class="l-pricing-price"><sup>$</sup>9<span class="per"> / month</span></div>
+            <div class="price-monthly">
+                <div class="l-pricing-price"><sup>$</sup>9<span class="per"> / month</span></div>
+            </div>
+            <div class="price-annual" style="display:none;">
+                <div class="l-pricing-price"><sup>$</sup>7<sup style="font-size:18px;margin-top:14px;">.50</sup><span class="per"> / month</span></div>
+                <div class="l-pricing-annual-note">$90 billed annually &mdash; 2 months free</div>
+            </div>
             <div class="l-pricing-desc">For larger families who want the full experience.</div>
             <ul class="l-pricing-list">
                 <li><i data-lucide="check"></i> Unlimited members</li>
@@ -143,8 +154,19 @@
     </div>
 
     <p style="text-align:center;font-size:13px;color:var(--slate);margin-top:20px;">
-        All plans include a 14-day free trial. No credit card required to start.
+        All plans include a 30-day free trial. No credit card required to start.
     </p>
+
+    <script>
+    function setPricing(period) {
+        document.querySelectorAll('#pricingToggle button').forEach(function(btn) {
+            btn.classList.toggle('active', btn.dataset.period === period);
+        });
+        var isAnnual = period === 'annual';
+        document.querySelectorAll('.price-monthly').forEach(function(el) { el.style.display = isAnnual ? 'none' : ''; });
+        document.querySelectorAll('.price-annual').forEach(function(el) { el.style.display = isAnnual ? '' : 'none'; });
+    }
+    </script>
 </div>
 
 {# ── CTA band ──────────────────────────────────────────────────────────── #}
