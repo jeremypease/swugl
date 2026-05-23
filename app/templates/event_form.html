@@ -86,7 +86,7 @@
                 {{ form.cover_image.label }}
                 {% if event and event.cover_image_path %}
                 <div style="margin-bottom:8px;">
-                    <img src="{{ url_for('static', filename=event.cover_image_path) }}" style="height:80px;border-radius:var(--r-s);object-fit:cover;">
+                    <img src="{{ photo_url(event.cover_image_path) }}" style="height:80px;border-radius:var(--r-s);object-fit:cover;">
                 </div>
                 <label class="checkbox-row" style="margin-bottom:6px;">
                     {{ form.remove_cover() }} <span style="font-size:13px;">Remove current cover image</span>

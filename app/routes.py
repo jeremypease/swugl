@@ -595,6 +595,9 @@ def set_parent_role(person_id, parent_id):
     valid_roles = {r for r, _ in PARENT_ROLES}
     if role not in valid_roles:
         role = 'parent'
+    parent_person = db.session.get(Person, parent_id)
+    if not parent_person or parent_person.family_id != current_user.family_id:
+        return redirect(url_for('main.person_detail', person_id=person_id))
     pr = ParentRelationship.query.filter_by(parent_id=parent_id, child_id=person_id).first()
     if pr:
         pr.role = role
@@ -705,6 +708,7 @@ def forgot_password():
     return render_template('forgot_password.html', form=form)
 
 @main.route('/reset-password/<token>', methods=['GET', 'POST'])
+@limiter.limit('10 per hour', methods=['POST'])
 def reset_password(token):
     if current_user.is_authenticated:
         return redirect(url_for('main.home'))
@@ -1490,22 +1494,13 @@ def event_edit(event_id):
         event.has_assignments = form.has_assignments.data
         event.has_sleeping = form.has_sleeping.data
         if form.remove_cover.data and event.cover_image_path:
-            old = os.path.join(current_app.root_path, 'static', event.cover_image_path)
-            if os.path.exists(old):
-                os.remove(old)
+            delete_object(event.cover_image_path)
             event.cover_image_path = None
         elif form.cover_image.data and hasattr(form.cover_image.data, 'filename') and form.cover_image.data.filename:
-            if event.cover_image_path:
-                old = os.path.join(current_app.root_path, 'static', event.cover_image_path)
-                if os.path.exists(old):
-                    os.remove(old)
-            f = form.cover_image.data
-            ext = os.path.splitext(f.filename)[1].lower()
-            upload_dir = os.path.join(current_app.root_path, 'static', 'uploads', 'events')
-            os.makedirs(upload_dir, exist_ok=True)
-            filename = f'{uuid.uuid4().hex}{ext}'
-            f.save(os.path.join(upload_dir, filename))
-            event.cover_image_path = f'uploads/events/{filename}'
+            delete_object(event.cover_image_path)
+            key = upload_photo(form.cover_image.data, folder='events')
+            if key:
+                event.cover_image_path = key
         db.session.commit()
         flash('Event updated.', 'info')
         return redirect(url_for('main.event_detail', event_id=event.id))

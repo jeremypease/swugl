@@ -203,7 +203,7 @@ details[open] .details-chevron { transform: rotate(180deg); }
 
     {# Cover image #}
     {% if event.cover_image_path %}
-    <img src="{{ url_for('static', filename=event.cover_image_path) }}" class="ev-cover" alt="{{ event.name }}">
+    <img src="{{ photo_url(event.cover_image_path) }}" class="ev-cover" alt="{{ event.name }}">
     {% endif %}
 
     {# Description #}
@@ -834,7 +834,7 @@ details[open] .details-chevron { transform: rotate(180deg); }
                 {{ event_form.cover_image.label }}
                 {% if event.cover_image_path %}
                 <div style="margin-bottom:8px;">
-                    <img src="{{ url_for('static', filename=event.cover_image_path) }}" style="height:70px;border-radius:var(--r-s);object-fit:cover;">
+                    <img src="{{ photo_url(event.cover_image_path) }}" style="height:70px;border-radius:var(--r-s);object-fit:cover;">
                 </div>
                 <label class="checkbox-row" style="margin-bottom:6px;">
                     {{ event_form.remove_cover() }} <span style="font-size:13px;">Remove current cover image</span>
