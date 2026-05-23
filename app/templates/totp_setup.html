@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Set up authenticator app — {{ current_user.family.name }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div class="page-head-eyebrow">Security</div>
+    <h1 class="page-head-title">Set up authenticator app</h1>
+</div>
+
+<div class="content-body" style="max-width:480px;">
+    <div class="card">
+        <div class="card-body">
+            <p style="margin-bottom:16px;">Scan this QR code with <strong>Google Authenticator</strong>, <strong>Authy</strong>, or any TOTP app, then enter the 6-digit code it shows to confirm.</p>
+
+            <div style="text-align:center;margin-bottom:20px;">
+                <img src="data:image/png;base64,{{ qr_b64 }}" alt="QR code" style="border:1px solid var(--border);border-radius:8px;width:180px;height:180px;">
+            </div>
+
+            <details style="margin-bottom:20px;">
+                <summary style="font-size:13px;color:var(--slate);cursor:pointer;">Can't scan? Enter the key manually</summary>
+                <code style="display:block;margin-top:8px;font-size:13px;word-break:break-all;background:var(--cream-warm);padding:8px;border-radius:6px;">{{ secret }}</code>
+            </details>
+
+            <form method="post" action="{{ url_for('tf.totp_enable') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="form-group" style="margin-bottom:16px;">
+                    <label class="form-label">6-digit code from your app</label>
+                    <input type="text" name="code" class="form-control" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" autofocus style="max-width:160px;">
+                </div>
+                <div style="display:flex;gap:12px;">
+                    <button type="submit" class="btn btn-primary">Confirm and enable</button>
+                    <a href="{{ url_for('tf.security') }}" class="btn btn-secondary">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

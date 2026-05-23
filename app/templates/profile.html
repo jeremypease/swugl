@@ -116,6 +116,11 @@
                 <i data-lucide="edit-2"></i> {% if is_own_profile %}Edit my profile{% else %}Edit profile{% endif %}
             </a>
             {% endif %}
+            {% if is_own_profile %}
+            <a href="{{ url_for('tf.security') }}" class="btn btn-secondary btn-sm" style="justify-content:flex-start;">
+                <i data-lucide="shield"></i> Security
+            </a>
+            {% endif %}
             {% set can_invite = (current_user.is_admin or current_user.is_delegate) and not person.user and not person.deathday and (not person.get_age() or person.get_age() > 12) %}
             {% if can_invite %}
             {% if person.email %}

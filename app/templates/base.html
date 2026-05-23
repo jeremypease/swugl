@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/peavines.css') }}">
     <script src="https://unpkg.com/lucide@latest"></script>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     {% block head %}{% endblock %}
 </head>
 <body>
@@ -127,6 +128,13 @@
                 <a href="/billing" style="color:#fff;font-weight:600;white-space:nowrap;text-decoration:underline;">Fix now</a>
             </div>
             {% endif %}
+        {% endif %}
+
+        {% if current_user.is_authenticated and not current_user.has_2fa %}
+        <div style="background:#f0f6ff;border-bottom:1px solid #c7daf7;padding:8px 40px;font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <span>🔐 <strong>Secure your account</strong> — enable Face ID, Touch ID, or an authenticator app for stronger sign-in protection.</span>
+            <a href="{{ url_for('tf.security') }}" style="color:var(--vine);font-weight:600;white-space:nowrap;">Set up now</a>
+        </div>
         {% endif %}
 
         <div class="canvas-inner">

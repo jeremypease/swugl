@@ -214,6 +214,15 @@ class User(UserMixin, db.Model):
     reset_token = db.Column(db.String(100))
     reset_token_expiry = db.Column(db.DateTime)
 
+    # Two-factor authentication
+    totp_secret = db.Column(db.String(64), nullable=True)
+    totp_enabled = db.Column(db.Boolean, nullable=False, server_default='0')
+    passkeys = db.relationship('UserCredential', backref='user', cascade='all, delete-orphan')
+
+    @property
+    def has_2fa(self):
+        return self.totp_enabled or bool(self.passkeys)
+
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
 
@@ -227,6 +236,19 @@ class User(UserMixin, db.Model):
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
+
+
+class UserCredential(db.Model):
+    """Stores a WebAuthn passkey (one row per registered device)."""
+    __tablename__ = 'user_credentials'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    credential_id = db.Column(db.Text, nullable=False, unique=True)  # base64url
+    public_key = db.Column(db.Text, nullable=False)                  # base64
+    sign_count = db.Column(db.Integer, nullable=False, default=0)
+    device_name = db.Column(db.String(100), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
 event_sleeping_assignments = db.Table('event_sleeping_assignments',

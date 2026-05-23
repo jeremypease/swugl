@@ -1,0 +1,49 @@
+{% extends "landing_base.html" %}
+{% block title %}Verify your identity — OurPeaPod{% endblock %}
+
+{% block content %}
+<script src="{{ url_for('static', filename='js/passkey.js') }}"></script>
+
+<div style="max-width:400px;margin:80px auto;padding:0 24px;">
+    <div class="card">
+        <div class="card-body">
+            <h2 style="font-size:20px;font-weight:600;margin-bottom:6px;">Two-step verification</h2>
+            <p style="font-size:14px;color:var(--slate);margin-bottom:24px;">Confirm it's you before we sign you in.</p>
+
+            {% if has_passkeys %}
+            <div style="margin-bottom:24px;">
+                <button class="btn btn-primary" style="width:100%;" onclick="authenticateWithPasskey()">
+                    Use Face ID / Touch ID
+                </button>
+                <div id="passkey-status" class="form-hint" style="margin-top:6px;text-align:center;"></div>
+            </div>
+            {% endif %}
+
+            {% if has_passkeys and has_totp %}
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+                <hr style="flex:1;border:none;border-top:1px solid var(--border);">
+                <span style="font-size:12px;color:var(--slate);">or</span>
+                <hr style="flex:1;border:none;border-top:1px solid var(--border);">
+            </div>
+            {% endif %}
+
+            {% if has_totp %}
+            <form method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="form-group" style="margin-bottom:16px;">
+                    <label class="form-label">6-digit code from your authenticator app</label>
+                    <input type="text" name="code" class="form-control" inputmode="numeric"
+                           autocomplete="one-time-code" maxlength="6" placeholder="123456"
+                           autofocus style="max-width:160px;">
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%;">Verify</button>
+            </form>
+            {% endif %}
+
+            <div style="margin-top:20px;text-align:center;">
+                <a href="{{ url_for('main.login') }}" style="font-size:13px;color:var(--slate);">← Back to sign in</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -30,7 +30,7 @@ migrate = Migrate()
 csrf = CSRFProtect()
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 
-def create_app():
+def create_app(test_config=None):
     app = Flask(__name__)
 
     secret = os.environ.get('SECRET_KEY')
@@ -48,6 +48,10 @@ def create_app():
         'pool_pre_ping': True,
         'pool_recycle': 300,
     }
+
+    # Apply test overrides before any extension touches the config
+    if test_config:
+        app.config.update(test_config)
 
     app.config['REGISTRATION_OPEN'] = os.environ.get('REGISTRATION_OPEN', '').lower() == 'true'
 
@@ -69,6 +73,10 @@ def create_app():
     app.config['R2_BUCKET_NAME'] = os.environ.get('R2_BUCKET_NAME')
     app.config['R2_PUBLIC_URL'] = os.environ.get('R2_PUBLIC_URL', '')
 
+    app.config['WEBAUTHN_RP_ID'] = os.environ.get('WEBAUTHN_RP_ID', 'localhost')
+    app.config['WEBAUTHN_RP_NAME'] = os.environ.get('WEBAUTHN_RP_NAME', 'OurPeaPod')
+    app.config['WEBAUTHN_ORIGIN'] = os.environ.get('WEBAUTHN_ORIGIN', 'http://localhost:5000')
+
     # Secure cookies in production (HTTPS only)
     if os.environ.get('FLASK_ENV') == 'production':
         app.config['SESSION_COOKIE_SECURE'] = True
@@ -86,10 +94,12 @@ def create_app():
     from .models import User, Person
     from .routes import main
     from .billing import billing
+    from .two_factor import tf
     from .storage import photo_url
     from .commands import email_sequence
     app.register_blueprint(main)
     app.register_blueprint(billing)
+    app.register_blueprint(tf)
     csrf.exempt(app.view_functions['billing.webhook'])
     app.cli.add_command(email_sequence)
 

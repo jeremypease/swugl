@@ -279,6 +279,10 @@ def login():
         if user.status != 'approved':
             flash('Your account is pending approval.', 'error')
             return redirect(url_for('main.login'))
+        if user.has_2fa:
+            session['pending_2fa_user_id'] = user.id
+            session['pending_2fa_remember'] = form.remember_me.data
+            return redirect(url_for('tf.login_2fa'))
         login_user(user, remember=form.remember_me.data)
         next_page = request.args.get('next')
         # Reject absolute URLs to prevent open redirect

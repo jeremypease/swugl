@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Security — {{ current_user.family.name }}{% endblock %}
+
+{% block content %}
+<script src="{{ url_for('static', filename='js/passkey.js') }}"></script>
+
+<div class="page-head">
+    <div class="page-head-eyebrow">Account</div>
+    <h1 class="page-head-title">Security</h1>
+</div>
+
+<div class="content-body" style="max-width:640px;">
+
+    {# ── Passkeys ── #}
+    <div class="card" style="margin-bottom:24px;">
+        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+            <div>
+                <strong>Passkeys</strong>
+                <div style="font-size:13px;color:var(--slate);margin-top:2px;">Sign in with Face ID, Touch ID, or a hardware security key — no password needed at the 2FA step.</div>
+            </div>
+        </div>
+        <div class="card-body">
+            {% if passkeys %}
+            <table class="data-table" style="margin-bottom:16px;">
+                <thead><tr><th>Device</th><th>Added</th><th></th></tr></thead>
+                <tbody>
+                {% for pk in passkeys %}
+                <tr>
+                    <td>{{ pk.device_name or 'Passkey' }}</td>
+                    <td style="color:var(--slate);font-size:13px;">{{ pk.created_at.strftime('%b %d, %Y') }}</td>
+                    <td style="text-align:right;">
+                        <form method="post" action="{{ url_for('tf.passkey_delete', cred_id=pk.id) }}" style="display:inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn-link text-danger" onclick="return confirm('Remove this passkey?')">Remove</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p style="color:var(--slate);font-size:14px;margin-bottom:16px;">No passkeys registered yet.</p>
+            {% endif %}
+
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <input id="passkey-name" type="text" class="form-control" placeholder="Device name (e.g. MacBook Pro)" style="max-width:240px;">
+                <button class="btn btn-primary" onclick="registerPasskey()">Add passkey</button>
+            </div>
+            <div id="passkey-status" class="form-hint" style="margin-top:6px;"></div>
+        </div>
+    </div>
+
+    {# ── TOTP ── #}
+    <div class="card" style="margin-bottom:24px;">
+        <div class="card-header">
+            <strong>Authenticator app</strong>
+            <div style="font-size:13px;color:var(--slate);margin-top:2px;">Use Google Authenticator, Authy, or any TOTP app as a second factor.</div>
+        </div>
+        <div class="card-body">
+            {% if totp_enabled %}
+            <p style="color:var(--vine);font-weight:600;margin-bottom:16px;">✓ Authenticator app is enabled.</p>
+            <form method="post" action="{{ url_for('tf.totp_disable') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="form-group" style="max-width:200px;margin-bottom:12px;">
+                    <label class="form-label">Enter your current code to disable</label>
+                    <input type="text" name="code" class="form-control" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456">
+                </div>
+                <button type="submit" class="btn btn-secondary">Remove authenticator app</button>
+            </form>
+            {% else %}
+            <p style="color:var(--slate);font-size:14px;margin-bottom:16px;">Not enabled.</p>
+            <a href="{{ url_for('tf.totp_setup') }}" class="btn btn-primary">Set up authenticator app</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <a href="{{ url_for('main.profile') }}" style="font-size:14px;color:var(--slate);">← Back to profile</a>
+</div>
+{% endblock %}

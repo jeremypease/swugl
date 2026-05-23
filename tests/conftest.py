@@ -8,7 +8,7 @@ os.environ.setdefault('DATABASE_URL', '')
 os.environ.setdefault('FLASK_ENV', 'testing')
 
 from app import create_app, db as _db
-from app.models import Family, User, Person, Event
+from app.models import Family, User, Person, Event, UserCredential
 from datetime import date
 
 
@@ -16,15 +16,13 @@ from datetime import date
 def app():
     db_fd, db_path = tempfile.mkstemp(suffix='.db')
     os.close(db_fd)
-    application = create_app()
-    application.config.update(
-        TESTING=True,
-        SQLALCHEMY_DATABASE_URI=f'sqlite:///{db_path}',
-        SQLALCHEMY_ENGINE_OPTIONS={'poolclass': NullPool},
-        WTF_CSRF_ENABLED=False,
-    )
+    application = create_app({
+        'TESTING': True,
+        'SQLALCHEMY_DATABASE_URI': f'sqlite:///{db_path}',
+        'SQLALCHEMY_ENGINE_OPTIONS': {'poolclass': NullPool},
+        'WTF_CSRF_ENABLED': False,
+    })
     with application.app_context():
-        _db.drop_all()
         _db.create_all()
         _seed()
         yield application
