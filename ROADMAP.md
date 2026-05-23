@@ -19,7 +19,8 @@
 - [ ] Harden auth: rate-limit login, add email verification on registration
 - [ ] Confirm all admin-only routes enforce `@admin_required` consistently
 - [ ] Write a basic smoke-test suite for the critical paths (login, profile edit, event CRUD)
-- [ ] **Wire up Cloudflare R2 or AWS S3 for photo storage** — Railway's filesystem is ephemeral; uploaded photos will be lost on every redeploy. This must be done before any non-test family uses the app, not just before "launch." See Security → Pre-launch must-do for details.
+- [x] **Wire up Cloudflare R2 for photo storage** — done; photos now store to R2 and serve via the `/photos/<key>` proxy route (login required). R2 public URL deliberately not enabled — see note below.
+- [ ] **Re-evaluate R2 photo delivery** — currently photos proxy through Railway (`/photos/<key>`), which is secure (login required) but adds latency. If photo loading feels slow with real family usage, add a custom domain (e.g. `photos.ourpeapod.com`) in R2 → Custom Domains, set `R2_PUBLIC_URL` in Railway, and accept that URLs are publicly accessible to anyone who has them (mitigated by UUID keys).
 
 ---
 
