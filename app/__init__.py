@@ -63,6 +63,12 @@ def create_app():
 
     app.config['SUPPORT_EMAIL'] = os.environ.get('SUPPORT_EMAIL', 'jeremypease@me.com')
 
+    app.config['R2_ACCOUNT_ID'] = os.environ.get('R2_ACCOUNT_ID')
+    app.config['R2_ACCESS_KEY_ID'] = os.environ.get('R2_ACCESS_KEY_ID')
+    app.config['R2_SECRET_ACCESS_KEY'] = os.environ.get('R2_SECRET_ACCESS_KEY')
+    app.config['R2_BUCKET_NAME'] = os.environ.get('R2_BUCKET_NAME')
+    app.config['R2_PUBLIC_URL'] = os.environ.get('R2_PUBLIC_URL', '')
+
     # Secure cookies in production (HTTPS only)
     if os.environ.get('FLASK_ENV') == 'production':
         app.config['SESSION_COOKIE_SECURE'] = True
@@ -80,9 +86,12 @@ def create_app():
     from .models import User, Person
     from .routes import main
     from .billing import billing
+    from .storage import photo_url
     app.register_blueprint(main)
     app.register_blueprint(billing)
     csrf.exempt(app.view_functions['billing.webhook'])
+
+    app.jinja_env.globals['photo_url'] = photo_url
 
     @app.context_processor
     def inject_now():
@@ -107,12 +116,14 @@ def create_app():
         response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
         response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
         # Tight CSP: same-origin only, plus the specific CDNs we use
+        r2_url = app.config.get('R2_PUBLIC_URL', '').rstrip('/')
+        img_src = f"'self' data: {r2_url}" if r2_url else "'self' data:"
         response.headers['Content-Security-Policy'] = (
             "default-src 'self'; "
             "script-src 'self' https://unpkg.com 'unsafe-inline'; "
             "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; "
             "font-src 'self' https://fonts.gstatic.com; "
-            "img-src 'self' data:; "
+            f"img-src {img_src}; "
             "connect-src 'self';"
         )
         return response

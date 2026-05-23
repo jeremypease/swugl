@@ -7,6 +7,7 @@ from datetime import date, datetime, timedelta
 from functools import wraps
 from urllib.parse import urlparse
 from . import db, limiter
+from .storage import upload_photo, delete_object, get_object_bytes
 import secrets
 import re
 import os
@@ -724,14 +725,7 @@ def reset_password(token):
 ALLOWED_PHOTO_EXTS = {'jpg', 'jpeg', 'png', 'webp', 'gif', 'heic'}
 
 def _save_photo_file(file, album_id):
-    ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else 'jpg'
-    if ext not in ALLOWED_PHOTO_EXTS:
-        return None
-    upload_dir = os.path.join(current_app.root_path, 'static', 'uploads', 'albums', str(album_id))
-    os.makedirs(upload_dir, exist_ok=True)
-    filename = f'{uuid.uuid4().hex}.{ext}'
-    file.save(os.path.join(upload_dir, filename))
-    return f'uploads/albums/{album_id}/{filename}'
+    return upload_photo(file, folder=f'albums/{album_id}')
 
 @main.route('/albums')
 @login_required
@@ -811,9 +805,11 @@ def download_album(album_id):
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
         for photo in album.photos:
-            abs_path = os.path.join(current_app.root_path, 'static', photo.path)
-            if os.path.exists(abs_path):
-                zf.write(abs_path, os.path.basename(abs_path))
+            try:
+                data, _ = get_object_bytes(photo.path)
+                zf.writestr(os.path.basename(photo.path), data)
+            except Exception:
+                pass
     buf.seek(0)
     safe_name = ''.join(c if c.isalnum() or c in ' -_' else '_' for c in album.name)
     return send_file(buf, mimetype='application/zip',
@@ -827,9 +823,7 @@ def delete_photo(album_id, photo_id):
         return redirect(url_for('main.album_detail', album_id=album_id))
     can_delete = current_user.is_admin or (current_user.person and photo.uploaded_by_id == current_user.person.id)
     if can_delete:
-        abs_path = os.path.join(current_app.root_path, 'static', photo.path)
-        if os.path.exists(abs_path):
-            os.remove(abs_path)
+        delete_object(photo.path)
         db.session.delete(photo)
         db.session.commit()
         flash('Photo deleted.', 'info')
@@ -843,9 +837,7 @@ def delete_album(album_id):
     if not album or album.family_id != current_user.family_id:
         return redirect(url_for('main.albums'))
     for photo in album.photos:
-        abs_path = os.path.join(current_app.root_path, 'static', photo.path)
-        if os.path.exists(abs_path):
-            os.remove(abs_path)
+        delete_object(photo.path)
     db.session.delete(album)
     db.session.commit()
     flash('Album deleted.', 'info')
@@ -1087,24 +1079,14 @@ def person_edit(person_id):
             person.email = form.email.data or None
         # Handle photo upload/removal
         if form.remove_photo.data and person.photo_path:
-            old_path = os.path.join(current_app.root_path, 'static', person.photo_path)
-            if os.path.exists(old_path):
-                os.remove(old_path)
+            delete_object(person.photo_path)
             person.photo_path = None
             person.photo_position = '50% 30%'
         elif form.photo.data:
-            file = form.photo.data
-            ext = file.filename.rsplit('.', 1)[-1].lower()
-            upload_dir = os.path.join(current_app.root_path, 'static', 'uploads', 'photos')
-            os.makedirs(upload_dir, exist_ok=True)
-            filename = f'person_{person_id}.{ext}'
-            # Remove old photo if extension changed
-            if person.photo_path and person.photo_path != f'uploads/photos/{filename}':
-                old_path = os.path.join(current_app.root_path, 'static', person.photo_path)
-                if os.path.exists(old_path):
-                    os.remove(old_path)
-            file.save(os.path.join(upload_dir, filename))
-            person.photo_path = f'uploads/photos/{filename}'
+            delete_object(person.photo_path)
+            key = upload_photo(form.photo.data, folder='photos')
+            if key:
+                person.photo_path = key
         db.session.commit()
         flash('Profile updated.', 'info')
         return redirect(url_for('main.person_detail', person_id=person_id))
@@ -2169,3 +2151,15 @@ def support():
         flash("Your message has been sent. We'll get back to you soon.", 'info')
         return redirect(url_for('main.support'))
     return render_template('support.html', form=form)
+
+@main.route('/photos/<path:key>')
+@login_required
+def serve_photo(key):
+    """Proxy route: serves R2 photos through Flask when no R2_PUBLIC_URL is set."""
+    from flask import Response, abort
+    photo = Photo.query.filter_by(family_id=current_user.family_id, path=key).first()
+    person = None if photo else Person.query.filter_by(family_id=current_user.family_id, photo_path=key).first()
+    if not photo and not person:
+        abort(403)
+    data, content_type = get_object_bytes(key)
+    return Response(data, content_type=content_type)

@@ -60,7 +60,7 @@
     {% for photo in album.photos %}
     <div class="photo-thumb" style="position:relative;aspect-ratio:1;overflow:hidden;border-radius:var(--r-s);background:var(--hairline);cursor:pointer;"
          onclick="openLightbox({{ loop.index0 }})">
-        <img src="{{ url_for('static', filename=photo.path) }}"
+        <img src="{{ photo_url(photo.path) }}"
              style="width:100%;height:100%;object-fit:cover;transition:transform 0.2s;"
              loading="lazy">
         {% if photo.caption %}
@@ -111,10 +111,10 @@
 const photos = [
     {% for photo in album.photos %}
     {
-        src: "{{ url_for('static', filename=photo.path) }}",
+        src: "{{ photo_url(photo.path) }}",
         caption: {{ photo.caption | tojson }},
         uploader: {{ (photo.uploaded_by.get_display_name() if photo.uploaded_by else None) | tojson }},
-        downloadUrl: "{{ url_for('static', filename=photo.path) }}",
+        downloadUrl: "{{ photo_url(photo.path) }}",
         deleteUrl: "/albums/{{ album.id }}/photos/{{ photo.id }}/delete",
     },
     {% endfor %}

@@ -60,7 +60,7 @@
     <div class="card" style="padding:20px;">
         <div class="profile-photo">
             {% if person.photo_path %}
-            <img src="{{ url_for('static', filename=person.photo_path) }}" alt="{{ person.get_display_name() }}">
+            <img src="{{ photo_url(person.photo_path) }}" alt="{{ person.get_display_name() }}">
             {% else %}
             <div class="av" style="width:80px;height:80px;font-size:28px;background:var(--vine-deep);color:var(--cream);">{{ person.name[:2].upper() }}</div>
             {% endif %}

@@ -217,7 +217,7 @@
         <div class="photo-grid-sm">
             {% for photo in recent_photos %}
             <a href="/albums/{{ photo.album_id }}">
-                <img src="{{ url_for('static', filename=photo.path) }}" alt="" loading="lazy">
+                <img src="{{ photo_url(photo.path) }}" alt="" loading="lazy">
             </a>
             {% endfor %}
         </div>
