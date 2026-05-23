@@ -220,6 +220,129 @@ def send_trial_ended_email(admin, family, billing_url):
     )
 
 
+def send_new_event_notification(user, event, url):
+    return send_email(
+        user.email,
+        f"New event: {event.name}",
+        f"""
+        <h2>New event in {event.family.name}</h2>
+        <p><strong>{event.name}</strong> has been added to the calendar.</p>
+        <p>
+            <strong>Date:</strong> {event.date_range_display()}<br>
+            {"<strong>Location:</strong> " + event.location + "<br>" if event.location else ""}
+            {("<p>" + event.description + "</p>") if event.description else ""}
+        </p>
+        <p><a href="{url}">View event →</a></p>
+        <p style="font-size:12px;color:#888;">
+            You're receiving this because you have new event notifications enabled.
+            <a href="{url.split('/events')[0]}/profile/notifications">Manage preferences</a>
+        </p>
+        """
+    )
+
+
+def send_announcement_notification(user, announcement, url):
+    author = announcement.author.get_display_name() if announcement.author else 'Someone'
+    return send_email(
+        user.email,
+        f"New announcement: {announcement.title}",
+        f"""
+        <h2>{announcement.title}</h2>
+        <p style="color:#666;font-size:13px;">Posted by {author}</p>
+        <p>{announcement.body}</p>
+        <p><a href="{url}">View all announcements →</a></p>
+        <p style="font-size:12px;color:#888;">
+            You're receiving this because you have announcement notifications enabled.
+            <a href="{url.split('/announcements')[0]}/profile/notifications">Manage preferences</a>
+        </p>
+        """
+    )
+
+
+def send_digest_email(user, family, content, dashboard_url):
+    upcoming_events = content['upcoming_events']
+    upcoming_birthdays = content['upcoming_birthdays']
+    upcoming_anniversaries = content['upcoming_anniversaries']
+    recent_announcements = content['recent_announcements']
+    recent_members = content['recent_members']
+    recent_photo_count = content['recent_photo_count']
+
+    notifications_url = dashboard_url.rstrip('/home') + '/profile/notifications'
+
+    sections = []
+
+    if upcoming_events:
+        rows = ''.join(
+            f'<tr><td style="padding:4px 0;"><strong>{e.name}</strong></td>'
+            f'<td style="padding:4px 0 4px 16px;color:#555;">{e.date_range_display()}'
+            f'{" · " + e.location if e.location else ""}</td></tr>'
+            for e in upcoming_events
+        )
+        sections.append(f"""
+        <h3 style="margin:24px 0 8px;font-size:15px;color:#2d4a1e;">Upcoming events</h3>
+        <table style="border-collapse:collapse;font-size:14px;width:100%;">{rows}</table>
+        """)
+
+    if upcoming_birthdays or upcoming_anniversaries:
+        items = []
+        for person, bd in upcoming_birthdays:
+            items.append(f'🎂 <strong>{person.get_display_name()}</strong> — {bd.strftime("%B %-d")}')
+        for rel, ad in upcoming_anniversaries:
+            p1 = rel.person1.get_display_name() if rel.person1 else '?'
+            p2 = rel.person2.get_display_name() if rel.person2 else '?'
+            items.append(f'💍 <strong>{p1} &amp; {p2}</strong> — {ad.strftime("%B %-d")}')
+        sections.append(f"""
+        <h3 style="margin:24px 0 8px;font-size:15px;color:#2d4a1e;">This week</h3>
+        <ul style="margin:0;padding-left:20px;font-size:14px;line-height:1.8;">
+            {''.join(f'<li>{item}</li>' for item in items)}
+        </ul>
+        """)
+
+    if recent_announcements:
+        items = ''.join(
+            f'<li style="margin-bottom:8px;"><strong>{a.title}</strong></li>'
+            for a in recent_announcements
+        )
+        sections.append(f"""
+        <h3 style="margin:24px 0 8px;font-size:15px;color:#2d4a1e;">Recent announcements</h3>
+        <ul style="margin:0;padding-left:20px;font-size:14px;">{items}</ul>
+        """)
+
+    if recent_members:
+        names = ', '.join(u.get_full_name() for u in recent_members)
+        sections.append(f"""
+        <h3 style="margin:24px 0 8px;font-size:15px;color:#2d4a1e;">New members</h3>
+        <p style="font-size:14px;margin:0;">Welcome to {names}!</p>
+        """)
+
+    if recent_photo_count:
+        sections.append(f"""
+        <h3 style="margin:24px 0 8px;font-size:15px;color:#2d4a1e;">Photos</h3>
+        <p style="font-size:14px;margin:0;">{recent_photo_count} new photo{"s" if recent_photo_count != 1 else ""} added this week.</p>
+        """)
+
+    body = '\n'.join(sections)
+    return send_email(
+        user.email,
+        f"This week in {family.name}",
+        f"""
+        <div style="font-family:sans-serif;max-width:560px;margin:0 auto;color:#222;">
+            <p style="font-size:13px;color:#888;margin-bottom:4px;">{family.name} · Weekly digest</p>
+            <h2 style="margin:0 0 4px;font-size:22px;font-weight:600;">This week in your pod</h2>
+            <p style="font-size:14px;color:#555;margin-top:4px;">Hi {user.first_name} — here's what's coming up.</p>
+            {body}
+            <div style="margin-top:32px;">
+                <a href="{dashboard_url}" style="background:#3a6b1e;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:14px;">Go to your pod →</a>
+            </div>
+            <p style="font-size:11px;color:#aaa;margin-top:32px;">
+                You're receiving this weekly digest from OurPeaPod.
+                <a href="{notifications_url}" style="color:#888;">Manage preferences</a>
+            </p>
+        </div>
+        """
+    )
+
+
 def send_support_email(user, family, category, message, support_email):
     category_labels = {
         'billing':   'Billing or subscription',

@@ -101,12 +101,13 @@ def create_app(test_config=None):
     from .billing import billing
     from .two_factor import tf
     from .storage import photo_url
-    from .commands import email_sequence
+    from .commands import email_sequence, digest
     app.register_blueprint(main)
     app.register_blueprint(billing)
     app.register_blueprint(tf)
     csrf.exempt(app.view_functions['billing.webhook'])
     app.cli.add_command(email_sequence)
+    app.cli.add_command(digest)
 
     app.jinja_env.globals['photo_url'] = photo_url
 

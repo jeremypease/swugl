@@ -11,6 +11,7 @@ from flask.cli import with_appcontext
 
 from . import db
 from .models import Family, User
+from .notifications import send_family_digest
 from .email import (
     send_nudge_day3_email,
     send_nudge_day7_email,
@@ -101,3 +102,35 @@ def email_sequence(dry_run):
         click.echo(f'email-sequence done: {sent} sent, {len(families) - sent} skipped.')
     else:
         click.echo(f'[DRY RUN] would affect {sent} families out of {len(families)}.')
+
+
+@click.command('digest')
+@click.option('--dry-run', is_flag=True, help='Print which families would receive a digest without sending.')
+@with_appcontext
+def digest(dry_run):
+    """Send the weekly digest email to opted-in members of every family."""
+    if not current_app.config.get('MAIL_ENABLED') and not dry_run:
+        click.echo('MAIL_ENABLED is not set — skipping. Pass --dry-run to preview.')
+        return
+
+    families = Family.query.all()
+    total_sent = 0
+    for family in families:
+        if dry_run:
+            from .notifications import compute_digest
+            content = compute_digest(family)
+            if content:
+                member_count = User.query.filter_by(
+                    family_id=family.id, status='approved'
+                ).count()
+                click.echo(f'[DRY RUN] {family.name} — would notify up to {member_count} member(s)')
+            else:
+                click.echo(f'[DRY RUN] {family.name} — nothing to send')
+        else:
+            sent = send_family_digest(family)
+            total_sent += sent
+            if sent:
+                click.echo(f'{family.name}: {sent} sent')
+
+    if not dry_run:
+        click.echo(f'digest done: {total_sent} email(s) sent across {len(families)} family/families.')

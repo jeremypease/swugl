@@ -290,6 +290,52 @@ class User(UserMixin, db.Model):
         return f"{self.first_name} {self.last_name}"
 
 
+# Notification event types and their email-channel defaults.
+NOTIFICATION_EVENTS = {
+    'digest':        {'label': 'Weekly digest',          'default': True},
+    'new_event':     {'label': 'New event created',      'default': True},
+    'announcement':  {'label': 'New announcement',       'default': True},
+    'new_member':    {'label': 'New member joins',        'default': False},
+    'rsvp_reminder': {'label': 'RSVP reminder',          'default': True},
+}
+
+
+class NotificationPreference(db.Model):
+    __tablename__ = 'notification_preferences'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    event_type = db.Column(db.String(50), nullable=False)
+    channel = db.Column(db.String(20), nullable=False, default='email')
+    enabled = db.Column(db.Boolean, nullable=False, default=True)
+
+    user = db.relationship('User', backref=db.backref('notification_prefs', lazy='dynamic'))
+
+    __table_args__ = (db.UniqueConstraint('user_id', 'event_type', 'channel'),)
+
+    @classmethod
+    def seed_defaults(cls, user_id):
+        """Create default preferences for a new user. Safe to call multiple times."""
+        for event_type, meta in NOTIFICATION_EVENTS.items():
+            exists = cls.query.filter_by(
+                user_id=user_id, event_type=event_type, channel='email'
+            ).first()
+            if not exists:
+                db.session.add(cls(
+                    user_id=user_id,
+                    event_type=event_type,
+                    channel='email',
+                    enabled=meta['default'],
+                ))
+
+    @classmethod
+    def is_enabled(cls, user_id, event_type, channel='email'):
+        pref = cls.query.filter_by(
+            user_id=user_id, event_type=event_type, channel=channel
+        ).first()
+        return pref.enabled if pref else False
+
+
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))

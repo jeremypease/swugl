@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, send_file, session
 from flask_login import login_user, logout_user, login_required, current_user
-from .models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, ASSIGNMENT_CATEGORIES, EventRSVP, EventSleepingSpot, EventComment, Announcement, Album, Photo
+from .models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, ASSIGNMENT_CATEGORIES, EventRSVP, EventSleepingSpot, EventComment, Announcement, Album, Photo, NotificationPreference, NOTIFICATION_EVENTS
 from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm, ForgotPasswordForm, ResetPasswordForm, AddPersonForm, RelativeForm, AddParentForm, FamilySettingsForm, EditPersonForm, EventForm, EventCommentForm, EventMealForm, EventMealFamilyAssignForm, EventMealItemForm, EventMealSelfSignupForm, EventMealAssignForm, EventAssignmentForm, EventAssignmentAdminAssignForm, EventSleepingSpotForm, EventSleepingAssignForm, GENDER_CHOICES_DEFAULT, GENDER_CHOICES_EXPANDED, PRONOUN_CHOICES, AnnouncementForm, AlbumForm, PhotoUploadForm, SupportForm
 from .email import send_verification_email, send_pending_notification, send_approval_notification, send_spouse_confirmation_email, send_spouse_invitation_email, send_password_reset_email, send_member_invitation_email, send_welcome_email, send_support_email
 from datetime import date, datetime, timedelta
@@ -370,6 +370,8 @@ def register():
         )
         user.set_password(form.password.data)
         db.session.add(user)
+        db.session.flush()
+        NotificationPreference.seed_defaults(user.id)
         db.session.commit()
         if current_app.config.get('MAIL_ENABLED'):
             send_verification_email(user, url_for('main.verify_email', token=token, _external=True))
@@ -429,6 +431,7 @@ def register_invited(token):
         # Sync person name if first/last name changed during registration
         if invited_user.person:
             invited_user.person.name = f"{form.first_name.data} {form.last_name.data}"
+        NotificationPreference.seed_defaults(invited_user.id)
         db.session.commit()
         flash('Account created! You can now log in.', 'info')
         return redirect(url_for('main.login'))
@@ -899,6 +902,12 @@ def add_announcement():
         db.session.add(a)
         db.session.commit()
         flash('Announcement posted.', 'info')
+        from .notifications import notify
+        recipients = User.query.filter_by(
+            family_id=current_user.active_family_id, status='approved'
+        ).filter(User.id != current_user.id).all()
+        ann_url = url_for('main.announcements', _external=True)
+        notify(recipients, 'announcement', announcement=a, url=ann_url)
     return redirect(url_for('main.announcements'))
 
 @main.route('/announcements/<int:ann_id>/pin', methods=['POST'])
@@ -944,6 +953,7 @@ def approve_user(user_id):
     user.status = 'approved'
     user.approved_by_id = current_user.id
     user.approved_date = date.today()
+    NotificationPreference.seed_defaults(user.id)
     db.session.commit()
     if current_app.config.get('MAIL_ENABLED'):
         send_approval_notification(user, url_for('main.login', _external=True))
@@ -1067,6 +1077,36 @@ def profile_edit():
         flash('Profile updated successfully!', 'info')
         return redirect(url_for('main.profile'))
     return render_template('profile_edit.html', form=form)
+
+@main.route('/profile/notifications', methods=['GET', 'POST'])
+@login_required
+def profile_notifications():
+    prefs = {
+        p.event_type: p
+        for p in NotificationPreference.query.filter_by(
+            user_id=current_user.id, channel='email'
+        ).all()
+    }
+    if request.method == 'POST':
+        for event_type in NOTIFICATION_EVENTS:
+            enabled = event_type in request.form
+            pref = prefs.get(event_type)
+            if pref:
+                pref.enabled = enabled
+            else:
+                db.session.add(NotificationPreference(
+                    user_id=current_user.id,
+                    event_type=event_type,
+                    channel='email',
+                    enabled=enabled,
+                ))
+        db.session.commit()
+        flash('Notification preferences saved.', 'info')
+        return redirect(url_for('main.profile_notifications'))
+    return render_template('profile_notifications.html',
+                           prefs=prefs,
+                           events=NOTIFICATION_EVENTS)
+
 
 @main.route('/person/<int:person_id>')
 @login_required
@@ -1397,6 +1437,12 @@ def event_add():
             event.cover_image_path = f'uploads/events/{filename}'
         db.session.commit()
         flash(f'{event.name} has been created.', 'info')
+        from .notifications import notify
+        recipients = User.query.filter_by(
+            family_id=current_user.active_family_id, status='approved'
+        ).filter(User.id != current_user.id).all()
+        event_url = url_for('main.event_detail', event_id=event.id, _external=True)
+        notify(recipients, 'new_event', event=event, url=event_url)
         return redirect(url_for('main.event_detail', event_id=event.id))
     return render_template('event_form.html', form=form, event=None)
 
