@@ -40,6 +40,12 @@ class Family(db.Model):
     stripe_subscription_id = db.Column(db.String(100), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    # Email sequence tracking — prevents duplicate sends
+    email_nudge3_sent = db.Column(db.Boolean, nullable=False, server_default='0')
+    email_nudge7_sent = db.Column(db.Boolean, nullable=False, server_default='0')
+    email_trial_warning_sent = db.Column(db.Boolean, nullable=False, server_default='0')
+    email_trial_ended_sent = db.Column(db.Boolean, nullable=False, server_default='0')
+
     patriarch_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=True)
     matriarch_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=True)
     has_lgbtq_options = db.Column(db.Boolean, default=False, nullable=False)

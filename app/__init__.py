@@ -87,9 +87,11 @@ def create_app():
     from .routes import main
     from .billing import billing
     from .storage import photo_url
+    from .commands import email_sequence
     app.register_blueprint(main)
     app.register_blueprint(billing)
     csrf.exempt(app.view_functions['billing.webhook'])
+    app.cli.add_command(email_sequence)
 
     app.jinja_env.globals['photo_url'] = photo_url
 

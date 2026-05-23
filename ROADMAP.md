@@ -6,82 +6,47 @@
 
 ---
 
-## Phase 0 — Foundation Cleanup (Pre-Launch)
-*Complete before any public-facing work.*
-
-### Goals
-- Ensure all existing features are solid, tested, and production-ready
-- Establish the multi-tenant data model that everything else depends on
+## Phase 0 — Foundation Cleanup ✅ Complete
 
 ### Work Items
-- [ ] Audit all database queries for `family_id` scoping — confirm no cross-family data leakage
-- [ ] Add `family_id` indexes on all relevant tables
-- [ ] Harden auth: rate-limit login, add email verification on registration
-- [ ] Confirm all admin-only routes enforce `@admin_required` consistently
-- [ ] Write a basic smoke-test suite for the critical paths (login, profile edit, event CRUD)
-- [x] **Wire up Cloudflare R2 for photo storage** — done; photos now store to R2 and serve via the `/photos/<key>` proxy route (login required). R2 public URL deliberately not enabled — see note below.
+- [x] Audit all database queries for `family_id` scoping — cross-family isolation verified by smoke tests
+- [x] Add `family_id` indexes on all relevant tables
+- [x] Harden auth: rate-limit login and password reset, email verification on registration
+- [x] Confirm all admin-only routes enforce `@admin_required` consistently
+- [x] Smoke-test suite — 18 tests covering auth, event CRUD, cross-family isolation
+- [x] **Wire up Cloudflare R2 for photo storage** — photos store to R2 and serve via `/photos/<key>` proxy (login required). R2 public URL deliberately not enabled — see note below.
 - [ ] **Re-evaluate R2 photo delivery** — currently photos proxy through Railway (`/photos/<key>`), which is secure (login required) but adds latency. If photo loading feels slow with real family usage, add a custom domain (e.g. `photos.ourpeapod.com`) in R2 → Custom Domains, set `R2_PUBLIC_URL` in Railway, and accept that URLs are publicly accessible to anyone who has them (mitigated by UUID keys).
 
 ---
 
-## Phase 1 — Public Launch: Multi-Tenant SaaS
-*The architectural inflection point. Every other phase depends on this.*
+## Phase 1 — Public Launch: Multi-Tenant SaaS ✅ Complete
 
-### 1A — Self-Serve Pod Creation
-**Route:** `ourpeapod.com/signup` → creates a new family + admin user in one flow.
+### 1A — Self-Serve Pod Creation ✅
+- [x] Registration flow: family name → account → email verification → dashboard
+- [x] `account_id` (short unique pod code) on `Family`; displayed in family settings
+- [x] Onboarding checklist on first login
+- [x] **Onboarding email sequence** — `flask email-sequence` CLI command (Railway cron, daily at 08:00 UTC):
+  - Day 0: Welcome email (sent at registration)
+  - Day 3: Nudge if no members added — "Your pod is quiet"
+  - Day 7: Feature highlight — events, tree, photos
+  - Day 25: Trial warning — "5 days left"
+  - Day 30: Trial ended — upgrade prompt
+- **Schema note:** One user → one family. A `user_families` junction table will be needed if multi-family membership is ever required.
 
-- [ ] New `signup.html` flow: family name → your info → email verification → dashboard
-- [ ] `Family` model gains: `name` (display only — no uniqueness constraint; two families can both be "The Smith Family"), `account_id` (system-generated short unique code, e.g. `pod_a1b2c3` — used for URLs and internal references), `plan` (free/paid), `stripe_customer_id`, `created_at`
-- [ ] All pod-scoped URLs use `account_id`, never the display name — e.g. `/p/pod_a1b2c3/events`
-- [ ] `account_id` displayed in family settings (admin only) — e.g. "Your pod ID: pod_a1b2c3" — so admins can quote it when contacting support to identify their account unambiguously
-- [ ] Onboarding checklist on first login (add members, set patriarch/matriarch, upload a photo)
-- [ ] **Onboarding email sequence** — activation lives here, not just in the checklist:
-  - Day 0: Welcome email — what to do first (add your first member, set up your tree)
-  - Day 3: Nudge if no members have been added — "Your pod is quiet, here's how to invite family"
-  - Day 7: Feature highlight — "Did you know you can plan events and assign tasks?"
-  - Day 30 (trial end): Upgrade prompt with what they'll lose on free tier
-- **Schema note:** The current model assumes one user belongs to one family. A real use case — someone married into a second family — will require a `user_families` junction table. Flag this before Phase 1A schema is finalized so it doesn't require a painful migration later.
+### 1B — Pricing & Billing ✅
+- [x] 30-day free trial of paid tier on signup
+- [x] Trial banner in app header (days remaining / expired / past_due)
+- [x] Stripe Checkout + Customer Portal (monthly and annual intervals)
+- [x] Stripe webhook handler (`billing.py`) — checkout, subscription updated/deleted, payment failed/succeeded
+- [x] `family_has_paid_access()` helper + `@requires_plan` decorator
+- [x] `/billing` page for admins
+- [x] Grace period (7 days) on failed payment before downgrading
+- [x] Stripe Tax enabled on all Checkout sessions
 
-### 1B — Pricing & Billing
-**Tiers:**
-
-| Feature | Free Pod | Family Plan |
-|---------|----------|-------------|
-| Price | Free | $9/mo · or · $90/yr *(save 2 months)* |
-| Members | Up to 10 | Unlimited |
-| Photos | 1 GB storage | 25 GB storage |
-| Events | 3 active | Unlimited |
-| Chat | — | ✓ |
-| Calendar feed | — | ✓ |
-| AI features | — | ✓ |
-| Mobile app | — | ✓ |
-
-Annual billing offers ~17% off (equivalent to 2 months free). Price anchors are placeholders — validate with early customers before locking in.
-
-**Member cap consideration:** The 10-member limit may frustrate large families (30+ cousins) before they've seen enough value to upgrade. If the first wall they hit is "you can't add your aunt," they bounce rather than pay. Consider whether storage or AI is a less alienating gate, or raise the free cap to 15–20. Decide before 1B ships.
-
-- [ ] **30-day free trial of paid tier on signup** — families experience the full product before hitting any wall; present the upgrade prompt at trial end, not at random feature blocks
-- [ ] "X days remaining in your trial" banner in the app header during trial
-- [ ] Trial-to-paid conversion email at Day 25 (5-day warning) and Day 30 (trial ended)
-- [ ] Integrate **Stripe** (Checkout + Customer Portal)
-- [ ] `billing.py` — Stripe webhook handler (subscription created, updated, canceled, payment failed)
-- [ ] Support both monthly and annual billing intervals in Stripe (two Price objects per product)
-- [ ] Feature gate decorator `@requires_plan('paid')` for paid-only routes
-- [ ] `/billing` page for admins: current plan, billing interval, upgrade/downgrade, payment history
-- [ ] Annual plan: show "you're saving $18/yr" on upgrade confirmation
-- [ ] Grace period (7 days) on failed payment before downgrading
-- [ ] **Enable Stripe Tax from day one** — SaaS subscriptions are taxable in ~30 US states and subject to VAT in the EU. Stripe Tax automates collection, remittance, and reporting for 0.5% per transaction. At $9/mo per pod that's $0.045 — rounds to nothing. The alternative (manually tracking economic nexus thresholds and registering state-by-state) is a compliance project, not a feature, and the penalty for getting caught is back-tax plus interest. Add `automatic_tax: {enabled: true}` to all Checkout sessions; set the `ourpeapod.com` tax origin address in the Stripe dashboard. Never revisit this.
-
-### 1C — Public Landing Page
-**URL:** `ourpeapod.com` — for visitors who aren't logged in.
-
-- [ ] Hero section: headline, subheadline, "Start your pod free" CTA
-- [ ] Features section: family tree, events, photos, chat, calendar (use product screenshots)
-- [ ] Pricing section: Free vs. paid tier comparison table
-- [ ] Footer: About, Privacy Policy, Terms of Service, Contact
-- [ ] Separate CSS from the app CSS — landing page gets its own stylesheet
-- [ ] Route logic: `/` → redirect to `/home` if logged in, else serve landing page
-- [ ] Privacy Policy and Terms of Service pages (required before taking payments)
+### 1C — Public Landing Page ✅
+- [x] Hero, features, pricing (monthly/annual toggle), footer
+- [x] Privacy Policy and Terms of Service
+- [x] `/` → `/home` if logged in, else landing page
 
 ---
 

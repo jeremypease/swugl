@@ -142,6 +142,84 @@ def send_welcome_email(user, family, dashboard_url):
     )
 
 
+def send_nudge_day3_email(admin, family, members_url):
+    return send_email(
+        admin.email,
+        f"Your {family.name} pod is quiet — invite your family",
+        f"""
+        <h2>Hi {admin.first_name},</h2>
+        <p>You created your <strong>{family.name}</strong> pod 3 days ago — great start!</p>
+        <p>It looks like it's still just you in there. OurPeaPod is a lot more fun when your family is with you.</p>
+        <p>Here's how to bring them in:</p>
+        <ul>
+            <li><strong>Invite by email</strong> — send a personal invite link from the Members page</li>
+            <li><strong>Add them yourself</strong> — add a family member directly, then invite them to claim their profile</li>
+        </ul>
+        <p><a href="{members_url}" style="background:#3D7040;color:#fff;padding:10px 20px;text-decoration:none;border-radius:4px;display:inline-block;">Invite family members</a></p>
+        <p style="color:#666;font-size:13px;">— The OurPeaPod team</p>
+        """
+    )
+
+
+def send_nudge_day7_email(admin, family, dashboard_url):
+    return send_email(
+        admin.email,
+        f"3 things OurPeaPod can do for your {family.name}",
+        f"""
+        <h2>Hi {admin.first_name},</h2>
+        <p>Here are a few things worth exploring in your pod this week:</p>
+        <ul>
+            <li><strong>Plan your next event</strong> — RSVPs, meal sign-ups, task assignments, and sleeping arrangements, all in one place.</li>
+            <li><strong>Build your family tree</strong> — connect parents, children, and spouses across generations.</li>
+            <li><strong>Start a photo album</strong> — upload family photos so everyone can see them, no group text required.</li>
+        </ul>
+        <p><a href="{dashboard_url}" style="background:#3D7040;color:#fff;padding:10px 20px;text-decoration:none;border-radius:4px;display:inline-block;">Go to your pod</a></p>
+        <p style="color:#666;font-size:13px;">— The OurPeaPod team</p>
+        """
+    )
+
+
+def send_trial_warning_email(admin, family, days_left, billing_url):
+    return send_email(
+        admin.email,
+        f"Your OurPeaPod trial ends in {days_left} day{'s' if days_left != 1 else ''}",
+        f"""
+        <h2>Hi {admin.first_name},</h2>
+        <p>Your 30-day free trial for <strong>{family.name}</strong> ends in <strong>{days_left} day{'s' if days_left != 1 else ''}</strong>.</p>
+        <p>After your trial, your pod moves to the free tier unless you upgrade. Here's what changes:</p>
+        <ul>
+            <li>Members capped at 15 (you keep everyone already in your pod)</li>
+            <li>Photo storage limited to 1 GB</li>
+            <li>Family chat, calendar feed, and mobile app become unavailable</li>
+        </ul>
+        <p>Upgrade to the Family Plan for $9/month and keep everything.</p>
+        <p><a href="{billing_url}" style="background:#3D7040;color:#fff;padding:10px 20px;text-decoration:none;border-radius:4px;display:inline-block;">Upgrade now — $9/mo</a></p>
+        <p style="color:#666;font-size:13px;">Questions? Reply to this email — we're happy to help.</p>
+        <p style="color:#666;font-size:13px;">— The OurPeaPod team</p>
+        """
+    )
+
+
+def send_trial_ended_email(admin, family, billing_url):
+    return send_email(
+        admin.email,
+        f"Your OurPeaPod trial has ended",
+        f"""
+        <h2>Hi {admin.first_name},</h2>
+        <p>Your free trial for <strong>{family.name}</strong> has ended.</p>
+        <p>Your family's data is safe — photos, members, the tree, everything is still there. But some features are now limited on the free tier.</p>
+        <p>Upgrade to the Family Plan to restore full access:</p>
+        <ul>
+            <li>Unlimited members</li>
+            <li>25 GB photo storage</li>
+            <li>Family chat, calendar feed, and mobile app</li>
+        </ul>
+        <p><a href="{billing_url}" style="background:#3D7040;color:#fff;padding:10px 20px;text-decoration:none;border-radius:4px;display:inline-block;">Choose your plan</a></p>
+        <p style="color:#666;font-size:13px;">— The OurPeaPod team</p>
+        """
+    )
+
+
 def send_support_email(user, family, category, message, support_email):
     category_labels = {
         'billing':   'Billing or subscription',

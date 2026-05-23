@@ -174,6 +174,9 @@ def _handle_event(event):
             family.stripe_subscription_id = data.get('subscription')
             family.plan = 'paid'
             family.trial_ends_at = None
+            # Suppress remaining trial lifecycle emails now that they've upgraded
+            family.email_trial_warning_sent = True
+            family.email_trial_ended_sent = True
             db.session.commit()
 
     elif etype == 'customer.subscription.updated':
