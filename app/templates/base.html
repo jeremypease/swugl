@@ -16,9 +16,10 @@
 
 {% if current_user.is_authenticated %}
 <div class="shell">
+    <div class="nav-backdrop" id="nav-backdrop"></div>
 
     <!-- Sidebar -->
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidebar">
         <div class="brand">
             <img src="{{ url_for('static', filename='assets/peavines-mark.svg') }}" alt="Peavines">
         </div>
@@ -101,6 +102,9 @@
     <!-- Canvas -->
     <div class="canvas">
         <header class="topbar">
+            <button class="nav-toggle" id="nav-toggle" aria-label="Open navigation" aria-expanded="false" aria-controls="sidebar">
+                <i data-lucide="menu"></i>
+            </button>
             <form action="/search" method="GET" class="search">
                 <i data-lucide="search"></i>
                 <input type="text" name="q" placeholder="Search family…"
@@ -111,7 +115,7 @@
 
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-            <div id="flash-container" style="padding: 16px 40px 0;">
+            <div id="flash-container" class="flash-wrap">
                 {% for category, message in messages %}
                 <div class="flash {% if category == 'error' %}f-error{% elif category == 'info' %}f-info{% else %}f-warn{% endif %} flash-animate">
                     <i data-lucide="{% if category == 'error' %}alert-circle{% elif category == 'info' %}info{% else %}alert-triangle{% endif %}" style="width:16px;height:16px;flex-shrink:0;"></i>
@@ -134,18 +138,18 @@
             {% if fam.plan == 'trial' and fam.trial_ends_at %}
                 {% set days_left = ((fam.trial_ends_at - now).days) %}
                 {% if days_left >= 0 %}
-                <div style="background:var(--vine);color:#fff;padding:8px 40px;font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+                <div class="notification-banner" style="background:var(--vine);color:#fff;">
                     <span><strong>Free trial</strong> — {{ days_left }} day{{ 's' if days_left != 1 }} remaining. Upgrade to keep all features after your trial ends.</span>
                     <a href="/billing" style="color:#fff;font-weight:600;white-space:nowrap;text-decoration:underline;">Upgrade now</a>
                 </div>
                 {% else %}
-                <div style="background:var(--rust,#b94a2c);color:#fff;padding:8px 40px;font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+                <div class="notification-banner" style="background:var(--rust,#b94a2c);color:#fff;">
                     <span><strong>Your free trial has ended.</strong> Upgrade to restore access to all features.</span>
                     <a href="/billing" style="color:#fff;font-weight:600;white-space:nowrap;text-decoration:underline;">Upgrade now</a>
                 </div>
                 {% endif %}
             {% elif fam.plan == 'past_due' %}
-            <div style="background:#b94a2c;color:#fff;padding:8px 40px;font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <div class="notification-banner" style="background:#b94a2c;color:#fff;">
                 <span><strong>Payment failed.</strong> Update your payment method to avoid losing access.</span>
                 <a href="/billing" style="color:#fff;font-weight:600;white-space:nowrap;text-decoration:underline;">Fix now</a>
             </div>
@@ -153,7 +157,7 @@
         {% endif %}
 
         {% if current_user.is_authenticated and not current_user.has_2fa %}
-        <div style="background:#f0f6ff;border-bottom:1px solid #c7daf7;padding:8px 40px;font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <div class="notification-banner" style="background:#f0f6ff;border-bottom:1px solid #c7daf7;">
             <span>🔐 <strong>Secure your account</strong> — enable Face ID, Touch ID, or an authenticator app for stronger sign-in protection.</span>
             <a href="{{ url_for('tf.security') }}" style="color:var(--vine);font-weight:600;white-space:nowrap;">Set up now</a>
         </div>
@@ -170,6 +174,31 @@
 </div>
 {% endif %}
 
+<script nonce="{{ g.csp_nonce }}">
+(function() {
+    var toggle = document.getElementById('nav-toggle');
+    var backdrop = document.getElementById('nav-backdrop');
+    if (!toggle) return;
+    function openNav() {
+        document.body.classList.add('nav-open');
+        toggle.setAttribute('aria-expanded', 'true');
+    }
+    function closeNav() {
+        document.body.classList.remove('nav-open');
+        toggle.setAttribute('aria-expanded', 'false');
+    }
+    toggle.addEventListener('click', openNav);
+    backdrop.addEventListener('click', closeNav);
+    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeNav(); });
+    // Close nav when a nav link is tapped on mobile
+    var sidebar = document.getElementById('sidebar');
+    if (sidebar) {
+        sidebar.querySelectorAll('a').forEach(function(a) {
+            a.addEventListener('click', closeNav);
+        });
+    }
+})();
+</script>
 <script nonce="{{ g.csp_nonce }}">lucide.createIcons();</script>
 </body>
 </html>

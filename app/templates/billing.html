@@ -1,4 +1,10 @@
 {% extends "base.html" %}
+{% block head %}
+<style>
+.pricing-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 8px; }
+@media (max-width: 680px) { .pricing-grid { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
 {% block content %}
 <div class="canvas-inner" style="max-width:720px;">
 
@@ -61,7 +67,7 @@
 {% if family.plan != 'paid' %}
 <div class="card" style="margin-bottom:20px;">
     <div class="card-header"><h3>Upgrade to Family Plan</h3></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:8px;">
+    <div class="pricing-grid">
 
         {# Monthly #}
         <div style="border:1px solid var(--hairline-strong);border-radius:var(--r-m);padding:20px;">
@@ -116,7 +122,7 @@
 {% if invoices %}
 <div class="card">
     <div class="card-header"><h3>Payment History</h3></div>
-    <table style="width:100%;font-size:14px;border-collapse:collapse;">
+    <div class="tbl-scroll"><table style="width:100%;font-size:14px;border-collapse:collapse;min-width:400px;">
         <thead>
             <tr style="border-bottom:1px solid var(--hairline);">
                 <th style="text-align:left;padding:8px 0;font-weight:600;color:var(--slate);">Date</th>
@@ -141,7 +147,7 @@
             </tr>
             {% endfor %}
         </tbody>
-    </table>
+    </table></div>
 </div>
 {% endif %}
 
