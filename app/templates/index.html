@@ -104,8 +104,8 @@
     </div>
 
     <div class="l-pricing-toggle" id="pricingToggle">
-        <button class="active" data-period="monthly" onclick="setPricing('monthly')">Monthly</button>
-        <button data-period="annual" onclick="setPricing('annual')">Annually <span class="save-tag">Save 17%</span></button>
+        <button class="active" data-period="monthly">Monthly</button>
+        <button data-period="annual">Annually <span class="save-tag">Save 17%</span></button>
     </div>
 
     <div class="l-pricing-grid">
@@ -166,6 +166,9 @@
         document.querySelectorAll('.price-monthly').forEach(function(el) { el.style.display = isAnnual ? 'none' : ''; });
         document.querySelectorAll('.price-annual').forEach(function(el) { el.style.display = isAnnual ? '' : 'none'; });
     }
+    document.querySelectorAll('#pricingToggle button').forEach(function(btn) {
+        btn.addEventListener('click', function() { setPricing(btn.dataset.period); });
+    });
     </script>
 </div>
 

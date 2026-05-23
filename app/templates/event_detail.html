@@ -188,12 +188,13 @@ details[open] .details-chevron { transform: rotate(180deg); }
         </div>
         {% if current_user.active_is_admin %}
         <div style="display:flex;gap:8px;">
-            <button class="btn btn-secondary" onclick="document.getElementById('edit-event-modal').style.display='flex'">
+            <button class="btn btn-secondary" data-open-modal="edit-event-modal">
                 <i data-lucide="edit-2"></i> Edit
             </button>
-            <form method="POST" action="/events/{{ event.id }}/delete" onsubmit="return confirm('Delete {{ event.name }}? This cannot be undone.');">
+            <form method="POST" action="/events/{{ event.id }}/delete">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="btn btn-secondary" style="color:var(--tomato);">
+                <button type="submit" class="btn btn-secondary" style="color:var(--tomato);"
+                        data-confirm="Delete {{ event.name }}? This cannot be undone.">
                     <i data-lucide="trash-2"></i>
                 </button>
             </form>
@@ -220,14 +221,14 @@ details[open] .details-chevron { transform: rotate(180deg); }
             <h3>Meals</h3>
             <div style="display:flex;gap:6px;align-items:center;">
                 {% if current_user.active_is_admin %}
-                <button class="btn btn-ghost btn-sm" onclick="toggleForm('meal-add-form')">
+                <button class="btn btn-ghost btn-sm" data-toggle-form="meal-add-form">
                     <i data-lucide="plus"></i> Add meal
                 </button>
                 <form method="POST" action="/events/{{ event.id }}/disable-section" style="display:contents;">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="section" value="meals">
                     <button type="submit" class="btn btn-ghost btn-sm" title="Hide" style="color:var(--slate-soft);padding:4px 6px;"
-                            onclick="return confirm('Disable Meals? Existing meals will be preserved.')">
+                            data-confirm="Disable Meals? Existing meals will be preserved.">
                         <i data-lucide="eye-off" style="width:14px;height:14px;"></i>
                     </button>
                 </form>
@@ -359,14 +360,14 @@ details[open] .details-chevron { transform: rotate(180deg); }
             <h3>Assignments</h3>
             <div style="display:flex;gap:6px;align-items:center;">
                 {% if current_user.active_is_admin %}
-                <button class="btn btn-ghost btn-sm" onclick="toggleForm('assign-add-form')">
+                <button class="btn btn-ghost btn-sm" data-toggle-form="assign-add-form">
                     <i data-lucide="plus"></i> Add task
                 </button>
                 <form method="POST" action="/events/{{ event.id }}/disable-section" style="display:contents;">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="section" value="assignments">
                     <button type="submit" class="btn btn-ghost btn-sm" title="Hide" style="color:var(--slate-soft);padding:4px 6px;"
-                            onclick="return confirm('Disable Assignments? Existing tasks will be preserved.')">
+                            data-confirm="Disable Assignments? Existing tasks will be preserved.">
                         <i data-lucide="eye-off" style="width:14px;height:14px;"></i>
                     </button>
                 </form>
@@ -474,14 +475,14 @@ details[open] .details-chevron { transform: rotate(180deg); }
             <h3>Sleeping Arrangements</h3>
             <div style="display:flex;gap:6px;align-items:center;">
                 {% if current_user.active_is_admin %}
-                <button class="btn btn-ghost btn-sm" onclick="toggleForm('spot-add-form')">
+                <button class="btn btn-ghost btn-sm" data-toggle-form="spot-add-form">
                     <i data-lucide="plus"></i> Add spot
                 </button>
                 <form method="POST" action="/events/{{ event.id }}/disable-section" style="display:contents;">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="section" value="sleeping">
                     <button type="submit" class="btn btn-ghost btn-sm" title="Hide" style="color:var(--slate-soft);padding:4px 6px;"
-                            onclick="return confirm('Disable Sleeping Arrangements? Existing spots will be preserved.')">
+                            data-confirm="Disable Sleeping Arrangements? Existing spots will be preserved.">
                         <i data-lucide="eye-off" style="width:14px;height:14px;"></i>
                     </button>
                 </form>
@@ -571,7 +572,7 @@ details[open] .details-chevron { transform: rotate(180deg); }
         <div class="card-header">
             <h3>Photos</h3>
             {% if current_user.active_is_admin or current_user.active_is_delegate %}
-            <a href="/albums" class="btn btn-ghost btn-sm" onclick="sessionStorage.setItem('newAlbumEvent','{{ event.id }}')">
+            <a href="/albums" class="btn btn-ghost btn-sm" data-album-event="{{ event.id }}">
                 <i data-lucide="plus"></i> New Album
             </a>
             {% endif %}
@@ -812,7 +813,7 @@ details[open] .details-chevron { transform: rotate(180deg); }
     <div class="card" style="width:100%;max-width:560px;max-height:90vh;overflow-y:auto;">
         <div class="card-header">
             <h3>Edit Event</h3>
-            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('edit-event-modal').style.display='none'">
+            <button class="btn btn-ghost btn-sm" data-close-modal="edit-event-modal">
                 <i data-lucide="x"></i>
             </button>
         </div>
@@ -844,7 +845,7 @@ details[open] .details-chevron { transform: rotate(180deg); }
             </div>
             <div style="display:flex;gap:10px;">
                 <button type="submit" class="btn btn-primary">Save</button>
-                <button type="button" class="btn btn-secondary" onclick="document.getElementById('edit-event-modal').style.display='none'">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-close-modal="edit-event-modal">Cancel</button>
             </div>
         </form>
     </div>
@@ -856,5 +857,11 @@ function toggleForm(id) {
     const el = document.getElementById(id);
     el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
+document.querySelectorAll('[data-toggle-form]').forEach(function(btn) {
+    btn.addEventListener('click', function() { toggleForm(btn.dataset.toggleForm); });
+});
+document.querySelectorAll('[data-album-event]').forEach(function(a) {
+    a.addEventListener('click', function() { sessionStorage.setItem('newAlbumEvent', a.dataset.albumEvent); });
+});
 </script>
 {% endblock %}

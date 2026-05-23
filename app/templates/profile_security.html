@@ -31,7 +31,7 @@
                     <td style="text-align:right;">
                         <form method="post" action="{{ url_for('tf.passkey_delete', cred_id=pk.id) }}" style="display:inline;">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <button type="submit" class="btn-link text-danger" onclick="return confirm('Remove this passkey?')">Remove</button>
+                            <button type="submit" class="btn-link text-danger" data-confirm="Remove this passkey?">Remove</button>
                         </form>
                     </td>
                 </tr>
@@ -44,7 +44,7 @@
 
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
                 <input id="passkey-name" type="text" class="form-control" placeholder="Device name (e.g. MacBook Pro)" style="max-width:240px;">
-                <button class="btn btn-primary" onclick="registerPasskey()">Add passkey</button>
+                <button class="btn btn-primary" id="add-passkey-btn">Add passkey</button>
             </div>
             <div id="passkey-status" class="form-hint" style="margin-top:6px;"></div>
         </div>
@@ -76,4 +76,8 @@
 
     <a href="{{ url_for('main.profile') }}" style="font-size:14px;color:var(--slate);">← Back to profile</a>
 </div>
+<script nonce="{{ g.csp_nonce }}">
+var addBtn = document.getElementById('add-passkey-btn');
+if (addBtn) addBtn.addEventListener('click', function() { registerPasskey(); });
+</script>
 {% endblock %}

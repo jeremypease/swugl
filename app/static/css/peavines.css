@@ -903,11 +903,11 @@ body {
     border: none;
     cursor: pointer;
     border-radius: var(--r-s);
-    color: var(--text);
+    color: var(--ink-soft);
     flex-shrink: 0;
     padding: 0;
   }
-  .nav-toggle:hover { background: var(--leaf-mist); }
+  .nav-toggle:hover { background: var(--leaf-mist); color: var(--vine); }
   .nav-toggle svg { width: 22px; height: 22px; }
 
   /* Topbar & content padding */

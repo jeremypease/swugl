@@ -49,7 +49,7 @@
             <button class="filter-btn" data-filter="photo" data-value="true">With photo</button>
             <button class="filter-btn" data-filter="photo" data-value="false">Without photo</button>
         </div>
-        <button class="filter-btn" id="upcoming-btn" onclick="toggleUpcoming(this)">
+        <button class="filter-btn" id="upcoming-btn">
             🎂 Upcoming birthdays
         </button>
     </div>
@@ -170,6 +170,7 @@ function toggleUpcoming(btn) {
     btn.classList.toggle('active', activeFilters.upcoming);
     applyFilters();
 }
+document.getElementById('upcoming-btn').addEventListener('click', function() { toggleUpcoming(this); });
 
 function applyFilters() {
     const q = document.getElementById('member-search').value.toLowerCase().trim();

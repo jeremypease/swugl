@@ -175,6 +175,17 @@
 {% endif %}
 
 <script nonce="{{ g.csp_nonce }}">
+// Generic modal open/close via data attributes
+document.addEventListener('click', function(e) {
+    var opener = e.target.closest('[data-open-modal]');
+    if (opener) { var m = document.getElementById(opener.dataset.openModal); if (m) m.style.display = 'flex'; }
+    var closer = e.target.closest('[data-close-modal]');
+    if (closer) { var m = document.getElementById(closer.dataset.closeModal); if (m) m.style.display = 'none'; }
+    var confirmBtn = e.target.closest('[data-confirm]');
+    if (confirmBtn && !confirm(confirmBtn.dataset.confirm)) { e.preventDefault(); e.stopImmediatePropagation(); }
+});
+</script>
+<script nonce="{{ g.csp_nonce }}">
 (function() {
     var toggle = document.getElementById('nav-toggle');
     var backdrop = document.getElementById('nav-backdrop');

@@ -12,7 +12,7 @@
 
             {% if has_passkeys %}
             <div style="margin-bottom:24px;">
-                <button class="btn btn-primary" style="width:100%;" onclick="authenticateWithPasskey()">
+                <button class="btn btn-primary" style="width:100%;" id="passkey-btn">
                     Use Face ID / Touch ID
                 </button>
                 <div id="passkey-status" class="form-hint" style="margin-top:6px;text-align:center;"></div>
@@ -46,4 +46,10 @@
         </div>
     </div>
 </div>
+{% endblock %}
+{% block scripts %}
+<script nonce="{{ g.csp_nonce }}">
+var passkeyBtn = document.getElementById('passkey-btn');
+if (passkeyBtn) passkeyBtn.addEventListener('click', function() { authenticateWithPasskey(); });
+</script>
 {% endblock %}

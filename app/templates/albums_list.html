@@ -64,7 +64,7 @@
         <h1>Photos</h1>
     </div>
     {% if current_user.active_is_admin or current_user.active_is_delegate %}
-    <button class="btn btn-primary" onclick="document.getElementById('new-album-modal').style.display='flex'">
+    <button class="btn btn-primary" data-open-modal="new-album-modal">
         <i data-lucide="plus"></i> New Album
     </button>
     {% endif %}
@@ -138,7 +138,7 @@
         </a>
         {% endfor %}
         {% if current_user.active_is_admin or current_user.active_is_delegate %}
-        <div class="album-tile-new" style="border-radius:var(--r-m);" onclick="document.getElementById('new-album-modal').style.display='flex'">
+        <div class="album-tile-new" style="border-radius:var(--r-m);" data-open-modal="new-album-modal">
             <i data-lucide="plus" style="width:20px;height:20px;margin-right:6px;"></i> New album
         </div>
         {% endif %}
@@ -153,7 +153,7 @@
     <div style="font-weight:600;font-size:16px;margin-bottom:6px;">No albums yet</div>
     <div style="color:var(--slate);font-size:14px;margin-bottom:20px;">Create an album to share photos with the family.</div>
     {% if current_user.active_is_admin or current_user.active_is_delegate %}
-    <button class="btn btn-primary" onclick="document.getElementById('new-album-modal').style.display='flex'">
+    <button class="btn btn-primary" data-open-modal="new-album-modal">
         <i data-lucide="plus"></i> Create first album
     </button>
     {% endif %}
@@ -165,7 +165,7 @@
     <div class="card" style="width:100%;max-width:480px;max-height:90vh;overflow-y:auto;">
         <div class="card-header">
             <h3>New Album</h3>
-            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('new-album-modal').style.display='none'">
+            <button class="btn btn-ghost btn-sm" data-close-modal="new-album-modal">
                 <i data-lucide="x"></i>
             </button>
         </div>
@@ -192,7 +192,7 @@
             </div>
             <div style="display:flex;gap:10px;margin-top:8px;">
                 <button type="submit" class="btn btn-primary"><i data-lucide="plus"></i> Create</button>
-                <button type="button" class="btn btn-secondary" onclick="document.getElementById('new-album-modal').style.display='none'">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-close-modal="new-album-modal">Cancel</button>
             </div>
         </form>
     </div>

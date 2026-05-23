@@ -22,7 +22,7 @@
         <h1>Announcements</h1>
     </div>
     {% if current_user.active_is_admin or current_user.active_is_delegate %}
-    <button class="btn btn-primary" onclick="document.getElementById('post-modal').style.display='flex'">
+    <button class="btn btn-primary" data-open-modal="post-modal">
         <i data-lucide="plus"></i> Post
     </button>
     {% endif %}
@@ -55,9 +55,10 @@
                 </form>
                 {% endif %}
                 {% if current_user.active_is_admin or (current_user.person and a.author_id == current_user.person.id) %}
-                <form method="POST" action="/announcements/{{ a.id }}/delete" onsubmit="return confirm('Delete this announcement?')">
+                <form method="POST" action="/announcements/{{ a.id }}/delete">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);">
+                    <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);"
+                            data-confirm="Delete this announcement?">
                         <i data-lucide="trash-2" style="width:13px;height:13px;"></i>
                     </button>
                 </form>
@@ -81,7 +82,7 @@
     <div class="card" style="width:100%;max-width:560px;max-height:90vh;overflow-y:auto;">
         <div class="card-header">
             <h3>Post Announcement</h3>
-            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('post-modal').style.display='none'">
+            <button class="btn btn-ghost btn-sm" data-close-modal="post-modal">
                 <i data-lucide="x"></i>
             </button>
         </div>
@@ -104,7 +105,7 @@
             {% endif %}
             <div style="display:flex;gap:10px;">
                 <button type="submit" class="btn btn-primary"><i data-lucide="send"></i> Post</button>
-                <button type="button" class="btn btn-secondary" onclick="document.getElementById('post-modal').style.display='none'">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-close-modal="post-modal">Cancel</button>
             </div>
         </form>
     </div>

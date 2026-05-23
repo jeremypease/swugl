@@ -53,9 +53,11 @@
     background: none;
     border: none;
     cursor: pointer;
-    color: var(--ink);
+    color: var(--ink-soft);
     padding: 6px;
+    border-radius: var(--r-s);
 }
+.l-nav-toggle:hover { background: var(--leaf-mist); color: var(--vine); }
 
 .l-nav-mobile {
     display: none;
