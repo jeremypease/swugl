@@ -2263,6 +2263,36 @@ def support():
         return redirect(url_for('main.support'))
     return render_template('support.html', form=form)
 
+# ── PWA ─────────────────────────────────────────────────────────────────────────
+
+@main.route('/manifest.json')
+def pwa_manifest():
+    from flask import send_from_directory, Response
+    import json, os
+    path = os.path.join(current_app.root_path, 'static', 'manifest.json')
+    with open(path) as f:
+        data = f.read()
+    return Response(data, content_type='application/manifest+json')
+
+
+@main.route('/sw.js')
+def pwa_sw():
+    from flask import send_from_directory, Response, make_response
+    import os
+    path = os.path.join(current_app.root_path, 'static', 'js', 'sw.js')
+    with open(path) as f:
+        data = f.read()
+    resp = Response(data, content_type='application/javascript')
+    resp.headers['Service-Worker-Allowed'] = '/'
+    resp.headers['Cache-Control'] = 'no-cache'
+    return resp
+
+
+@main.route('/offline')
+def pwa_offline():
+    return render_template('offline.html')
+
+
 @main.route('/photos/<path:key>')
 @login_required
 def serve_photo(key):

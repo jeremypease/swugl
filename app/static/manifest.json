@@ -1,0 +1,24 @@
+{
+  "name": "OurPeaPod",
+  "short_name": "PeaPod",
+  "description": "Your private family hub",
+  "start_url": "/home",
+  "display": "standalone",
+  "background_color": "#FAFAF7",
+  "theme_color": "#3D7040",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/static/assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
