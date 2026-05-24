@@ -1,0 +1,74 @@
+{% extends "platform/base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="pa-head">
+    <h1>Dashboard</h1>
+    <p>Platform health at a glance.</p>
+</div>
+
+<div class="stat-grid">
+    <div class="stat-card">
+        <div class="num">{{ stats.total_pods }}</div>
+        <div class="lbl">Total pods</div>
+    </div>
+    <div class="stat-card">
+        <div class="num">{{ stats.total_users }}</div>
+        <div class="lbl">Approved users</div>
+    </div>
+    <div class="stat-card">
+        <div class="num">{{ stats.active_subs }}</div>
+        <div class="lbl">Active / trial</div>
+    </div>
+    <div class="stat-card">
+        <div class="num">{{ stats.pods_this_week }}</div>
+        <div class="lbl">New pods (7d)</div>
+    </div>
+    <div class="stat-card">
+        <div class="num">{{ stats.pods_this_month }}</div>
+        <div class="lbl">New pods (30d)</div>
+    </div>
+    <div class="stat-card">
+        <div class="num">{{ stats.users_this_week }}</div>
+        <div class="lbl">New users (7d)</div>
+    </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+
+<div class="card">
+    <div class="card-header"><strong>Recent Pods</strong></div>
+    <table class="data-table">
+        <thead><tr><th>Name</th><th>Plan</th><th>Created</th></tr></thead>
+        <tbody>
+        {% for pod in recent_pods %}
+        <tr>
+            <td><a href="{{ url_for('platform.pod_detail', pod_id=pod.id) }}" style="color:var(--vine);">{{ pod.name }}</a></td>
+            <td><span class="badge" style="background:{% if pod.plan == 'active' %}var(--sprout){% elif pod.plan == 'trial' %}var(--honey){% else %}var(--hairline-strong){% endif %};color:var(--ink);font-size:11px;padding:2px 7px;border-radius:var(--r-pill);">{{ pod.plan }}</span></td>
+            <td style="color:var(--text-muted);font-size:13px;">{{ pod.created_at.strftime('%b %-d') }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="card">
+    <div class="card-header"><strong>Audit Log</strong></div>
+    {% if audit_log %}
+    <div style="display:flex;flex-direction:column;gap:0;">
+        {% for entry in audit_log %}
+        <div style="display:flex;align-items:baseline;gap:10px;padding:8px 20px;border-bottom:1px solid var(--hairline);font-size:13px;">
+            <span style="color:var(--text-muted);font-size:11px;white-space:nowrap;">{{ entry.created_at.strftime('%m/%d %H:%M') }}</span>
+            <span style="font-weight:600;color:var(--ink-soft);">{{ entry.action }}</span>
+            {% if entry.target_type %}<span style="color:var(--text-muted);">{{ entry.target_type }} #{{ entry.target_id }}</span>{% endif %}
+            {% if entry.detail %}<span style="color:var(--text-muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px;" title="{{ entry.detail }}">{{ entry.detail }}</span>{% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p style="color:var(--text-muted);font-size:14px;padding:12px 20px;">No activity yet.</p>
+    {% endif %}
+</div>
+
+</div>
+{% endblock %}

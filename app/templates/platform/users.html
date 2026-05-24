@@ -1,0 +1,54 @@
+{% extends "platform/base.html" %}
+{% block title %}Users{% endblock %}
+
+{% block content %}
+<div class="pa-head">
+    <h1>User Lookup</h1>
+    <p>Search any user across all pods by email address.</p>
+</div>
+
+<form method="get" style="margin-bottom:24px;display:flex;gap:8px;">
+    <input type="search" name="q" value="{{ q }}" placeholder="Search by email…"
+           style="width:300px;border:1px solid var(--hairline-strong);border-radius:var(--r-s);">
+    <button type="submit" class="btn btn-primary">Search</button>
+</form>
+
+{% if q and results %}
+<div class="card">
+    {% for user in results %}
+    <div style="padding:16px 20px;border-bottom:1px solid var(--hairline);{% if loop.last %}border-bottom:none;{% endif %}">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+            <div>
+                <div style="font-weight:600;font-size:15px;">{{ user.get_full_name() }} <span style="font-weight:400;color:var(--text-muted);font-size:13px;">{{ user.email }}</span></div>
+                <div style="font-size:13px;color:var(--text-muted);margin-top:4px;display:flex;flex-wrap:wrap;gap:12px;">
+                    <span>Pod: <a href="{{ url_for('platform.pod_detail', pod_id=user.family_id) }}" style="color:var(--vine);">{{ user.family.name if user.family else '—' }}</a></span>
+                    <span>Status: <strong>{{ user.status }}</strong></span>
+                    <span>Role: {{ 'Admin' if user.is_admin else 'Delegate' if user.is_delegate else 'Member' }}</span>
+                    <span>Verified: {{ 'Yes' if user.email_verified else 'No' }}</span>
+                </div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                {% if not user.email_verified %}
+                <form method="POST" action="{{ url_for('platform.resend_verification', user_id=user.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-secondary btn-sm">Resend verification</button>
+                </form>
+                {% endif %}
+                <form method="POST" action="{{ url_for('platform.extend_trial', user_id=user.id) }}" style="display:flex;gap:4px;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <select name="days" style="font-size:12px;border:1px solid var(--hairline-strong);border-radius:var(--r-s);padding:4px 6px;">
+                        <option value="7">+7 days</option>
+                        <option value="30" selected>+30 days</option>
+                        <option value="90">+90 days</option>
+                    </select>
+                    <button class="btn btn-secondary btn-sm">Extend trial</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% elif q %}
+<p style="color:var(--text-muted);">No users found matching "{{ q }}".</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,90 @@
+{% extends "platform/base.html" %}
+{% block title %}{{ pod.name }}{% endblock %}
+
+{% block content %}
+<div class="pa-head">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+        <div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;"><a href="{{ url_for('platform.pods') }}" style="color:var(--text-muted);">Pods</a> /</div>
+            <h1>{{ pod.name }}</h1>
+            <p>Pod ID: <code>{{ pod.account_id or '—' }}</code> · Created {{ pod.created_at.strftime('%B %-d, %Y') }}</p>
+        </div>
+        <form method="POST" action="{{ url_for('platform.enter_support', pod_id=pod.id) }}" style="display:flex;flex-direction:column;gap:6px;min-width:260px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="text" name="reason" placeholder="Reason for entering support mode" required
+                   style="border:1px solid var(--hairline-strong);border-radius:var(--r-s);font-size:13px;">
+            <button type="submit" class="btn btn-secondary btn-sm">
+                <i data-lucide="eye" style="width:13px;height:13px;"></i> Enter support mode
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Stats row -->
+<div class="stat-grid" style="margin-bottom:28px;">
+    <div class="stat-card">
+        <div class="num">{{ members|selectattr('status','eq','approved')|list|length }}</div>
+        <div class="lbl">Members</div>
+    </div>
+    <div class="stat-card">
+        <div class="num">{{ person_count }}</div>
+        <div class="lbl">People in tree</div>
+    </div>
+    <div class="stat-card">
+        <div class="num">{{ event_count }}</div>
+        <div class="lbl">Events</div>
+    </div>
+    <div class="stat-card">
+        <div class="num">{{ photo_count }}</div>
+        <div class="lbl">Photos</div>
+    </div>
+</div>
+
+<!-- Billing -->
+<div class="card" style="margin-bottom:24px;">
+    <div class="card-header"><strong>Billing</strong></div>
+    <div class="card-body" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px;">
+        <div>
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px;">Plan</div>
+            <div style="font-weight:600;">{{ pod.plan }}</div>
+        </div>
+        {% if pod.trial_ends_at %}
+        <div>
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px;">Trial ends</div>
+            <div style="font-weight:600;">{{ pod.trial_ends_at.strftime('%b %-d, %Y') }}</div>
+        </div>
+        {% endif %}
+        {% if pod.stripe_customer_id %}
+        <div>
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px;">Stripe customer</div>
+            <div style="font-size:13px;font-family:monospace;">{{ pod.stripe_customer_id }}</div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Members -->
+<div class="card">
+    <div class="card-header"><strong>Members</strong></div>
+    <table class="data-table">
+        <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Joined</th></tr></thead>
+        <tbody>
+        {% for u in members %}
+        <tr>
+            <td style="font-weight:{% if u.is_admin %}600{% else %}400{% endif %};">{{ u.get_full_name() }}</td>
+            <td style="font-size:13px;color:var(--text-muted);">{{ u.email }}</td>
+            <td style="font-size:13px;">
+                {% if u.is_admin %}Admin{% elif u.is_delegate %}Delegate{% else %}Member{% endif %}
+            </td>
+            <td>
+                <span style="font-size:11px;padding:2px 6px;border-radius:var(--r-pill);background:{% if u.status=='approved' %}#d1fae5{% elif u.status=='pending' %}#fef3c7{% else %}var(--hairline){% endif %};">{{ u.status }}</span>
+            </td>
+            <td style="font-size:13px;color:var(--text-muted);">
+                {% if u.approved_date %}{{ u.approved_date.strftime('%b %-d, %Y') }}{% else %}—{% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -96,15 +96,17 @@ def create_app(test_config=None):
     csrf.init_app(app)
     limiter.init_app(app)
 
-    from .models import User, Person
+    from .models import User, Person, SystemAnnouncement
     from .routes import main
     from .billing import billing
     from .two_factor import tf
+    from .platform_routes import platform
     from .storage import photo_url
     from .commands import email_sequence, digest
     app.register_blueprint(main)
     app.register_blueprint(billing)
     app.register_blueprint(tf)
+    app.register_blueprint(platform)
     csrf.exempt(app.view_functions['billing.webhook'])
     app.cli.add_command(email_sequence)
     app.cli.add_command(digest)
@@ -112,8 +114,16 @@ def create_app(test_config=None):
     app.jinja_env.globals['photo_url'] = photo_url
 
     @app.context_processor
-    def inject_now():
-        return {'now': datetime.utcnow()}
+    def inject_globals():
+        from flask import session as s
+        ann = SystemAnnouncement.get_current()
+        dismissed = s.get('dismissed_announcements', [])
+        active_ann = ann if ann and ann.id not in dismissed else None
+        return {
+            'now': datetime.utcnow(),
+            'system_announcement': active_ann,
+            'support_mode': s.get('support_mode', False),
+        }
 
     @app.template_filter('datetime_format')
     def datetime_format(ts):
@@ -125,6 +135,18 @@ def create_app(test_config=None):
         if request.path.startswith('/static/uploads/'):
             if not current_user.is_authenticated:
                 return redirect(url_for('main.login', next=request.path))
+
+    # Block writes when a platform admin is browsing in support mode
+    @app.before_request
+    def block_support_mode_writes():
+        from flask_login import current_user as cu
+        from flask import session as s
+        if (cu.is_authenticated and s.get('support_mode')
+                and request.method in ('POST', 'PUT', 'DELETE', 'PATCH')
+                and not request.path.startswith('/platform/exit-support')
+                and not request.path.startswith('/platform/dismiss-announcement')):
+            from flask import abort
+            abort(403)
 
     # Generate a fresh CSP nonce for every request so inline scripts can be
     # whitelisted without 'unsafe-inline'.

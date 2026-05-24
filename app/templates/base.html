@@ -89,6 +89,12 @@
                 <i data-lucide="credit-card"></i> Billing
             </a>
             {% endif %}
+            {% if current_user.is_platform_admin %}
+            <div class="nav-section">Platform</div>
+            <a href="{{ url_for('platform.dashboard') }}" {% if request.path.startswith('/platform') %}class="active"{% endif %}>
+                <i data-lucide="terminal"></i> Platform Admin
+            </a>
+            {% endif %}
         </nav>
 
         <div class="user-chip">
@@ -139,6 +145,30 @@
             </script>
             {% endif %}
         {% endwith %}
+
+        {% if support_mode %}
+        <div class="notification-banner" style="background:#1a2b1b;color:#fff;border:none;gap:12px;justify-content:space-between;">
+            <span><i data-lucide="eye" style="width:14px;height:14px;display:inline;vertical-align:middle;"></i> <strong>Support mode</strong> — you are viewing this pod read-only. No changes can be saved.</span>
+            <a href="{{ url_for('platform.exit_support') }}" class="btn btn-ghost btn-sm" style="color:#fff;border-color:rgba(255,255,255,0.3);white-space:nowrap;">Exit support mode</a>
+        </div>
+        {% endif %}
+
+        {% if system_announcement %}
+        <div class="notification-banner" id="sys-ann-{{ system_announcement.id }}" style="background:var(--honey);color:var(--ink);border:none;gap:12px;justify-content:space-between;">
+            <span><i data-lucide="megaphone" style="width:14px;height:14px;display:inline;vertical-align:middle;"></i> {{ system_announcement.body }}</span>
+            <button class="btn btn-ghost btn-sm" id="dismiss-ann-btn" style="white-space:nowrap;flex-shrink:0;">Dismiss</button>
+        </div>
+        <script nonce="{{ g.csp_nonce }}">
+        document.getElementById('dismiss-ann-btn').addEventListener('click', function() {
+            var el = document.getElementById('sys-ann-{{ system_announcement.id }}');
+            fetch('/platform/dismiss-announcement/{{ system_announcement.id }}', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': document.querySelector('meta[name=csrf-token]').content }
+            });
+            if (el) el.style.display = 'none';
+        });
+        </script>
+        {% endif %}
 
         {% if current_user.is_authenticated and current_user.active_is_admin and current_user.family %}
             {% set fam = current_user.family %}

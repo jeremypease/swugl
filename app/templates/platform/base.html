@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Platform Admin{% endblock %} — OurPeaPod</title>
+    <link rel="icon" href="{{ url_for('static', filename='assets/favicon.svg') }}" type="image/svg+xml">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/peavines.css') }}">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+    .pa-shell { display: grid; grid-template-columns: 200px 1fr; min-height: 100vh; }
+    .pa-sidebar {
+        background: #1a2b1b;
+        color: #c8d9c9;
+        padding: 24px 0;
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+    .pa-brand {
+        font-size: 13px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        color: #6dab70;
+        padding: 0 16px 16px;
+        border-bottom: 1px solid rgba(255,255,255,.08);
+        margin-bottom: 8px;
+    }
+    .pa-brand span { display: block; font-size: 10px; color: rgba(255,255,255,.4); margin-top: 2px; font-weight: 400; text-transform: none; letter-spacing: 0; }
+    .pa-nav a {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        font-size: 13px;
+        color: #c8d9c9;
+        text-decoration: none;
+        border-radius: 0;
+        transition: background .1s, color .1s;
+    }
+    .pa-nav a:hover { background: rgba(255,255,255,.07); color: #fff; }
+    .pa-nav a.active { background: rgba(109,171,112,.2); color: #6dab70; }
+    .pa-nav a i { width: 15px; height: 15px; flex-shrink: 0; }
+    .pa-exit {
+        margin-top: auto;
+        padding: 16px;
+        border-top: 1px solid rgba(255,255,255,.08);
+        font-size: 12px;
+        color: rgba(255,255,255,.4);
+    }
+    .pa-exit a { color: #c8d9c9; text-decoration: none; font-size: 12px; }
+    .pa-exit a:hover { color: #fff; }
+    .pa-main { background: var(--canvas); padding: 32px 40px; }
+    .pa-head { margin-bottom: 28px; }
+    .pa-head h1 { font-size: 24px; font-weight: 700; }
+    .pa-head p { font-size: 14px; color: var(--text-muted); margin-top: 4px; }
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; margin-bottom: 28px; }
+    .stat-card { background: var(--paper); border: 1px solid var(--hairline-strong); border-radius: var(--r-m); padding: 16px 20px; }
+    .stat-card .num { font-size: 28px; font-weight: 700; color: var(--vine); line-height: 1; }
+    .stat-card .lbl { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+    @media (max-width: 680px) {
+        .pa-shell { grid-template-columns: 1fr; }
+        .pa-sidebar { position: static; height: auto; }
+        .pa-main { padding: 20px 16px; }
+    }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body>
+<div class="pa-shell">
+    <aside class="pa-sidebar">
+        <div class="pa-brand">
+            Platform Admin
+            <span>OurPeaPod internal</span>
+        </div>
+        <nav class="pa-nav">
+            <a href="{{ url_for('platform.dashboard') }}" {% if request.path == '/platform/dashboard' or request.path == '/platform/' %}class="active"{% endif %}>
+                <i data-lucide="bar-chart-2"></i> Dashboard
+            </a>
+            <a href="{{ url_for('platform.pods') }}" {% if request.path.startswith('/platform/pods') %}class="active"{% endif %}>
+                <i data-lucide="layers"></i> Pods
+            </a>
+            <a href="{{ url_for('platform.users') }}" {% if request.path == '/platform/users' %}class="active"{% endif %}>
+                <i data-lucide="users"></i> Users
+            </a>
+            <a href="{{ url_for('platform.announce') }}" {% if request.path == '/platform/announce' %}class="active"{% endif %}>
+                <i data-lucide="megaphone"></i> Announcements
+            </a>
+        </nav>
+        <div class="pa-exit">
+            <a href="{{ url_for('main.home') }}">← Back to app</a>
+        </div>
+    </aside>
+    <main class="pa-main">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for cat, msg in messages %}
+        <div class="flash f-{{ cat }}" style="margin-bottom:16px;">{{ msg }}</div>
+        {% endfor %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+    </main>
+</div>
+<script nonce="{{ g.csp_nonce }}">lucide.createIcons();</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -194,6 +194,41 @@ class UserPodMembership(db.Model):
     __table_args__ = (db.UniqueConstraint('user_id', 'family_id'),)
 
 
+class PlatformAuditLog(db.Model):
+    __tablename__ = 'platform_audit_logs'
+
+    id = db.Column(db.Integer, primary_key=True)
+    actor_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    action = db.Column(db.String(100), nullable=False)
+    target_type = db.Column(db.String(50), nullable=True)
+    target_id = db.Column(db.Integer, nullable=True)
+    detail = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    actor = db.relationship('User', foreign_keys=[actor_id])
+
+
+class SystemAnnouncement(db.Model):
+    __tablename__ = 'system_announcements'
+
+    id = db.Column(db.Integer, primary_key=True)
+    body = db.Column(db.Text, nullable=False)
+    expires_at = db.Column(db.DateTime, nullable=True)
+    is_active = db.Column(db.Boolean, default=True, nullable=False, server_default='1')
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    created_by = db.relationship('User', foreign_keys=[created_by_id])
+
+    @classmethod
+    def get_current(cls):
+        now = datetime.utcnow()
+        return cls.query.filter(
+            cls.is_active == True,
+            db.or_(cls.expires_at == None, cls.expires_at > now)
+        ).order_by(cls.created_at.desc()).first()
+
+
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
 
@@ -218,6 +253,7 @@ class User(UserMixin, db.Model):
     # Roles
     is_admin = db.Column(db.Boolean, default=False)
     is_delegate = db.Column(db.Boolean, default=False)
+    is_platform_admin = db.Column(db.Boolean, nullable=False, default=False, server_default='0')
 
     # Link to person in family tree
     person_id = db.Column(db.Integer, db.ForeignKey('people.id'))
@@ -250,11 +286,15 @@ class User(UserMixin, db.Model):
     @property
     def active_family_id(self):
         """Family the user is currently browsing — reads from session, validated
-        against actual memberships, falls back to home family_id."""
+        against actual memberships, falls back to home family_id.
+        Platform admins in support mode bypass the membership check."""
         if has_request_context():
             fid = session.get('active_family_id')
-            if fid is not None and any(m.family_id == fid for m in self.memberships):
-                return fid
+            if fid is not None:
+                if session.get('support_mode') and self.is_platform_admin:
+                    return fid  # bypass membership check for support mode
+                if any(m.family_id == fid for m in self.memberships):
+                    return fid
         return self.family_id
 
     @property
@@ -266,6 +306,8 @@ class User(UserMixin, db.Model):
 
     @property
     def active_is_admin(self):
+        if has_request_context() and session.get('support_mode') and self.is_platform_admin:
+            return True  # platform admin sees full admin view in support mode
         fid = self.active_family_id
         for m in self.memberships:
             if m.family_id == fid:
@@ -274,6 +316,8 @@ class User(UserMixin, db.Model):
 
     @property
     def active_is_delegate(self):
+        if has_request_context() and session.get('support_mode') and self.is_platform_admin:
+            return True
         fid = self.active_family_id
         for m in self.memberships:
             if m.family_id == fid:
