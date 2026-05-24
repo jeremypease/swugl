@@ -556,6 +556,18 @@ class Album(db.Model):
         return len(self.photos)
 
 
+class CalendarToken(db.Model):
+    """One persistent token per user — used to authenticate iCal feed subscriptions."""
+    __tablename__ = 'calendar_tokens'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), unique=True, nullable=False)
+    token = db.Column(db.String(64), unique=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('calendar_token', uselist=False))
+
+
 class Photo(db.Model):
     __tablename__ = 'photos'
 

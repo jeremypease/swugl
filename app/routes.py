@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, send_file, session
 from flask_login import login_user, logout_user, login_required, current_user
-from .models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, ASSIGNMENT_CATEGORIES, EventRSVP, EventSleepingSpot, EventComment, Announcement, Album, Photo, NotificationPreference, NOTIFICATION_EVENTS, UserPodMembership
+from .models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, ASSIGNMENT_CATEGORIES, EventRSVP, EventSleepingSpot, EventComment, Announcement, Album, Photo, NotificationPreference, NOTIFICATION_EVENTS, UserPodMembership, CalendarToken
 from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm, ForgotPasswordForm, ResetPasswordForm, AddPersonForm, RelativeForm, AddParentForm, FamilySettingsForm, EditPersonForm, EventForm, EventCommentForm, EventMealForm, EventMealFamilyAssignForm, EventMealItemForm, EventMealSelfSignupForm, EventMealAssignForm, EventAssignmentForm, EventAssignmentAdminAssignForm, EventSleepingSpotForm, EventSleepingAssignForm, GENDER_CHOICES_DEFAULT, GENDER_CHOICES_EXPANDED, PRONOUN_CHOICES, AnnouncementForm, AlbumForm, PhotoUploadForm, SupportForm
 from .email import send_verification_email, send_pending_notification, send_approval_notification, send_spouse_confirmation_email, send_spouse_invitation_email, send_password_reset_email, send_member_invitation_email, send_welcome_email, send_support_email, send_pod_added_email
 from datetime import date, datetime, timedelta
@@ -2262,6 +2262,98 @@ def support():
         flash("Your message has been sent. We'll get back to you soon.", 'info')
         return redirect(url_for('main.support'))
     return render_template('support.html', form=form)
+
+# ── Calendar feed ────────────────────────────────────────────────────────────────
+
+def _ical_escape(text):
+    """Escape special characters per RFC 5545."""
+    return str(text).replace('\\', '\\\\').replace(';', '\\;').replace(',', '\\,').replace('\n', '\\n')
+
+
+def _ical_fold(line):
+    """Fold long iCal lines at 75 octets per RFC 5545."""
+    encoded = line.encode('utf-8')
+    if len(encoded) <= 75:
+        return line
+    chunks = []
+    while len(encoded) > 75:
+        chunk = encoded[:75]
+        # Don't split a multi-byte character
+        while len(chunk) > 0 and (chunk[-1] & 0xC0) == 0x80:
+            chunk = chunk[:-1]
+        chunks.append(chunk.decode('utf-8'))
+        encoded = encoded[len(chunk):]
+        if encoded:
+            encoded = b' ' + encoded
+    chunks.append(encoded.decode('utf-8'))
+    return '\r\n'.join(chunks)
+
+
+def _build_ical(family, events):
+    lines = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//OurPeaPod//Family Calendar//EN',
+        'CALSCALE:GREGORIAN',
+        'METHOD:PUBLISH',
+        f'X-WR-CALNAME:{_ical_escape(family.name)} Events',
+        'X-WR-CALDESC:Family events from OurPeaPod',
+    ]
+    now_stamp = datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
+    for ev in events:
+        end_date = (ev.end_date + timedelta(days=1)) if ev.end_date else (ev.start_date + timedelta(days=1))
+        vevent = [
+            'BEGIN:VEVENT',
+            f'UID:event-{ev.id}@ourpeapod.com',
+            f'DTSTAMP:{now_stamp}',
+            f'DTSTART;VALUE=DATE:{ev.start_date.strftime("%Y%m%d")}',
+            f'DTEND;VALUE=DATE:{end_date.strftime("%Y%m%d")}',
+            f'SUMMARY:{_ical_escape(ev.name)}',
+        ]
+        if ev.description:
+            vevent.append(f'DESCRIPTION:{_ical_escape(ev.description)}')
+        if ev.location:
+            vevent.append(f'LOCATION:{_ical_escape(ev.location)}')
+        vevent.append(f'URL:{_ical_escape(f"/events/{ev.id}")}')
+        vevent.append('END:VEVENT')
+        lines.extend(vevent)
+    lines.append('END:VCALENDAR')
+    return '\r\n'.join(_ical_fold(l) for l in lines) + '\r\n'
+
+
+@main.route('/family/calendar/<token>.ics')
+def calendar_feed(token):
+    from flask import Response as Resp
+    ct = CalendarToken.query.filter_by(token=token).first_or_404()
+    family = ct.user.family
+    events = Event.query.filter_by(family_id=family.id).order_by(Event.start_date).all()
+    ical = _build_ical(family, events)
+    return Resp(ical, content_type='text/calendar; charset=utf-8',
+                headers={'Content-Disposition': f'attachment; filename="family.ics"'})
+
+
+@main.route('/profile/calendar')
+@login_required
+def profile_calendar():
+    ct = CalendarToken.query.filter_by(user_id=current_user.id).first()
+    return render_template('profile_calendar.html', cal_token=ct)
+
+
+@main.route('/profile/calendar/regenerate', methods=['POST'])
+@login_required
+def regenerate_calendar_token():
+    ct = CalendarToken.query.filter_by(user_id=current_user.id).first()
+    new_token = uuid.uuid4().hex + uuid.uuid4().hex[:16]
+    if ct:
+        ct.token = new_token
+        ct.created_at = datetime.utcnow()
+    else:
+        ct = CalendarToken(user_id=current_user.id, token=new_token)
+        db.session.add(ct)
+    db.session.commit()
+    flash('Calendar link regenerated. Update the subscription in your calendar app.', 'info')
+    return redirect(url_for('main.profile_calendar'))
+
 
 # ── PWA ─────────────────────────────────────────────────────────────────────────
 

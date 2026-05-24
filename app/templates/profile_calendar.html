@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Calendar Feed — {{ current_user.active_family.name }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <div class="eyebrow">Account</div>
+        <h1>Calendar Feed</h1>
+    </div>
+</div>
+
+<div class="content-body" style="max-width:640px;">
+
+    <p style="font-size:14px;color:var(--slate);margin-bottom:24px;line-height:1.65;">
+        Subscribe to your family's event calendar in Apple Calendar, Google Calendar, or Outlook.
+        The feed updates automatically whenever events are added or changed — no need to re-subscribe.
+    </p>
+
+    {% if cal_token %}
+    {# ── Subscribe URL ── #}
+    <div class="card" style="margin-bottom:24px;">
+        <div class="card-header"><strong>Your Subscribe URL</strong></div>
+        <div class="card-body">
+            {% set feed_url = request.host_url.rstrip('/') + url_for('main.calendar_feed', token=cal_token.token) %}
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <input id="cal-url" type="text" value="{{ feed_url }}" readonly
+                       style="flex:1;min-width:0;font-family:monospace;font-size:12px;background:var(--leaf-mist);border:1px solid var(--hairline-strong);border-radius:var(--r-s);">
+                <button id="copy-cal-btn" class="btn btn-primary btn-sm">Copy</button>
+            </div>
+            <p style="font-size:12px;color:var(--slate);margin-top:8px;">
+                Generated {{ cal_token.created_at.strftime('%B %-d, %Y') }} ·
+                Keep this URL private — anyone with it can read your family events.
+            </p>
+        </div>
+    </div>
+
+    {# ── Instructions ── #}
+    <div class="card" style="margin-bottom:24px;">
+        <div class="card-header"><strong>How to subscribe</strong></div>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:20px;">
+            <div>
+                <div style="font-weight:600;font-size:14px;margin-bottom:6px;">
+                    <i data-lucide="smartphone" style="width:14px;height:14px;vertical-align:middle;"></i> Apple Calendar (iOS / macOS)
+                </div>
+                <ol style="font-size:13px;color:var(--slate);margin:0;padding-left:18px;line-height:1.8;">
+                    <li>Copy the URL above.</li>
+                    <li>Open <strong>Calendar</strong> → <strong>File → New Calendar Subscription…</strong></li>
+                    <li>Paste the URL and click <strong>Subscribe</strong>.</li>
+                    <li>Set <strong>Auto-refresh</strong> to "Every hour" and tap <strong>OK</strong>.</li>
+                </ol>
+            </div>
+            <div>
+                <div style="font-weight:600;font-size:14px;margin-bottom:6px;">
+                    <i data-lucide="calendar" style="width:14px;height:14px;vertical-align:middle;"></i> Google Calendar
+                </div>
+                <ol style="font-size:13px;color:var(--slate);margin:0;padding-left:18px;line-height:1.8;">
+                    <li>Copy the URL above.</li>
+                    <li>Open <strong>Google Calendar</strong> → click <strong>+</strong> next to "Other calendars".</li>
+                    <li>Choose <strong>From URL</strong>, paste the URL, and click <strong>Add calendar</strong>.</li>
+                </ol>
+            </div>
+            <div>
+                <div style="font-weight:600;font-size:14px;margin-bottom:6px;">
+                    <i data-lucide="mail" style="width:14px;height:14px;vertical-align:middle;"></i> Outlook
+                </div>
+                <ol style="font-size:13px;color:var(--slate);margin:0;padding-left:18px;line-height:1.8;">
+                    <li>Copy the URL above.</li>
+                    <li>Go to <strong>Calendar</strong> → <strong>Add calendar → Subscribe from web</strong>.</li>
+                    <li>Paste the URL and click <strong>Import</strong>.</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    {# ── Regenerate ── #}
+    <div class="card" style="margin-bottom:24px;">
+        <div class="card-header"><strong>Regenerate link</strong></div>
+        <div class="card-body">
+            <p style="font-size:13px;color:var(--slate);margin-bottom:12px;">
+                If your subscribe URL was shared accidentally, regenerate it here.
+                Your old link will stop working immediately — you'll need to re-subscribe with the new URL.
+            </p>
+            <form method="POST" action="{{ url_for('main.regenerate_calendar_token') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-secondary"
+                        data-confirm="Regenerate your calendar link? Your old URL will stop working.">
+                    Regenerate link
+                </button>
+            </form>
+        </div>
+    </div>
+
+    {% else %}
+    {# ── First-time generate ── #}
+    <div class="card" style="margin-bottom:24px;">
+        <div class="card-header"><strong>Generate your subscribe link</strong></div>
+        <div class="card-body">
+            <p style="font-size:14px;color:var(--slate);margin-bottom:16px;">
+                Create a private URL to subscribe to your family's events in Apple Calendar,
+                Google Calendar, or Outlook.
+            </p>
+            <form method="POST" action="{{ url_for('main.regenerate_calendar_token') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-primary">
+                    <i data-lucide="link"></i> Generate calendar link
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    <a href="{{ url_for('main.profile') }}" style="font-size:14px;color:var(--slate);">← Back to profile</a>
+</div>
+
+<script nonce="{{ g.csp_nonce }}">
+var copyBtn = document.getElementById('copy-cal-btn');
+if (copyBtn) copyBtn.addEventListener('click', function() {
+    var url = document.getElementById('cal-url');
+    navigator.clipboard.writeText(url.value);
+    copyBtn.textContent = 'Copied!';
+    setTimeout(function() { copyBtn.textContent = 'Copy'; }, 2000);
+});
+</script>
+{% endblock %}
