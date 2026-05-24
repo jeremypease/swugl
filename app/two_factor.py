@@ -7,11 +7,16 @@ import pyotp
 import qrcode
 import webauthn
 from webauthn.helpers.structs import (
+    AuthenticatorAttestationResponse,
+    AuthenticatorAssertionResponse,
     AuthenticatorSelectionCriteria,
+    AuthenticationCredential,
     PublicKeyCredentialDescriptor,
+    RegistrationCredential,
     ResidentKeyRequirement,
     UserVerificationRequirement,
 )
+from webauthn.helpers import base64url_to_bytes
 from flask import (Blueprint, current_app, flash, jsonify, redirect,
                    render_template, request, session, url_for)
 from flask_login import current_user, login_required, login_user
@@ -102,7 +107,15 @@ def passkey_register_complete():
     data = request.get_json()
     challenge = base64.b64decode(session.pop('webauthn_reg_challenge', ''))
     try:
-        credential = webauthn.parse_registration_credential_json(json.dumps(data['credential']))
+        raw = data['credential']
+        credential = RegistrationCredential(
+            id=raw['id'],
+            raw_id=base64url_to_bytes(raw['rawId']),
+            response=AuthenticatorAttestationResponse(
+                client_data_json=base64url_to_bytes(raw['response']['clientDataJSON']),
+                attestation_object=base64url_to_bytes(raw['response']['attestationObject']),
+            ),
+        )
         verification = webauthn.verify_registration_response(
             credential=credential,
             expected_challenge=challenge,
@@ -241,7 +254,17 @@ def login_2fa_passkey_complete():
         return jsonify({'error': 'Unknown credential'}), 400
 
     try:
-        credential = webauthn.parse_authentication_credential_json(json.dumps(data))
+        resp = data.get('response', {})
+        credential = AuthenticationCredential(
+            id=data['id'],
+            raw_id=base64url_to_bytes(data['rawId']),
+            response=AuthenticatorAssertionResponse(
+                client_data_json=base64url_to_bytes(resp['clientDataJSON']),
+                authenticator_data=base64url_to_bytes(resp['authenticatorData']),
+                signature=base64url_to_bytes(resp['signature']),
+                user_handle=base64url_to_bytes(resp['userHandle']) if resp.get('userHandle') else None,
+            ),
+        )
         verification = webauthn.verify_authentication_response(
             credential=credential,
             expected_challenge=challenge,
