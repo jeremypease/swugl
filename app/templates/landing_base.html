@@ -9,6 +9,7 @@
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#3D7040">
     <meta name="apple-mobile-web-app-title" content="OurPeaPod">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/peavines.css') }}">
