@@ -26,21 +26,44 @@
         <form method="POST" enctype="multipart/form-data">
             {{ form.hidden_tag() }}
 
-            <div class="field">
-                {{ form.name.label }}
-                {{ form.name() }}
-                {% for error in form.name.errors %}<span class="msg">{{ error }}</span>{% endfor %}
+            <div class="field-row">
+                <div class="field" style="flex:2;">
+                    {{ form.name.label }}
+                    {{ form.name() }}
+                    {% for error in form.name.errors %}<span class="msg">{{ error }}</span>{% endfor %}
+                </div>
+                <div class="field" style="flex:1;">
+                    {{ form.kind.label }}
+                    {{ form.kind() }}
+                </div>
             </div>
 
             <div class="field-row">
                 <div class="field">
                     {{ form.start_date.label }}
-                    {{ form.start_date() }}
+                    {{ form.start_date(id="start-date-input") }}
                     {% for error in form.start_date.errors %}<span class="msg">{{ error }}</span>{% endfor %}
                 </div>
                 <div class="field">
                     {{ form.end_date.label }}
-                    {{ form.end_date() }}
+                    {{ form.end_date(id="end-date-input") }}
+                </div>
+                <div class="field" style="flex:0 0 auto;min-width:80px;">
+                    <label>&nbsp;</label>
+                    <div id="duration-display" style="font-size:13px;color:var(--slate);padding-top:10px;white-space:nowrap;"></div>
+                </div>
+            </div>
+
+            <div class="field-row">
+                <div class="field">
+                    {{ form.rsvp_deadline.label }}
+                    {{ form.rsvp_deadline() }}
+                </div>
+                <div class="field" style="flex:1;display:flex;align-items:flex-end;padding-bottom:2px;">
+                    <label class="checkbox-row" style="margin:0;">
+                        {{ form.is_annual() }}
+                        <span style="font-size:14px;"><strong>Annual</strong> <span style="color:var(--slate);font-size:12px;">Repeats yearly</span></span>
+                    </label>
                 </div>
             </div>
 
@@ -106,6 +129,24 @@
 </div>
 
 <script nonce="{{ g.csp_nonce }}">
+(function () {
+    // Live duration display
+    const startEl = document.getElementById('start-date-input');
+    const endEl = document.getElementById('end-date-input');
+    const durEl = document.getElementById('duration-display');
+    function updateDuration() {
+        if (!startEl || !endEl || !durEl) return;
+        const s = startEl.value, e = endEl.value;
+        if (!s || !e) { durEl.textContent = ''; return; }
+        const diff = (new Date(e) - new Date(s)) / 86400000;
+        if (diff < 0) { durEl.textContent = ''; return; }
+        durEl.textContent = diff === 0 ? '1 day' : (diff + 1) + ' days';
+    }
+    if (startEl) startEl.addEventListener('change', updateDuration);
+    if (endEl) endEl.addEventListener('change', updateDuration);
+    updateDuration();
+})();
+
 (function () {
     const input = document.getElementById('location-input');
     const dropdown = document.getElementById('location-dropdown');

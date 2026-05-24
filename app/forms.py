@@ -172,12 +172,26 @@ class ForgotPasswordForm(FlaskForm):
     email = StringField('Email', validators=[DataRequired(), Email()])
     submit = SubmitField('Send Reset Link')
 
+EVENT_KIND_CHOICES = [
+    ('', '— Optional —'),
+    ('Reunion', 'Reunion'),
+    ('Holiday', 'Holiday'),
+    ('Birthday', 'Birthday'),
+    ('Camping', 'Camping'),
+    ('Wedding', 'Wedding'),
+    ('Graduation', 'Graduation'),
+    ('Other', 'Other'),
+]
+
 class EventForm(FlaskForm):
     name = StringField('Event Name', validators=[DataRequired(), Length(max=150)])
+    kind = SelectField('Type', choices=EVENT_KIND_CHOICES, validators=[Optional()])
     description = TextAreaField('Description')
     location = StringField('Location', validators=[Optional(), Length(max=200)])
     start_date = DateField('Start Date', validators=[DataRequired()])
     end_date = DateField('End Date', validators=[Optional()])
+    rsvp_deadline = DateField('RSVP Deadline', validators=[Optional()])
+    is_annual = BooleanField('Repeats annually')
     has_meals = BooleanField('Meals')
     has_assignments = BooleanField('Assignments')
     has_sleeping = BooleanField('Sleeping Arrangements')

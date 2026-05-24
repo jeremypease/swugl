@@ -73,6 +73,8 @@
             </div>
         </div>
         <div style="display:flex;gap:5px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;">
+            {% if event.kind %}<span class="badge" style="font-size:11px;background:var(--leaf-mist);color:var(--vine-deep);">{{ event.kind }}</span>{% endif %}
+            {% if event.is_annual %}<span class="badge" style="font-size:11px;background:var(--leaf-mist);color:var(--vine-deep);">↻</span>{% endif %}
             {% if event.has_meals %}<span class="badge b-active" style="font-size:11px;">Meals</span>{% endif %}
             {% if event.has_assignments %}<span class="badge b-admin" style="font-size:11px;">Tasks</span>{% endif %}
             {% if event.has_sleeping %}<span class="badge b-pending" style="font-size:11px;">Sleeping</span>{% endif %}

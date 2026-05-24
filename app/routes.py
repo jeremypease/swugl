@@ -1459,10 +1459,13 @@ def event_add():
         event = Event(
             family_id=current_user.active_family_id,
             name=form.name.data,
+            kind=form.kind.data or None,
             description=form.description.data or None,
             location=form.location.data or None,
             start_date=form.start_date.data,
             end_date=form.end_date.data,
+            rsvp_deadline=form.rsvp_deadline.data,
+            is_annual=form.is_annual.data,
             has_meals=form.has_meals.data,
             has_assignments=form.has_assignments.data,
             has_sleeping=form.has_sleeping.data,
@@ -1602,10 +1605,13 @@ def event_edit(event_id):
     form = EventForm(obj=event)
     if form.validate_on_submit():
         event.name = form.name.data
+        event.kind = form.kind.data or None
         event.description = form.description.data or None
         event.location = form.location.data or None
         event.start_date = form.start_date.data
         event.end_date = form.end_date.data
+        event.rsvp_deadline = form.rsvp_deadline.data
+        event.is_annual = form.is_annual.data
         event.has_meals = form.has_meals.data
         event.has_assignments = form.has_assignments.data
         event.has_sleeping = form.has_sleeping.data

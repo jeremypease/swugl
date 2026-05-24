@@ -181,9 +181,11 @@ details[open] .details-chevron { transform: rotate(180deg); }
             <div class="eyebrow">
                 <a href="/events" style="color:inherit;text-decoration:none;">← Events</a>
             </div>
-            <h1>{{ event.name }}</h1>
-            <div style="font-size:13px;color:var(--slate);margin-top:2px;">
+            <h1>{{ event.name }}{% if event.is_annual %} <span style="font-size:13px;font-weight:500;color:var(--slate);vertical-align:middle;">↻ Annual</span>{% endif %}</h1>
+            <div style="font-size:13px;color:var(--slate);margin-top:2px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;">
+                {% if event.kind %}<span style="background:var(--leaf-mist);color:var(--vine-deep);font-size:11px;font-weight:600;padding:1px 7px;border-radius:99px;letter-spacing:.4px;text-transform:uppercase;">{{ event.kind }}</span>{% endif %}
                 {{ event.date_range_display() }}{% if event.location %} · {{ event.location }}{% endif %}
+                {% if event.rsvp_deadline %}<span style="color:var(--slate-soft);">· RSVP by {{ event.rsvp_deadline.strftime('%B %-d') }}</span>{% endif %}
             </div>
         </div>
         {% if current_user.active_is_admin %}
