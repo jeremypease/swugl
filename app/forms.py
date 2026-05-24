@@ -267,6 +267,22 @@ class AnnouncementForm(FlaskForm):
     pinned = BooleanField('Pin to top')
     submit = SubmitField('Post')
 
+class ChangePasswordForm(FlaskForm):
+    current_password = PasswordField('Current Password', validators=[DataRequired()])
+    new_password = PasswordField('New Password', validators=[
+        DataRequired(),
+        Length(min=8, message='Password must be at least 8 characters'),
+        Regexp(r'(?=.*[A-Z])', message='Password must include an uppercase letter'),
+        Regexp(r'(?=.*[a-z])', message='Password must include a lowercase letter'),
+        Regexp(r'(?=.*\d)', message='Password must include a number'),
+        Regexp(r'(?=.*[!@#$%^&*])', message='Password must include a special character (!@#$%^&*)')
+    ])
+    confirm_password = PasswordField('Confirm Password', validators=[
+        DataRequired(),
+        EqualTo('new_password', message='Passwords must match')
+    ])
+    submit = SubmitField('Change Password')
+
 class ResetPasswordForm(FlaskForm):
     password = PasswordField('New Password', validators=[
         DataRequired(),

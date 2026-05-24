@@ -18,6 +18,7 @@ from flask_login import current_user, login_required, login_user
 
 from . import db
 from .models import User, UserCredential
+from .forms import ChangePasswordForm
 
 tf = Blueprint('tf', __name__)
 
@@ -52,12 +53,22 @@ def _qr_png_b64(uri):
 
 # ── Security settings page ─────────────────────────────────────────────────
 
-@tf.route('/profile/security')
+@tf.route('/profile/security', methods=['GET', 'POST'])
 @login_required
 def security():
+    pw_form = ChangePasswordForm(prefix='pw')
+    if pw_form.validate_on_submit():
+        if not current_user.check_password(pw_form.current_password.data):
+            flash('Current password is incorrect.', 'error')
+        else:
+            current_user.set_password(pw_form.new_password.data)
+            db.session.commit()
+            flash('Password changed successfully.', 'info')
+        return redirect(url_for('tf.security'))
     return render_template('profile_security.html',
                            passkeys=current_user.passkeys,
-                           totp_enabled=current_user.totp_enabled)
+                           totp_enabled=current_user.totp_enabled,
+                           pw_form=pw_form)
 
 
 # ── Passkey registration ───────────────────────────────────────────────────

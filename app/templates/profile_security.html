@@ -74,6 +74,32 @@
         </div>
     </div>
 
+    {# ── Change password ── #}
+    <div class="card" style="margin-bottom:24px;">
+        <div class="card-header"><strong>Change Password</strong></div>
+        <div class="card-body">
+            <form method="POST" style="max-width:360px;">
+                {{ pw_form.hidden_tag() }}
+                <div class="field">
+                    {{ pw_form.current_password.label }}
+                    {{ pw_form.current_password(autocomplete="current-password") }}
+                    {% for e in pw_form.current_password.errors %}<span class="msg">{{ e }}</span>{% endfor %}
+                </div>
+                <div class="field">
+                    {{ pw_form.new_password.label }}
+                    {{ pw_form.new_password(autocomplete="new-password") }}
+                    {% for e in pw_form.new_password.errors %}<span class="msg">{{ e }}</span>{% endfor %}
+                </div>
+                <div class="field">
+                    {{ pw_form.confirm_password.label }}
+                    {{ pw_form.confirm_password(autocomplete="new-password") }}
+                    {% for e in pw_form.confirm_password.errors %}<span class="msg">{{ e }}</span>{% endfor %}
+                </div>
+                <button type="submit" class="btn btn-primary">{{ pw_form.submit.label.text }}</button>
+            </form>
+        </div>
+    </div>
+
     <a href="{{ url_for('main.profile') }}" style="font-size:14px;color:var(--slate);">← Back to profile</a>
 </div>
 <script nonce="{{ g.csp_nonce }}">
