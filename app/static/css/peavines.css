@@ -907,8 +907,9 @@ body {
 }
 .flash-wrap { padding: 16px 40px 0; }
 
-/* nav-toggle hidden on desktop; shown in mobile block below */
+/* nav-toggle and nav-backdrop hidden on desktop */
 .nav-toggle { display: none; }
+.nav-backdrop { display: none; }
 
 /* =========================================================
    RESPONSIVE — MOBILE (≤ 680px)
