@@ -343,6 +343,20 @@ def send_digest_email(user, family, content, dashboard_url):
     )
 
 
+def send_pod_added_email(user, family_name, dashboard_url):
+    return send_email(
+        user.email,
+        f"You've been added to {family_name} on OurPeaPod",
+        f"""
+        <h2>You've been added to {family_name}</h2>
+        <p>Hi {user.first_name},</p>
+        <p>A pod admin has added you to the <strong>{family_name}</strong> family on OurPeaPod.
+        Sign in to see the family and switch between your pods.</p>
+        <p><a href="{dashboard_url}">Go to OurPeaPod</a></p>
+        """
+    )
+
+
 def send_support_email(user, family, category, message, support_email):
     category_labels = {
         'billing':   'Billing or subscription',

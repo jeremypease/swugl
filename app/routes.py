@@ -1,8 +1,8 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, send_file, session
 from flask_login import login_user, logout_user, login_required, current_user
-from .models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, ASSIGNMENT_CATEGORIES, EventRSVP, EventSleepingSpot, EventComment, Announcement, Album, Photo, NotificationPreference, NOTIFICATION_EVENTS
+from .models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, ASSIGNMENT_CATEGORIES, EventRSVP, EventSleepingSpot, EventComment, Announcement, Album, Photo, NotificationPreference, NOTIFICATION_EVENTS, UserPodMembership
 from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm, ForgotPasswordForm, ResetPasswordForm, AddPersonForm, RelativeForm, AddParentForm, FamilySettingsForm, EditPersonForm, EventForm, EventCommentForm, EventMealForm, EventMealFamilyAssignForm, EventMealItemForm, EventMealSelfSignupForm, EventMealAssignForm, EventAssignmentForm, EventAssignmentAdminAssignForm, EventSleepingSpotForm, EventSleepingAssignForm, GENDER_CHOICES_DEFAULT, GENDER_CHOICES_EXPANDED, PRONOUN_CHOICES, AnnouncementForm, AlbumForm, PhotoUploadForm, SupportForm
-from .email import send_verification_email, send_pending_notification, send_approval_notification, send_spouse_confirmation_email, send_spouse_invitation_email, send_password_reset_email, send_member_invitation_email, send_welcome_email, send_support_email
+from .email import send_verification_email, send_pending_notification, send_approval_notification, send_spouse_confirmation_email, send_spouse_invitation_email, send_password_reset_email, send_member_invitation_email, send_welcome_email, send_support_email, send_pod_added_email
 from datetime import date, datetime, timedelta
 from functools import wraps
 from urllib.parse import urlparse
@@ -21,6 +21,18 @@ def _hash_token(token: str) -> str:
     dump of the database cannot be used to redeem outstanding tokens.
     """
     return hashlib.sha256(token.encode()).hexdigest()
+
+
+def _ensure_membership(user):
+    """Upsert a UserPodMembership for user's home pod. Call after flush so user.id exists."""
+    existing = UserPodMembership.query.filter_by(
+        user_id=user.id, family_id=user.family_id
+    ).first()
+    if not existing:
+        role = 'admin' if user.is_admin else ('delegate' if user.is_delegate else 'member')
+        db.session.add(UserPodMembership(user_id=user.id, family_id=user.family_id, role=role))
+
+
 import uuid
 import zipfile
 import io
@@ -372,6 +384,7 @@ def register():
         db.session.add(user)
         db.session.flush()
         NotificationPreference.seed_defaults(user.id)
+        _ensure_membership(user)
         db.session.commit()
         if current_app.config.get('MAIL_ENABLED'):
             send_verification_email(user, url_for('main.verify_email', token=token, _external=True))
@@ -432,6 +445,7 @@ def register_invited(token):
         if invited_user.person:
             invited_user.person.name = f"{form.first_name.data} {form.last_name.data}"
         NotificationPreference.seed_defaults(invited_user.id)
+        _ensure_membership(invited_user)
         db.session.commit()
         flash('Account created! You can now log in.', 'info')
         return redirect(url_for('main.login'))
@@ -954,6 +968,7 @@ def approve_user(user_id):
     user.approved_by_id = current_user.id
     user.approved_date = date.today()
     NotificationPreference.seed_defaults(user.id)
+    _ensure_membership(user)
     db.session.commit()
     if current_app.config.get('MAIL_ENABLED'):
         send_approval_notification(user, url_for('main.login', _external=True))
@@ -984,6 +999,12 @@ def set_role(user_id):
     role = request.form.get('role')
     user.is_admin = (role == 'admin')
     user.is_delegate = (role == 'contributor')
+    membership_role = 'admin' if role == 'admin' else ('delegate' if role == 'contributor' else 'member')
+    membership = UserPodMembership.query.filter_by(
+        user_id=user.id, family_id=current_user.active_family_id
+    ).first()
+    if membership:
+        membership.role = membership_role
     db.session.commit()
     flash(f'{user.get_full_name()} is now a {role or "member"}.', 'info')
     return redirect(url_for('main.admin_users'))
@@ -1018,8 +1039,29 @@ def invite_person(person_id):
     if not email:
         flash('Add an email address to this person before sending an invitation.', 'error')
         return redirect(url_for('main.person_edit', person_id=person_id))
-    if User.query.filter_by(email=email).first():
-        flash('An account with that email address already exists.', 'error')
+    existing_user = User.query.filter_by(email=email).first()
+    if existing_user:
+        # User already has an account — add them to this pod if not already a member.
+        already = UserPodMembership.query.filter_by(
+            user_id=existing_user.id, family_id=current_user.active_family_id
+        ).first()
+        if already:
+            flash(f'{person.get_display_name()} is already a member of this pod.', 'error')
+        else:
+            db.session.add(UserPodMembership(
+                user_id=existing_user.id,
+                family_id=current_user.active_family_id,
+                role='member',
+            ))
+            person.user = existing_user
+            db.session.commit()
+            if current_app.config.get('MAIL_ENABLED'):
+                send_pod_added_email(
+                    existing_user,
+                    current_user.active_family.name,
+                    url_for('main.home', _external=True),
+                )
+            flash(f'{person.get_display_name()} has been added to this pod.', 'info')
         return redirect(url_for('main.person_detail', person_id=person_id))
     names = person.name.strip().split()
     first = names[0]

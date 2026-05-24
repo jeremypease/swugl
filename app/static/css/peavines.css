@@ -315,6 +315,53 @@ body {
   padding: 0 10px;
   margin-top: -16px;
 }
+.pod-switcher {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  position: relative;
+}
+.pod-switcher-menu {
+  position: relative;
+}
+.pod-switcher-menu summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: var(--r-s);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+}
+.pod-switcher-menu summary:hover { background: var(--leaf-mist); color: var(--vine); }
+.pod-switcher-menu[open] summary { color: var(--vine); }
+.pod-switcher-menu ul {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 4px);
+  background: var(--paper);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-m);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+  list-style: none;
+  padding: 4px;
+  min-width: 160px;
+  z-index: 50;
+}
+.pod-switcher-menu ul li button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 7px 10px;
+  border: none;
+  background: none;
+  border-radius: var(--r-s);
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+}
+.pod-switcher-menu ul li button:hover { background: var(--leaf-mist); color: var(--vine); }
 .nav { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
 .nav-section {
   font-size: 11px;
