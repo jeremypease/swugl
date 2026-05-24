@@ -78,7 +78,7 @@
     <div class="card" style="margin-bottom:24px;">
         <div class="card-header"><strong>Change Password</strong></div>
         <div class="card-body">
-            <form method="POST" style="max-width:360px;">
+            <form method="POST" action="{{ url_for('tf.security') }}" style="max-width:360px;">
                 {{ pw_form.hidden_tag() }}
                 <div class="field">
                     {{ pw_form.current_password.label }}

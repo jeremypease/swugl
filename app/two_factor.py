@@ -56,7 +56,7 @@ def _qr_png_b64(uri):
 @tf.route('/profile/security', methods=['GET', 'POST'])
 @login_required
 def security():
-    pw_form = ChangePasswordForm(prefix='pw')
+    pw_form = ChangePasswordForm()
     if pw_form.validate_on_submit():
         if not current_user.check_password(pw_form.current_password.data):
             flash('Current password is incorrect.', 'error')
