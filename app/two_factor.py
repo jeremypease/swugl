@@ -222,8 +222,8 @@ def login_passkey_complete():
         if not user:
             return jsonify({'error': 'Unknown user'}), 400
 
-        raw_id = base64.b64decode(data.get('rawId', '') + '==').rstrip(b'\x00')
-        cred_id_b64 = base64.b64encode(raw_id).decode().rstrip('=')
+        raw_id_bytes = base64url_to_bytes(data.get('rawId', ''))
+        cred_id_b64 = base64.b64encode(raw_id_bytes).decode().rstrip('=')
         stored = UserCredential.query.filter_by(
             user_id=user.id, credential_id=cred_id_b64
         ).first()
@@ -232,7 +232,7 @@ def login_passkey_complete():
 
         credential = AuthenticationCredential(
             id=data['id'],
-            raw_id=base64url_to_bytes(data['rawId']),
+            raw_id=raw_id_bytes,
             response=AuthenticatorAssertionResponse(
                 client_data_json=base64url_to_bytes(resp['clientDataJSON']),
                 authenticator_data=base64url_to_bytes(resp['authenticatorData']),
