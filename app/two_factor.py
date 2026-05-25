@@ -92,7 +92,7 @@ def passkey_register_begin():
         user_name=current_user.email,
         user_display_name=current_user.get_full_name(),
         authenticator_selection=AuthenticatorSelectionCriteria(
-            resident_key=ResidentKeyRequirement.PREFERRED,
+            resident_key=ResidentKeyRequirement.REQUIRED,
             user_verification=UserVerificationRequirement.PREFERRED,
         ),
         exclude_credentials=existing,
@@ -192,6 +192,70 @@ def totp_disable():
     db.session.commit()
     flash('Authenticator app removed.', 'info')
     return redirect(url_for('tf.security'))
+
+
+# ── Passkey-first sign-in (passwordless) ──────────────────────────────
+
+@tf.route('/login/passkey/begin', methods=['POST'])
+def login_passkey_begin():
+    options = webauthn.generate_authentication_options(
+        rp_id=_rp_id(),
+        allow_credentials=[],
+        user_verification=UserVerificationRequirement.PREFERRED,
+    )
+    session['webauthn_passkey_login_challenge'] = base64.b64encode(options.challenge).decode()
+    return webauthn.options_to_json(options), 200, {'Content-Type': 'application/json'}
+
+
+@tf.route('/login/passkey/complete', methods=['POST'])
+def login_passkey_complete():
+    challenge = base64.b64decode(session.pop('webauthn_passkey_login_challenge', ''))
+    data = request.get_json()
+    try:
+        resp = data.get('response', {})
+        user_handle = base64url_to_bytes(resp['userHandle']) if resp.get('userHandle') else None
+        if not user_handle:
+            return jsonify({'error': 'No user handle returned by authenticator'}), 400
+
+        user_id = int(user_handle.decode())
+        user = db.session.get(User, user_id)
+        if not user:
+            return jsonify({'error': 'Unknown user'}), 400
+
+        raw_id = base64.b64decode(data.get('rawId', '') + '==').rstrip(b'\x00')
+        cred_id_b64 = base64.b64encode(raw_id).decode().rstrip('=')
+        stored = UserCredential.query.filter_by(
+            user_id=user.id, credential_id=cred_id_b64
+        ).first()
+        if not stored:
+            return jsonify({'error': 'Unknown credential'}), 400
+
+        credential = AuthenticationCredential(
+            id=data['id'],
+            raw_id=base64url_to_bytes(data['rawId']),
+            response=AuthenticatorAssertionResponse(
+                client_data_json=base64url_to_bytes(resp['clientDataJSON']),
+                authenticator_data=base64url_to_bytes(resp['authenticatorData']),
+                signature=base64url_to_bytes(resp['signature']),
+                user_handle=user_handle,
+            ),
+        )
+        verification = webauthn.verify_authentication_response(
+            credential=credential,
+            expected_challenge=challenge,
+            expected_rp_id=_rp_id(),
+            expected_origin=_origin(),
+            credential_public_key=base64.b64decode(stored.public_key),
+            credential_current_sign_count=stored.sign_count,
+        )
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+    stored.sign_count = verification.new_sign_count
+    db.session.commit()
+    login_user(user)
+    session['active_family_id'] = user.family_id
+    return jsonify({'success': True, 'redirect': url_for('main.home')})
 
 
 # ── Login 2FA challenge ────────────────────────────────────────────────────

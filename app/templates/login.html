@@ -23,6 +23,19 @@
                 {% endif %}
             {% endwith %}
 
+            <script src="{{ url_for('static', filename='js/passkey.js') }}"></script>
+            <button type="button" class="btn btn-secondary" style="width:100%;justify-content:center;gap:10px;margin-bottom:6px;" onclick="signInWithPasskey()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a5 5 0 1 0 5 5"/><path d="M17 9a5 5 0 0 1 5 5v1h-3v3h-3v3H8v-5.5A5.5 5.5 0 0 1 13.5 9H17z"/></svg>
+                Sign in with passkey
+            </button>
+            <div id="passkey-signin-status" class="form-hint" style="text-align:center;margin-bottom:12px;min-height:16px;"></div>
+
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+                <hr style="flex:1;border:none;border-top:1px solid var(--hairline-strong);">
+                <span style="font-size:12px;color:var(--slate);font-weight:600;text-transform:uppercase;letter-spacing:.06em;">or</span>
+                <hr style="flex:1;border:none;border-top:1px solid var(--hairline-strong);">
+            </div>
+
             <form method="POST">
                 {{ form.hidden_tag() }}
 

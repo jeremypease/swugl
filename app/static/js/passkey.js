@@ -89,6 +89,59 @@ async function registerPasskey() {
     }
 }
 
+// ── Passwordless sign-in (login page) ────────────────────────────────
+
+async function signInWithPasskey() {
+    const statusEl = document.getElementById('passkey-signin-status');
+    function setStatus(msg, isError) {
+        if (statusEl) { statusEl.textContent = msg; statusEl.className = isError ? 'form-error' : 'form-hint'; }
+    }
+
+    try {
+        setStatus('Looking for your passkey…', false);
+        const beginRes = await jsonFetch('/login/passkey/begin');
+        if (!beginRes.ok) throw new Error('Server error.');
+        const options = await beginRes.json();
+
+        options.challenge = base64urlToBuffer(options.challenge);
+        if (options.allowCredentials) {
+            options.allowCredentials = options.allowCredentials.map(c => ({
+                ...c, id: base64urlToBuffer(c.id),
+            }));
+        }
+
+        const credential = await navigator.credentials.get({ publicKey: options });
+
+        const credentialJSON = {
+            id: credential.id,
+            rawId: bufferToBase64url(credential.rawId),
+            response: {
+                clientDataJSON: bufferToBase64url(credential.response.clientDataJSON),
+                authenticatorData: bufferToBase64url(credential.response.authenticatorData),
+                signature: bufferToBase64url(credential.response.signature),
+                userHandle: credential.response.userHandle
+                    ? bufferToBase64url(credential.response.userHandle) : null,
+            },
+            type: credential.type,
+            clientExtensionResults: credential.getClientExtensionResults(),
+        };
+
+        const completeRes = await jsonFetch('/login/passkey/complete', credentialJSON);
+        const result = await completeRes.json();
+        if (result.success) {
+            window.location.href = result.redirect || '/home';
+        } else {
+            throw new Error(result.error || 'Sign-in failed.');
+        }
+    } catch (err) {
+        if (err.name === 'NotAllowedError') {
+            setStatus('Cancelled.', false);
+        } else {
+            setStatus('Error: ' + err.message, true);
+        }
+    }
+}
+
 // ── Authentication (login 2FA page) ───────────────────────────────────────
 
 async function authenticateWithPasskey() {
