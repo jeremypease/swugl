@@ -8,8 +8,8 @@
 </div>
 
 <form method="get" style="margin-bottom:20px;display:flex;gap:8px;">
-    <input type="search" name="q" value="{{ q }}" placeholder="Search by family name…"
-           style="width:260px;border:1px solid var(--hairline-strong);border-radius:var(--r-s);">
+    <input type="search" name="q" value="{{ q }}" placeholder="Search by family name or admin email…"
+           style="width:300px;border:1px solid var(--hairline-strong);border-radius:var(--r-s);">
     <button type="submit" class="btn btn-primary btn-sm">Search</button>
     {% if q %}<a href="{{ url_for('platform.pods') }}" class="btn btn-secondary btn-sm">Clear</a>{% endif %}
 </form>

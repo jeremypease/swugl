@@ -229,6 +229,20 @@ class SystemAnnouncement(db.Model):
         ).order_by(cls.created_at.desc()).first()
 
 
+class SupportNote(db.Model):
+    """Internal notes written by platform admins on a pod's support history."""
+    __tablename__ = 'support_notes'
+
+    id = db.Column(db.Integer, primary_key=True)
+    pod_id = db.Column(db.Integer, db.ForeignKey('families.id'), nullable=False, index=True)
+    author_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    author = db.relationship('User', foreign_keys=[author_id])
+    pod = db.relationship('Family', foreign_keys=[pod_id])
+
+
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
 

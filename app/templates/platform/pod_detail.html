@@ -42,22 +42,91 @@
 
 <!-- Billing -->
 <div class="card" style="margin-bottom:24px;">
-    <div class="card-header"><strong>Billing</strong></div>
-    <div class="card-body" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px;">
-        <div>
-            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px;">Plan</div>
-            <div style="font-weight:600;">{{ pod.plan }}</div>
-        </div>
-        {% if pod.trial_ends_at %}
-        <div>
-            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px;">Trial ends</div>
-            <div style="font-weight:600;">{{ pod.trial_ends_at.strftime('%b %-d, %Y') }}</div>
-        </div>
-        {% endif %}
+    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+        <strong>Billing</strong>
         {% if pod.stripe_customer_id %}
-        <div>
-            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px;">Stripe customer</div>
-            <div style="font-size:13px;font-family:monospace;">{{ pod.stripe_customer_id }}</div>
+        <a href="https://dashboard.stripe.com/customers/{{ pod.stripe_customer_id }}"
+           target="_blank" rel="noopener"
+           style="font-size:12px;color:var(--text-muted);">View in Stripe ↗</a>
+        {% endif %}
+    </div>
+    <div class="card-body">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px;margin-bottom:20px;">
+            <div>
+                <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px;">Plan</div>
+                <span style="font-size:12px;font-weight:600;padding:2px 8px;border-radius:var(--r-pill);background:{% if pod.plan == 'paid' %}#d1fae5{% elif pod.plan == 'trial' %}#fef3c7{% elif pod.plan == 'past_due' %}#fee2e2{% else %}var(--hairline){% endif %};">{{ pod.plan }}</span>
+            </div>
+            {% if pod.trial_ends_at %}
+            <div>
+                <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px;">Trial ends</div>
+                <div style="font-weight:600;">{{ pod.trial_ends_at.strftime('%b %-d, %Y') }}</div>
+            </div>
+            {% endif %}
+            {% if pod.stripe_customer_id %}
+            <div>
+                <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px;">Stripe customer</div>
+                <div style="font-size:13px;font-family:monospace;">{{ pod.stripe_customer_id }}</div>
+            </div>
+            {% endif %}
+            {% if pod.stripe_subscription_id %}
+            <div>
+                <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px;">Subscription</div>
+                <div style="font-size:13px;font-family:monospace;">{{ pod.stripe_subscription_id }}</div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Billing actions -->
+        <div style="display:flex;flex-wrap:wrap;gap:10px;padding-top:16px;border-top:1px solid var(--hairline);">
+            <!-- Set plan -->
+            <form method="POST" action="{{ url_for('platform.set_plan', pod_id=pod.id) }}" style="display:flex;gap:6px;align-items:center;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <select name="plan" style="font-size:13px;border:1px solid var(--hairline-strong);border-radius:var(--r-s);padding:4px 8px;">
+                    {% for p in ['free', 'trial', 'paid', 'past_due'] %}
+                    <option value="{{ p }}" {% if p == pod.plan %}selected{% endif %}>{{ p }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-secondary btn-sm">Set plan</button>
+            </form>
+            <!-- Extend trial -->
+            <form method="POST" action="{{ url_for('platform.extend_trial', user_id=members[0].id) if members else '#' }}" style="display:flex;gap:6px;align-items:center;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="number" name="days" value="30" min="1" max="365"
+                       style="width:60px;font-size:13px;border:1px solid var(--hairline-strong);border-radius:var(--r-s);padding:4px 8px;">
+                <button type="submit" class="btn btn-secondary btn-sm">Extend trial</button>
+            </form>
+            <!-- Cancel subscription -->
+            {% if pod.stripe_subscription_id %}
+            <form method="POST" action="{{ url_for('platform.cancel_subscription', pod_id=pod.id) }}"
+                  onsubmit="return confirm('Cancel this subscription in Stripe and set plan to free?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-secondary btn-sm" style="color:#dc2626;">Cancel subscription</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Support notes -->
+<div class="card" style="margin-bottom:24px;">
+    <div class="card-header"><strong>Support notes</strong></div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('platform.add_note', pod_id=pod.id) }}" style="display:flex;flex-direction:column;gap:8px;margin-bottom:{% if notes %}20px{% else %}0{% endif %};">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <textarea name="body" rows="3" placeholder="Add an internal note…"
+                      style="width:100%;border:1px solid var(--hairline-strong);border-radius:var(--r-s);font-size:13px;padding:8px;resize:vertical;"></textarea>
+            <div><button type="submit" class="btn btn-primary btn-sm">Save note</button></div>
+        </form>
+        {% if notes %}
+        <div style="display:flex;flex-direction:column;gap:12px;">
+        {% for note in notes %}
+        <div style="border-top:1px solid var(--hairline);padding-top:12px;">
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">
+                {{ note.author.get_full_name() }} · {{ note.created_at.strftime('%b %-d, %Y %H:%M') }} UTC
+            </div>
+            <div style="font-size:14px;white-space:pre-wrap;">{{ note.body }}</div>
+        </div>
+        {% endfor %}
         </div>
         {% endif %}
     </div>
