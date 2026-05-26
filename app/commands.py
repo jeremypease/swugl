@@ -4,6 +4,7 @@ Railway cron jobs:
     flask email-sequence   — daily  (0 8 * * *)
     flask digest           — weekly (0 8 * * 1)
     flask rsvp-reminders   — daily  (0 8 * * *)
+    flask annual-events    — weekly (0 9 * * 1)
 """
 import click
 from datetime import datetime, timedelta, date
@@ -11,7 +12,7 @@ from flask import current_app, url_for
 from flask.cli import with_appcontext
 
 from . import db
-from .models import Family, User, Event, EventRSVP
+from .models import Family, User, Event, EventMeal, EventMealItem, EventAssignment, EventSleepingSpot
 from .notifications import send_family_digest, create_notification
 from .email import (
     send_nudge_day3_email,
@@ -19,6 +20,7 @@ from .email import (
     send_trial_warning_email,
     send_trial_ended_email,
     send_rsvp_reminder_email,
+    send_annual_event_cloned_email,
 )
 
 
@@ -179,3 +181,123 @@ def rsvp_reminders(dry_run):
 
     if not dry_run:
         click.echo(f'rsvp-reminders done: {sent} sent for {len(events)} event(s) with deadline {target_date}.')
+
+
+def _advance_year(d):
+    """Advance a date by exactly one year, mapping Feb 29 → Mar 1 on non-leap years."""
+    try:
+        return d.replace(year=d.year + 1)
+    except ValueError:
+        return d.replace(year=d.year + 1, month=3, day=1)
+
+
+def _clone_event(source):
+    """Create a new Event one year ahead of source, copying structure but clearing signups."""
+    new = Event(
+        family_id=source.family_id,
+        name=source.name,
+        description=source.description,
+        location=source.location,
+        kind=source.kind,
+        start_date=_advance_year(source.start_date),
+        end_date=_advance_year(source.end_date) if source.end_date else None,
+        is_annual=True,
+        has_meals=source.has_meals,
+        has_assignments=source.has_assignments,
+        has_sleeping=source.has_sleeping,
+    )
+    db.session.add(new)
+    db.session.flush()  # get new.id
+
+    for meal in source.meals:
+        new_meal = EventMeal(
+            event_id=new.id,
+            name=meal.name,
+            meal_date=_advance_year(meal.meal_date) if meal.meal_date else None,
+            meal_time=meal.meal_time,
+            notes=meal.notes,
+        )
+        db.session.add(new_meal)
+        db.session.flush()
+        for item in meal.items:
+            db.session.add(EventMealItem(
+                meal_id=new_meal.id,
+                label=item.label,
+                quantity=item.quantity,
+                is_cleanup=item.is_cleanup,
+            ))
+
+    for a in source.assignments:
+        db.session.add(EventAssignment(
+            event_id=new.id,
+            title=a.title,
+            description=a.description,
+            category=a.category,
+            due_date=_advance_year(a.due_date) if a.due_date else None,
+        ))
+
+    for spot in source.sleeping_spots:
+        db.session.add(EventSleepingSpot(
+            event_id=new.id,
+            name=spot.name,
+            capacity=spot.capacity,
+            notes=spot.notes,
+        ))
+
+    return new
+
+
+@click.command('annual-events')
+@click.option('--dry-run', is_flag=True, help='Print what would be cloned without making changes.')
+@with_appcontext
+def annual_events(dry_run):
+    """Clone annual events that have passed with no upcoming recurrence."""
+    today = date.today()
+    cloned = 0
+
+    past_annuals = (
+        Event.query
+        .filter(Event.is_annual == True, Event.start_date < today)
+        .order_by(Event.start_date.desc())
+        .all()
+    )
+
+    checked = set()
+    for event in past_annuals:
+        key = (event.family_id, event.name.strip().lower())
+        if key in checked:
+            continue
+        checked.add(key)
+
+        has_future = Event.query.filter(
+            Event.family_id == event.family_id,
+            Event.name == event.name,
+            Event.is_annual == True,
+            Event.start_date >= today,
+        ).first()
+
+        if has_future:
+            continue
+
+        if dry_run:
+            new_start = _advance_year(event.start_date)
+            click.echo(f'[DRY RUN] would clone "{event.name}" ({event.family.name}) → {new_start}')
+        else:
+            new_event = _clone_event(event)
+            db.session.commit()
+
+            admin = _admin_for(event.family)
+            if admin:
+                event_url = url_for('main.event_detail', event_id=new_event.id, _external=True)
+                create_notification(admin, 'new_event',
+                                    title=f'Annual event auto-scheduled: {new_event.name}',
+                                    body=f'Review and update for {new_event.date_range_display()}',
+                                    url=event_url)
+                if current_app.config.get('MAIL_ENABLED'):
+                    send_annual_event_cloned_email(admin, new_event, event_url)
+
+            click.echo(f'Cloned "{event.name}" ({event.family.name}) → {new_event.start_date}')
+            cloned += 1
+
+    if not dry_run:
+        click.echo(f'annual-events done: {cloned} event(s) cloned.')

@@ -111,7 +111,7 @@ def create_app(test_config=None):
     from .platform_routes import platform
     from .oauth import oauth_bp, init_oauth
     from .storage import photo_url
-    from .commands import email_sequence, digest, rsvp_reminders
+    from .commands import email_sequence, digest, rsvp_reminders, annual_events
     app.register_blueprint(main)
     app.register_blueprint(billing)
     app.register_blueprint(tf)
@@ -122,6 +122,7 @@ def create_app(test_config=None):
     app.cli.add_command(email_sequence)
     app.cli.add_command(digest)
     app.cli.add_command(rsvp_reminders)
+    app.cli.add_command(annual_events)
 
     app.jinja_env.globals['photo_url'] = photo_url
 

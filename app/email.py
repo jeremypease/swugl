@@ -263,6 +263,20 @@ def send_rsvp_reminder_email(user, event, url):
     )
 
 
+def send_annual_event_cloned_email(admin, new_event, url):
+    return send_email(
+        admin.email,
+        f'Annual event auto-scheduled: {new_event.name}',
+        f"""
+        <h2>{new_event.name} has been auto-scheduled</h2>
+        <p>This annual event was automatically carried forward to <strong>{new_event.date_range_display()}</strong>.</p>
+        <p>The event has been pre-populated with last year's structure (meals, tasks, sleeping spots) but all sign-ups have been cleared. Review and update the details before it goes live.</p>
+        <p><a href="{url}" style="background:#3D7040;color:#fff;padding:10px 20px;text-decoration:none;border-radius:4px;display:inline-block;">Review event →</a></p>
+        <p style="color:#666;font-size:13px;">— The OurPeaPod team</p>
+        """
+    )
+
+
 def send_assignment_notification_email(user, assignment, event, url):
     prefs_url = url.split('/events')[0] + '/profile/notifications'
     category = f' ({assignment.category})' if assignment.category else ''
