@@ -8,7 +8,7 @@
         <div class="eyebrow">{{ subject.get_display_name() }}</div>
         <h1>Add {{ action|capitalize }}</h1>
     </div>
-    <a href="{{ '/family/tree' if next_page == 'tree' else '/person/' ~ subject.id }}" class="btn btn-secondary">
+    <a href="/person/{{ subject.id }}" class="btn btn-secondary">
         <i data-lucide="x"></i> Cancel
     </a>
 </div>
@@ -50,7 +50,7 @@
                 <button type="submit" class="btn btn-primary">
                     <i data-lucide="link"></i> Link {{ action|capitalize }}
                 </button>
-                <a href="{{ '/family/tree' if next_page == 'tree' else '/person/' ~ subject.id }}" class="btn btn-secondary">Cancel</a>
+                <a href="/person/{{ subject.id }}" class="btn btn-secondary">Cancel</a>
             </div>
         </form>
     </div>

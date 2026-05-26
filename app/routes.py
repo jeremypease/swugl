@@ -163,34 +163,6 @@ def get_relationship(a, b):
                     return 'Cousin'
     return None
 
-def build_tree_node(person, family_id, visited=None):
-    if visited is None:
-        visited = set()
-    if person.id in visited:
-        return None
-    visited.add(person.id)
-    spouse = person.get_active_spouse()
-    if spouse:
-        visited.add(spouse.id)
-    all_children = list(person.children)
-    if spouse:
-        for c in spouse.children:
-            if c not in all_children and c.id not in visited:
-                all_children.append(c)
-    all_children = [c for c in all_children if c.family_id == family_id]
-    all_children.sort(key=lambda c: c.birthday or date.max)
-    children = [n for c in all_children if (n := build_tree_node(c, family_id, visited))]
-    return {"person": person, "spouse": spouse, "children": children}
-
-def get_core_ids(node):
-    if not node:
-        return set()
-    ids = {node['person'].id}
-    if node['spouse']:
-        ids.add(node['spouse'].id)
-    for child in node['children']:
-        ids |= get_core_ids(child)
-    return ids
 
 @main.route('/members')
 @login_required
@@ -539,8 +511,6 @@ def add_member():
             db.session.add(ParentRelationship(parent_id=parent2.id, child_id=person.id, role=_default_parent_role(parent2)))
         db.session.commit()
         flash(f'{person.name} has been added to the family.', 'info')
-        if next_page == 'tree':
-            return redirect(url_for('main.family_tree'))
         link_spouse_for = request.form.get('link_spouse_for', type=int) or request.args.get('link_spouse_for', type=int)
         if link_spouse_for:
             return redirect(url_for('main.admin_link_spouse', person_id=link_spouse_for))
@@ -605,8 +575,6 @@ def add_child(person_id):
         db.session.add(ParentRelationship(parent_id=person.id, child_id=child_person.id, role=_default_parent_role(person)))
         db.session.commit()
         flash(f'{child_person.get_display_name()} added as a child.', 'info')
-        if next_page == 'tree':
-            return redirect(url_for('main.family_tree'))
         return redirect(url_for('main.person_detail', person_id=person_id))
     return render_template('add_relative.html', form=form, subject=person, action='child', next_page=next_page)
 
@@ -694,62 +662,18 @@ def remove_child(person_id, child_id):
 @admin_required
 def family_settings():
     family = current_user.family
-    people = Person.query.filter_by(family_id=current_user.active_family_id).order_by(Person.name).all()
-    choices = [(0, '-- None --')] + [(p.id, p.get_display_name()) for p in people]
     form = FamilySettingsForm()
-    form.patriarch_id.choices = choices
-    form.matriarch_id.choices = choices
     if request.method == 'GET':
         form.family_name.data = family.name
-        form.patriarch_id.data = family.patriarch_id or 0
-        form.matriarch_id.data = family.matriarch_id or 0
         form.has_lgbtq_options.data = family.has_lgbtq_options
     if form.validate_on_submit():
         family.name = form.family_name.data
-        family.patriarch_id = form.patriarch_id.data or None
-        family.matriarch_id = form.matriarch_id.data or None
         family.has_lgbtq_options = form.has_lgbtq_options.data
         db.session.commit()
         flash('Family settings saved.', 'info')
         return redirect(url_for('main.family_settings'))
     return render_template('family_settings.html', form=form, family=family)
 
-@main.route('/family/tree')
-@login_required
-def family_tree():
-    family = current_user.family
-    patriarch = family.patriarch
-    matriarch = family.matriarch
-    if not patriarch and not matriarch:
-        flash('Set a founding couple in Family Settings first.', 'info')
-        return redirect(url_for('main.home'))
-
-    # Build root node explicitly so patriarch+matriarch always show as a couple
-    # regardless of whether a SpouseRelationship record exists between them.
-    visited = set()
-    if patriarch:
-        visited.add(patriarch.id)
-    if matriarch:
-        visited.add(matriarch.id)
-
-    all_root_children = list(patriarch.children if patriarch else [])
-    if matriarch:
-        for c in matriarch.children:
-            if c not in all_root_children:
-                all_root_children.append(c)
-    all_root_children = [c for c in all_root_children if c.family_id == current_user.active_family_id]
-    all_root_children.sort(key=lambda c: c.birthday or date.max)
-
-    tree = {
-        "person": patriarch or matriarch,
-        "spouse": matriarch if patriarch else None,
-        "children": [n for c in all_root_children if (n := build_tree_node(c, current_user.active_family_id, visited))]
-    }
-
-    core_ids = get_core_ids(tree)
-    all_people = Person.query.filter_by(family_id=current_user.active_family_id).all()
-    extended = [p for p in all_people if p.id not in core_ids]
-    return render_template('family_tree.html', tree=tree, extended=extended, family=family)
 
 @main.route('/forgot-password', methods=['GET', 'POST'])
 @limiter.limit('10 per hour', methods=['POST'])

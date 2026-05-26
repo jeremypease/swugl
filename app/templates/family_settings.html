@@ -65,21 +65,6 @@
                 {% for error in form.family_name.errors %}<span class="msg">{{ error }}</span>{% endfor %}
             </div>
 
-            <p style="font-size:13px;color:var(--slate);margin-bottom:16px;">
-                The founding couple anchors the family tree. Everyone in the tree descends from them or is linked through marriage.
-            </p>
-
-            <div class="field-row">
-                <div class="field">
-                    {{ form.patriarch_id.label }}
-                    {{ form.patriarch_id() }}
-                </div>
-                <div class="field">
-                    {{ form.matriarch_id.label }}
-                    {{ form.matriarch_id() }}
-                </div>
-            </div>
-
             <details style="margin-top:20px;margin-bottom:4px;border:1px solid var(--hairline-strong);border-radius:var(--r-m);background:var(--leaf-mist);">
                 <summary style="padding:14px 16px;font-size:15px;font-weight:600;cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;user-select:none;">
                     Optional Features
