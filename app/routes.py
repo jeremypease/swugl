@@ -296,8 +296,7 @@ def login():
             flash('Invalid email or password.', 'error')
             return redirect(url_for('main.login'))
         if not user.email_verified:
-            flash('Please verify your email before logging in.', 'error')
-            return redirect(url_for('main.login'))
+            return redirect(url_for('main.resend_verification', email=user.email))
         if user.status != 'approved':
             flash('Your account is pending approval.', 'error')
             return redirect(url_for('main.login'))
@@ -403,8 +402,7 @@ def verify_email(token):
         flash('Invalid or expired verification link.', 'error')
         return redirect(url_for('main.login'))
     if user.verification_token_expiry and user.verification_token_expiry < datetime.utcnow():
-        flash('This verification link has expired. Please register again.', 'error')
-        return redirect(url_for('main.login'))
+        return redirect(url_for('main.resend_verification', email=user.email, expired='1'))
     user.email_verified = True
     user.verification_token = None
     user.verification_token_expiry = None
@@ -416,6 +414,27 @@ def verify_email(token):
         send_welcome_email(user, user.family, url_for('main.home', _external=True))
     flash('Email verified! You can now sign in.', 'info')
     return redirect(url_for('main.login'))
+
+@main.route('/resend-verification', methods=['GET', 'POST'])
+@limiter.limit('5 per hour', methods=['POST'])
+def resend_verification():
+    email = request.args.get('email', '') or request.form.get('email', '')
+    expired = request.args.get('expired') == '1'
+    if request.method == 'POST':
+        user = User.query.filter_by(email=email).first()
+        if user and not user.email_verified:
+            token = secrets.token_urlsafe(32)
+            user.verification_token = _hash_token(token)
+            user.verification_token_expiry = datetime.utcnow() + timedelta(hours=24)
+            db.session.commit()
+            if current_app.config.get('MAIL_ENABLED'):
+                send_verification_email(
+                    user, url_for('main.verify_email', token=token, _external=True)
+                )
+        flash('Check your email — a new verification link has been sent.', 'info')
+        return redirect(url_for('main.login'))
+    return render_template('resend_verification.html', email=email, expired=expired)
+
 
 @main.route('/register/invite/<token>', methods=['GET', 'POST'])
 @limiter.limit('10 per hour', methods=['POST'])
