@@ -29,7 +29,12 @@ db = SQLAlchemy()
 login_manager = LoginManager()
 migrate = Migrate()
 csrf = CSRFProtect()
-limiter = Limiter(key_func=get_remote_address, default_limits=[])
+_redis_url = os.environ.get('REDIS_URL')
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=[],
+    storage_uri=_redis_url or 'memory://',
+)
 
 def create_app(test_config=None):
     app = Flask(__name__)
