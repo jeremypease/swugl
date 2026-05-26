@@ -2038,8 +2038,15 @@ def event_meal_item_assign(event_id, meal_id, item_id):
     if form.validate_on_submit() and form.person_id.data:
         person = db.session.get(Person, form.person_id.data)
         if person and person.family_id == current_user.active_family_id:
+            prev_id = item.assigned_to_id
             item.assigned_to_id = person.id
             db.session.commit()
+            if prev_id != person.id and person.user:
+                if (current_app.config.get('MAIL_ENABLED')
+                        and NotificationPreference.is_enabled(person.user.id, 'assignment')):
+                    from .email import send_meal_item_assignment_email
+                    event_url = url_for('main.event_detail', event_id=event_id, _external=True)
+                    send_meal_item_assignment_email(person.user, item, item.meal.event, event_url)
     return redirect(url_for('main.event_detail', event_id=event_id))
 
 
@@ -2175,9 +2182,18 @@ def event_assignment_admin_assign(event_id, aid):
     form.person_id.choices = [(0, '— Select —')] + [(p.id, p.get_display_name()) for p in all_people]
     if form.validate_on_submit():
         pid = form.person_id.data
+        prev_id = a.claimed_by_id
         a.claimed_by_id = pid if pid else None
         a.is_done = False
         db.session.commit()
+        if pid and prev_id != pid:
+            person = db.session.get(Person, pid)
+            if person and person.user:
+                if (current_app.config.get('MAIL_ENABLED')
+                        and NotificationPreference.is_enabled(person.user.id, 'assignment')):
+                    from .email import send_assignment_notification_email
+                    event_url = url_for('main.event_detail', event_id=event_id, _external=True)
+                    send_assignment_notification_email(person.user, a, a.event, event_url)
     return redirect(url_for('main.event_detail', event_id=event_id))
 
 

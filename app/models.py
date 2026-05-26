@@ -341,6 +341,7 @@ NOTIFICATION_EVENTS = {
     'announcement':  {'label': 'New announcement',       'default': True},
     'new_member':    {'label': 'New member joins',        'default': False},
     'rsvp_reminder': {'label': 'RSVP reminder',          'default': True},
+    'assignment':    {'label': 'Task or meal assignment', 'default': True},
 }
 
 
@@ -377,7 +378,10 @@ class NotificationPreference(db.Model):
         pref = cls.query.filter_by(
             user_id=user_id, event_type=event_type, channel=channel
         ).first()
-        return pref.enabled if pref else False
+        if pref is not None:
+            return pref.enabled
+        meta = NOTIFICATION_EVENTS.get(event_type)
+        return meta['default'] if meta else False
 
 
 @login_manager.user_loader

@@ -263,6 +263,46 @@ def send_rsvp_reminder_email(user, event, url):
     )
 
 
+def send_assignment_notification_email(user, assignment, event, url):
+    prefs_url = url.split('/events')[0] + '/profile/notifications'
+    category = f' ({assignment.category})' if assignment.category else ''
+    due = f'<br><strong>Due:</strong> {assignment.due_date.strftime("%B %d")}' if assignment.due_date else ''
+    description = f'<p>{assignment.description}</p>' if assignment.description else ''
+    return send_email(
+        user.email,
+        f"You've been assigned a task: {assignment.title}",
+        f"""
+        <h2>You have a new assignment for {event.name}</h2>
+        <p><strong>{assignment.title}</strong>{category}{due}</p>
+        {description}
+        <p><a href="{url}">View event →</a></p>
+        <p style="font-size:12px;color:#888;">
+            You're receiving this because you have assignment notifications enabled.
+            <a href="{prefs_url}">Manage preferences</a>
+        </p>
+        """
+    )
+
+
+def send_meal_item_assignment_email(user, item, event, url):
+    prefs_url = url.split('/events')[0] + '/profile/notifications'
+    meal_name = item.meal.name if item.meal else 'a meal'
+    qty = f' (×{item.quantity})' if item.quantity and item.quantity > 1 else ''
+    return send_email(
+        user.email,
+        f"You've been assigned a meal item: {item.label}",
+        f"""
+        <h2>You have a meal assignment for {event.name}</h2>
+        <p>Please bring <strong>{item.label}</strong>{qty} for <strong>{meal_name}</strong>.</p>
+        <p><a href="{url}">View event →</a></p>
+        <p style="font-size:12px;color:#888;">
+            You're receiving this because you have assignment notifications enabled.
+            <a href="{prefs_url}">Manage preferences</a>
+        </p>
+        """
+    )
+
+
 def send_announcement_notification(user, announcement, url):
     author = announcement.author.get_display_name() if announcement.author else 'Someone'
     return send_email(
