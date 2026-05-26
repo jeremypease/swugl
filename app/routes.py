@@ -1066,28 +1066,66 @@ def profile_edit():
         return redirect(url_for('main.profile'))
     return render_template('profile_edit.html', form=form)
 
+@main.route('/notifications')
+@login_required
+def notifications():
+    from .models import Notification
+    items = (
+        Notification.query
+        .filter_by(user_id=current_user.id)
+        .order_by(Notification.created_at.desc())
+        .limit(60)
+        .all()
+    )
+    return render_template('notifications.html', notifications=items)
+
+
+@main.route('/notifications/<int:nid>/read', methods=['POST'])
+@login_required
+def notification_mark_read(nid):
+    from .models import Notification
+    n = db.session.get(Notification, nid)
+    if n and n.user_id == current_user.id and not n.read_at:
+        n.read_at = datetime.utcnow()
+        db.session.commit()
+    return redirect(n.url or url_for('main.notifications'))
+
+
+@main.route('/notifications/read-all', methods=['POST'])
+@login_required
+def notifications_read_all():
+    from .models import Notification
+    (
+        Notification.query
+        .filter_by(user_id=current_user.id, read_at=None)
+        .update({'read_at': datetime.utcnow()})
+    )
+    db.session.commit()
+    return redirect(url_for('main.notifications'))
+
+
 @main.route('/profile/notifications', methods=['GET', 'POST'])
 @login_required
 def profile_notifications():
-    prefs = {
-        p.event_type: p
-        for p in NotificationPreference.query.filter_by(
-            user_id=current_user.id, channel='email'
-        ).all()
-    }
+    all_prefs = NotificationPreference.query.filter_by(user_id=current_user.id).all()
+    prefs = {(p.event_type, p.channel): p for p in all_prefs}
     if request.method == 'POST':
-        for event_type in NOTIFICATION_EVENTS:
-            enabled = event_type in request.form
-            pref = prefs.get(event_type)
-            if pref:
-                pref.enabled = enabled
-            else:
-                db.session.add(NotificationPreference(
-                    user_id=current_user.id,
-                    event_type=event_type,
-                    channel='email',
-                    enabled=enabled,
-                ))
+        for event_type, meta in NOTIFICATION_EVENTS.items():
+            for channel in ('email', 'in_app'):
+                if channel == 'in_app' and not meta.get('in_app'):
+                    continue
+                field = f'{event_type}_{channel}'
+                enabled = field in request.form
+                pref = prefs.get((event_type, channel))
+                if pref:
+                    pref.enabled = enabled
+                else:
+                    db.session.add(NotificationPreference(
+                        user_id=current_user.id,
+                        event_type=event_type,
+                        channel=channel,
+                        enabled=enabled,
+                    ))
         db.session.commit()
         flash('Notification preferences saved.', 'info')
         return redirect(url_for('main.profile_notifications'))
@@ -1966,11 +2004,16 @@ def event_meal_item_assign(event_id, meal_id, item_id):
             item.assigned_to_id = person.id
             db.session.commit()
             if prev_id != person.id and person.user:
+                event_url = url_for('main.event_detail', event_id=event_id, _external=True)
                 if (current_app.config.get('MAIL_ENABLED')
                         and NotificationPreference.is_enabled(person.user.id, 'assignment')):
                     from .email import send_meal_item_assignment_email
-                    event_url = url_for('main.event_detail', event_id=event_id, _external=True)
                     send_meal_item_assignment_email(person.user, item, item.meal.event, event_url)
+                from .notifications import create_notification
+                create_notification(person.user, 'assignment',
+                                    title=f'Meal assignment: {item.label}',
+                                    body=f'For {item.meal.name} at {item.meal.event.name}',
+                                    url=event_url)
     return redirect(url_for('main.event_detail', event_id=event_id))
 
 
@@ -2113,11 +2156,16 @@ def event_assignment_admin_assign(event_id, aid):
         if pid and prev_id != pid:
             person = db.session.get(Person, pid)
             if person and person.user:
+                event_url = url_for('main.event_detail', event_id=event_id, _external=True)
                 if (current_app.config.get('MAIL_ENABLED')
                         and NotificationPreference.is_enabled(person.user.id, 'assignment')):
                     from .email import send_assignment_notification_email
-                    event_url = url_for('main.event_detail', event_id=event_id, _external=True)
                     send_assignment_notification_email(person.user, a, a.event, event_url)
+                from .notifications import create_notification
+                create_notification(person.user, 'assignment',
+                                    title=f'Task assigned: {a.title}',
+                                    body=f'For {a.event.name}',
+                                    url=event_url)
     return redirect(url_for('main.event_detail', event_id=event_id))
 
 

@@ -350,12 +350,12 @@ class User(UserMixin, db.Model):
 
 # Notification event types and their email-channel defaults.
 NOTIFICATION_EVENTS = {
-    'digest':        {'label': 'Weekly digest',          'default': True},
-    'new_event':     {'label': 'New event created',      'default': True},
-    'announcement':  {'label': 'New announcement',       'default': True},
-    'new_member':    {'label': 'New member joins',        'default': False},
-    'rsvp_reminder': {'label': 'RSVP reminder',          'default': True},
-    'assignment':    {'label': 'Task or meal assignment', 'default': True},
+    'digest':        {'label': 'Weekly digest',          'default': True,  'in_app': False},
+    'new_event':     {'label': 'New event created',      'default': True,  'in_app': True},
+    'announcement':  {'label': 'New announcement',       'default': True,  'in_app': True},
+    'new_member':    {'label': 'New member joins',        'default': False, 'in_app': True},
+    'rsvp_reminder': {'label': 'RSVP reminder',          'default': True,  'in_app': True},
+    'assignment':    {'label': 'Task or meal assignment', 'default': True,  'in_app': True},
 }
 
 
@@ -376,16 +376,19 @@ class NotificationPreference(db.Model):
     def seed_defaults(cls, user_id):
         """Create default preferences for a new user. Safe to call multiple times."""
         for event_type, meta in NOTIFICATION_EVENTS.items():
-            exists = cls.query.filter_by(
-                user_id=user_id, event_type=event_type, channel='email'
-            ).first()
-            if not exists:
-                db.session.add(cls(
-                    user_id=user_id,
-                    event_type=event_type,
-                    channel='email',
-                    enabled=meta['default'],
-                ))
+            for channel in ('email', 'in_app'):
+                if channel == 'in_app' and not meta.get('in_app'):
+                    continue
+                exists = cls.query.filter_by(
+                    user_id=user_id, event_type=event_type, channel=channel
+                ).first()
+                if not exists:
+                    db.session.add(cls(
+                        user_id=user_id,
+                        event_type=event_type,
+                        channel=channel,
+                        enabled=meta['default'],
+                    ))
 
     @classmethod
     def is_enabled(cls, user_id, event_type, channel='email'):
@@ -401,6 +404,25 @@ class NotificationPreference(db.Model):
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
+
+
+class Notification(db.Model):
+    __tablename__ = 'notifications'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    event_type = db.Column(db.String(50), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    body = db.Column(db.Text, nullable=True)
+    url = db.Column(db.String(500), nullable=True)
+    read_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+    user = db.relationship('User', backref=db.backref('notifications', lazy='dynamic'))
+
+    @property
+    def is_read(self):
+        return self.read_at is not None
 
 
 class OAuthAccount(db.Model):

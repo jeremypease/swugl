@@ -8,20 +8,35 @@ from datetime import date, datetime, timedelta
 from flask import current_app, url_for
 
 from . import db
-from .models import NotificationPreference, User, Event, Announcement, Person, Photo, SpouseRelationship
+from .models import NotificationPreference, NOTIFICATION_EVENTS, User, Event, Announcement, Person, Photo, SpouseRelationship
+
+
+def create_notification(user, event_type, title, body=None, url=None):
+    """Write an in-app Notification row if the user has in_app enabled for this type."""
+    meta = NOTIFICATION_EVENTS.get(event_type, {})
+    if not meta.get('in_app'):
+        return
+    if not NotificationPreference.is_enabled(user.id, event_type, 'in_app'):
+        return
+    from .models import Notification
+    db.session.add(Notification(
+        user_id=user.id,
+        event_type=event_type,
+        title=title,
+        body=body,
+        url=url,
+    ))
+    db.session.commit()
 
 
 def notify(users, event_type, **kwargs):
-    """Send a notification to one or many users if they have email enabled.
+    """Send email + in-app notification to one or many users.
 
     Args:
         users: a User instance or a list of User instances.
         event_type: string matching a key in NOTIFICATION_EVENTS.
         **kwargs: passed through to the relevant send function.
     """
-    if not current_app.config.get('MAIL_ENABLED'):
-        return
-
     if not isinstance(users, (list, tuple)):
         users = [users]
 
@@ -32,12 +47,26 @@ def notify(users, event_type, **kwargs):
         'announcement': send_announcement_notification,
     }
     send_fn = _dispatch.get(event_type)
-    if not send_fn:
-        return
 
     for user in users:
-        if NotificationPreference.is_enabled(user.id, event_type):
-            send_fn(user, **kwargs)
+        # Email
+        if current_app.config.get('MAIL_ENABLED') and send_fn:
+            if NotificationPreference.is_enabled(user.id, event_type):
+                send_fn(user, **kwargs)
+        # In-app
+        url = kwargs.get('url')
+        if event_type == 'new_event':
+            event = kwargs.get('event')
+            create_notification(user, event_type,
+                                title=f'New event: {event.name}',
+                                body=event.date_range_display(),
+                                url=url)
+        elif event_type == 'announcement':
+            ann = kwargs.get('announcement')
+            create_notification(user, event_type,
+                                title=f'New announcement: {ann.title}',
+                                body=(ann.body[:120] + '…') if ann.body and len(ann.body) > 120 else ann.body,
+                                url=url)
 
 
 # ── Weekly digest ──────────────────────────────────────────────────────────

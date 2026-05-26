@@ -104,7 +104,7 @@ def create_app(test_config=None):
     csrf.init_app(app)
     limiter.init_app(app)
 
-    from .models import User, Person, SystemAnnouncement
+    from .models import User, Person, SystemAnnouncement, Notification
     from .routes import main
     from .billing import billing
     from .two_factor import tf
@@ -131,10 +131,17 @@ def create_app(test_config=None):
         ann = SystemAnnouncement.get_current()
         dismissed = s.get('dismissed_announcements', [])
         active_ann = ann if ann and ann.id not in dismissed else None
+        unread = (
+            Notification.query
+            .filter_by(user_id=current_user.id, read_at=None)
+            .count()
+            if current_user.is_authenticated else 0
+        )
         return {
             'now': datetime.utcnow(),
             'system_announcement': active_ann,
             'support_mode': s.get('support_mode', False),
+            'unread_notification_count': unread,
         }
 
     @app.template_filter('datetime_format')

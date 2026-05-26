@@ -12,7 +12,7 @@ from flask.cli import with_appcontext
 
 from . import db
 from .models import Family, User, Event, EventRSVP
-from .notifications import send_family_digest
+from .notifications import send_family_digest, create_notification
 from .email import (
     send_nudge_day3_email,
     send_nudge_day7_email,
@@ -170,6 +170,11 @@ def rsvp_reminders(dry_run):
                 click.echo(f'[DRY RUN] rsvp-reminder → {user.email} for "{event.name}" (deadline {target_date})')
             else:
                 send_rsvp_reminder_email(user, event, event_url)
+                deadline_str = target_date.strftime('%B %-d')
+                create_notification(user, 'rsvp_reminder',
+                                    title=f'RSVP reminder: {event.name}',
+                                    body=f'Deadline: {deadline_str}',
+                                    url=event_url)
                 sent += 1
 
     if not dry_run:

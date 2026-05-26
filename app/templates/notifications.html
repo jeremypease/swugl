@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Notifications — {{ current_user.active_family.name }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <div class="page-head-eyebrow">Account</div>
+        <h1 class="page-head-title">Notifications</h1>
+    </div>
+    {% set unread = notifications | selectattr('is_read', 'equalto', false) | list %}
+    {% if unread %}
+    <form method="POST" action="{{ url_for('main.notifications_read_all') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-secondary btn-sm">Mark all as read</button>
+    </form>
+    {% endif %}
+</div>
+
+<div style="max-width:640px;">
+{% if notifications %}
+<div class="card">
+    {% for n in notifications %}
+    <div style="display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border-bottom:1px solid var(--hairline);{% if not n.is_read %}background:var(--leaf-mist);{% endif %}">
+        <div style="width:8px;height:8px;border-radius:50%;background:{% if not n.is_read %}var(--vine){% else %}transparent{% endif %};flex-shrink:0;margin-top:6px;"></div>
+        <div style="flex:1;min-width:0;">
+            <div style="font-weight:{% if not n.is_read %}600{% else %}400{% endif %};font-size:14px;">{{ n.title }}</div>
+            {% if n.body %}<div style="font-size:13px;color:var(--slate);margin-top:2px;">{{ n.body }}</div>{% endif %}
+            <div style="font-size:12px;color:var(--slate-soft);margin-top:4px;">{{ n.created_at.strftime('%b %-d, %Y at %-I:%M %p') }} UTC</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-shrink:0;">
+            {% if n.url %}
+            <form method="POST" action="{{ url_for('main.notification_mark_read', nid=n.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-ghost btn-sm">View →</button>
+            </form>
+            {% elif not n.is_read %}
+            <form method="POST" action="{{ url_for('main.notification_mark_read', nid=n.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-ghost btn-sm">Dismiss</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card" style="text-align:center;padding:40px;color:var(--slate);">
+    <i data-lucide="bell-off" style="width:32px;height:32px;margin-bottom:12px;opacity:.4;"></i>
+    <p>No notifications yet.</p>
+</div>
+{% endif %}
+
+<div style="margin-top:16px;display:flex;justify-content:space-between;align-items:center;">
+    <a href="{{ url_for('main.profile_notifications') }}" style="font-size:14px;color:var(--slate);">Manage notification preferences →</a>
+</div>
+</div>
+{% endblock %}

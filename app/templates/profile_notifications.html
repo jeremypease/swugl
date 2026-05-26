@@ -4,34 +4,57 @@
 {% block content %}
 <div class="page-head">
     <div class="page-head-eyebrow">Account</div>
-    <h1 class="page-head-title">Notifications</h1>
+    <h1 class="page-head-title">Notification Preferences</h1>
 </div>
 
 <div class="content-body" style="max-width:640px;">
     <div class="card">
         <div class="card-header">
-            <strong>Email preferences</strong>
-            <div style="font-size:13px;color:var(--slate);margin-top:2px;">Choose which emails you'd like to receive.</div>
+            <strong>Notification channels</strong>
+            <div style="font-size:13px;color:var(--slate);margin-top:2px;">Choose how you'd like to be notified for each event type.</div>
         </div>
         <div class="card-body">
             <form method="POST" action="{{ url_for('main.profile_notifications') }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <div style="display:flex;flex-direction:column;gap:16px;margin-bottom:24px;">
+
+                <div style="display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:8px 20px;margin-bottom:24px;">
+                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);padding-bottom:6px;border-bottom:1px solid var(--hairline);">Event</div>
+                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);padding-bottom:6px;border-bottom:1px solid var(--hairline);text-align:center;">Email</div>
+                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);padding-bottom:6px;border-bottom:1px solid var(--hairline);text-align:center;">In-app</div>
+
                 {% for event_type, meta in events.items() %}
-                {% set pref = prefs.get(event_type) %}
-                {% set checked = pref.enabled if pref else meta.default %}
-                <label style="display:flex;align-items:center;gap:12px;cursor:pointer;">
-                    <input type="checkbox" name="{{ event_type }}" {% if checked %}checked{% endif %}
-                           style="width:16px;height:16px;accent-color:var(--vine);">
-                    <span>{{ meta.label }}</span>
-                </label>
+                    <label for="{{ event_type }}_email" style="font-size:14px;cursor:pointer;">{{ meta.label }}</label>
+
+                    {% set email_pref = prefs.get((event_type, 'email')) %}
+                    {% set email_checked = email_pref.enabled if email_pref else meta.default %}
+                    <div style="text-align:center;">
+                        <input type="checkbox" id="{{ event_type }}_email" name="{{ event_type }}_email"
+                               {% if email_checked %}checked{% endif %}
+                               style="width:16px;height:16px;accent-color:var(--vine);cursor:pointer;">
+                    </div>
+
+                    {% if meta.in_app %}
+                        {% set inapp_pref = prefs.get((event_type, 'in_app')) %}
+                        {% set inapp_checked = inapp_pref.enabled if inapp_pref else meta.default %}
+                        <div style="text-align:center;">
+                            <input type="checkbox" name="{{ event_type }}_in_app"
+                                   {% if inapp_checked %}checked{% endif %}
+                                   style="width:16px;height:16px;accent-color:var(--vine);cursor:pointer;">
+                        </div>
+                    {% else %}
+                        <div style="text-align:center;color:var(--slate-soft);font-size:12px;">—</div>
+                    {% endif %}
                 {% endfor %}
                 </div>
+
                 <button type="submit" class="btn btn-primary">Save preferences</button>
             </form>
         </div>
     </div>
 
-    <a href="{{ url_for('main.profile') }}" style="display:inline-block;margin-top:16px;font-size:14px;color:var(--slate);">← Back to profile</a>
+    <div style="margin-top:16px;display:flex;gap:16px;">
+        <a href="{{ url_for('main.notifications') }}" style="font-size:14px;color:var(--slate);">← View notifications</a>
+        <a href="{{ url_for('main.profile') }}" style="font-size:14px;color:var(--slate);">← Back to profile</a>
+    </div>
 </div>
 {% endblock %}
