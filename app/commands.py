@@ -1,22 +1,24 @@
 """Flask CLI commands for scheduled/background tasks.
 
-Railway cron: set the cron job command to:
-    flask email-sequence
-and schedule it to run daily (e.g. 0 8 * * *  UTC).
+Railway cron jobs:
+    flask email-sequence   — daily  (0 8 * * *)
+    flask digest           — weekly (0 8 * * 1)
+    flask rsvp-reminders   — daily  (0 8 * * *)
 """
 import click
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from flask import current_app, url_for
 from flask.cli import with_appcontext
 
 from . import db
-from .models import Family, User
+from .models import Family, User, Event, EventRSVP
 from .notifications import send_family_digest
 from .email import (
     send_nudge_day3_email,
     send_nudge_day7_email,
     send_trial_warning_email,
     send_trial_ended_email,
+    send_rsvp_reminder_email,
 )
 
 
@@ -134,3 +136,41 @@ def digest(dry_run):
 
     if not dry_run:
         click.echo(f'digest done: {total_sent} email(s) sent across {len(families)} family/families.')
+
+
+@click.command('rsvp-reminders')
+@click.option('--dry-run', is_flag=True, help='Print what would be sent without sending.')
+@with_appcontext
+def rsvp_reminders(dry_run):
+    """Send RSVP reminders for events whose deadline is 3 days away."""
+    if not current_app.config.get('MAIL_ENABLED') and not dry_run:
+        click.echo('MAIL_ENABLED is not set — skipping. Pass --dry-run to preview.')
+        return
+
+    target_date = date.today() + timedelta(days=3)
+    events = Event.query.filter_by(rsvp_deadline=target_date).all()
+    sent = 0
+
+    for event in events:
+        responded_person_ids = {
+            r.person_id for r in EventRSVP.query.filter_by(event_id=event.id).all()
+        }
+        users = User.query.filter_by(
+            family_id=event.family_id, status='approved', email_verified=True
+        ).all()
+
+        for user in users:
+            if not user.person_id or user.person_id in responded_person_ids:
+                continue
+            from .models import NotificationPreference
+            if not NotificationPreference.is_enabled(user.id, 'rsvp_reminder'):
+                continue
+            event_url = url_for('main.event_detail', event_id=event.id, _external=True)
+            if dry_run:
+                click.echo(f'[DRY RUN] rsvp-reminder → {user.email} for "{event.name}" (deadline {target_date})')
+            else:
+                send_rsvp_reminder_email(user, event, event_url)
+                sent += 1
+
+    if not dry_run:
+        click.echo(f'rsvp-reminders done: {sent} sent for {len(events)} event(s) with deadline {target_date}.')

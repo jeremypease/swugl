@@ -241,6 +241,28 @@ def send_new_event_notification(user, event, url):
     )
 
 
+def send_rsvp_reminder_email(user, event, url):
+    deadline = event.rsvp_deadline.strftime('%B %d') if event.rsvp_deadline else ''
+    prefs_url = url.split('/events')[0] + '/profile/notifications'
+    return send_email(
+        user.email,
+        f"RSVP reminder: {event.name}",
+        f"""
+        <h2>Have you RSVPed for {event.name}?</h2>
+        <p>The RSVP deadline is <strong>{deadline}</strong> — just 3 days away.</p>
+        <p>
+            <strong>Date:</strong> {event.date_range_display()}<br>
+            {"<strong>Location:</strong> " + event.location + "<br>" if event.location else ""}
+        </p>
+        <p><a href="{url}">RSVP now →</a></p>
+        <p style="font-size:12px;color:#888;">
+            You're receiving this because you have RSVP reminders enabled.
+            <a href="{prefs_url}">Manage preferences</a>
+        </p>
+        """
+    )
+
+
 def send_announcement_notification(user, announcement, url):
     author = announcement.author.get_display_name() if announcement.author else 'Someone'
     return send_email(
