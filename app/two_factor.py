@@ -73,7 +73,8 @@ def security():
     return render_template('profile_security.html',
                            passkeys=current_user.passkeys,
                            totp_enabled=current_user.totp_enabled,
-                           pw_form=pw_form)
+                           pw_form=pw_form,
+                           oauth_accounts=current_user.oauth_accounts)
 
 
 # ── Passkey registration ───────────────────────────────────────────────────
