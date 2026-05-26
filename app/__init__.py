@@ -78,6 +78,9 @@ def create_app(test_config=None):
     app.config['WEBAUTHN_RP_NAME'] = os.environ.get('WEBAUTHN_RP_NAME', 'OurPeaPod')
     app.config['WEBAUTHN_ORIGIN'] = os.environ.get('WEBAUTHN_ORIGIN', 'http://localhost:5000')
 
+    app.config['GOOGLE_CLIENT_ID'] = os.environ.get('GOOGLE_CLIENT_ID')
+    app.config['GOOGLE_CLIENT_SECRET'] = os.environ.get('GOOGLE_CLIENT_SECRET')
+
     # Session lifetime
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=14)
     app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=30)
@@ -101,12 +104,15 @@ def create_app(test_config=None):
     from .billing import billing
     from .two_factor import tf
     from .platform_routes import platform
+    from .oauth import oauth_bp, init_oauth
     from .storage import photo_url
     from .commands import email_sequence, digest
     app.register_blueprint(main)
     app.register_blueprint(billing)
     app.register_blueprint(tf)
     app.register_blueprint(platform)
+    app.register_blueprint(oauth_bp)
+    init_oauth(app)
     csrf.exempt(app.view_functions['billing.webhook'])
     app.cli.add_command(email_sequence)
     app.cli.add_command(digest)

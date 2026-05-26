@@ -385,6 +385,22 @@ def load_user(user_id):
     return db.session.get(User, int(user_id))
 
 
+class OAuthAccount(db.Model):
+    """Links a third-party OAuth identity (Google, Apple) to a User."""
+    __tablename__ = 'oauth_accounts'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    provider = db.Column(db.String(32), nullable=False)       # 'google', 'apple'
+    provider_user_id = db.Column(db.String(256), nullable=False)
+
+    __table_args__ = (
+        db.UniqueConstraint('provider', 'provider_user_id', name='uq_oauth_provider_uid'),
+    )
+
+    user = db.relationship('User', backref=db.backref('oauth_accounts', cascade='all, delete-orphan'))
+
+
 class UserCredential(db.Model):
     """Stores a WebAuthn passkey (one row per registered device)."""
     __tablename__ = 'user_credentials'

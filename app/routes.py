@@ -351,9 +351,8 @@ def register():
             flash('An account with that email already exists.', 'error')
             return redirect(url_for('main.register'))
         account_id = 'pod_' + secrets.token_urlsafe(6)
-        trial_ends = datetime.utcnow() + timedelta(days=30)
         family = Family(name=form.family_name.data, account_id=account_id,
-                        plan='trial', trial_ends_at=trial_ends)
+                        plan='trial', trial_ends_at=None)
         db.session.add(family)
         db.session.flush()
         full_name = f"{form.first_name.data} {form.last_name.data}"
@@ -391,6 +390,7 @@ def register():
             flash('Registration successful! Please check your email to verify your account.', 'info')
         else:
             user.email_verified = True
+            family.trial_ends_at = datetime.utcnow() + timedelta(days=30)
             db.session.commit()
             flash('Registration successful! You can now sign in.', 'info')
         return redirect(url_for('main.login'))
@@ -408,6 +408,8 @@ def verify_email(token):
     user.email_verified = True
     user.verification_token = None
     user.verification_token_expiry = None
+    if user.is_admin and user.family and user.family.plan == 'trial' and user.family.trial_ends_at is None:
+        user.family.trial_ends_at = datetime.utcnow() + timedelta(days=30)
     db.session.commit()
     # Send Day 0 welcome email for new pod admins (families with an account_id)
     if current_app.config.get('MAIL_ENABLED') and user.is_admin and user.family and user.family.account_id:
@@ -416,6 +418,7 @@ def verify_email(token):
     return redirect(url_for('main.login'))
 
 @main.route('/register/invite/<token>', methods=['GET', 'POST'])
+@limiter.limit('10 per hour', methods=['POST'])
 def register_invited(token):
     invited_user = User.query.filter_by(invitation_token=_hash_token(token)).first()
     if not invited_user or invited_user.status != 'invited':
