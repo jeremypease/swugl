@@ -425,6 +425,14 @@ class Notification(db.Model):
         return self.read_at is not None
 
 
+class ApiTokenBlocklist(db.Model):
+    __tablename__ = 'api_token_blocklist'
+
+    id = db.Column(db.Integer, primary_key=True)
+    jti = db.Column(db.String(36), nullable=False, unique=True, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 class OAuthAccount(db.Model):
     """Links a third-party OAuth identity (Google, Apple) to a User."""
     __tablename__ = 'oauth_accounts'

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "resend": {
+      "command": "/opt/homebrew/bin/npx",
+      "args": ["-y", "resend-mcp"],
+      "env": {
+        "RESEND_API_KEY": "re_253x18ob_wiJbvgDDEKxC2cAcV7ajaVV9"
+      }
+    }
+  }
+}

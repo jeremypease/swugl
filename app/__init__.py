@@ -5,6 +5,7 @@ from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_jwt_extended import JWTManager
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 import sentry_sdk
@@ -29,6 +30,7 @@ db = SQLAlchemy()
 login_manager = LoginManager()
 migrate = Migrate()
 csrf = CSRFProtect()
+jwt = JWTManager()
 _redis_url = os.environ.get('REDIS_URL')
 limiter = Limiter(
     key_func=get_remote_address,
@@ -83,8 +85,18 @@ def create_app(test_config=None):
     app.config['WEBAUTHN_RP_NAME'] = os.environ.get('WEBAUTHN_RP_NAME', 'OurPeaPod')
     app.config['WEBAUTHN_ORIGIN'] = os.environ.get('WEBAUTHN_ORIGIN', 'http://localhost:5000')
 
+    app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY') or secret
+    app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(minutes=15)
+    app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=30)
+
     app.config['GOOGLE_CLIENT_ID'] = os.environ.get('GOOGLE_CLIENT_ID')
     app.config['GOOGLE_CLIENT_SECRET'] = os.environ.get('GOOGLE_CLIENT_SECRET')
+
+    app.config['APPLE_CLIENT_ID'] = os.environ.get('APPLE_CLIENT_ID')
+    app.config['APPLE_TEAM_ID'] = os.environ.get('APPLE_TEAM_ID')
+    app.config['APPLE_KEY_ID'] = os.environ.get('APPLE_KEY_ID')
+    app.config['APPLE_PRIVATE_KEY'] = os.environ.get('APPLE_PRIVATE_KEY', '')
+    app.config['APPLE_BUNDLE_ID'] = os.environ.get('APPLE_BUNDLE_ID')
 
     # Session lifetime
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=14)
@@ -103,13 +115,15 @@ def create_app(test_config=None):
     login_manager.login_message_category = 'error'
     csrf.init_app(app)
     limiter.init_app(app)
+    jwt.init_app(app)
 
-    from .models import User, Person, SystemAnnouncement, Notification
+    from .models import User, Person, SystemAnnouncement, Notification, ApiTokenBlocklist
     from .routes import main
     from .billing import billing
     from .two_factor import tf
     from .platform_routes import platform
     from .oauth import oauth_bp, init_oauth
+    from .api import api as api_bp
     from .storage import photo_url
     from .commands import email_sequence, digest, rsvp_reminders, annual_events
     app.register_blueprint(main)
@@ -117,8 +131,14 @@ def create_app(test_config=None):
     app.register_blueprint(tf)
     app.register_blueprint(platform)
     app.register_blueprint(oauth_bp)
+    app.register_blueprint(api_bp)
     init_oauth(app)
     csrf.exempt(app.view_functions['billing.webhook'])
+    csrf.exempt(api_bp)
+
+    @jwt.token_in_blocklist_loader
+    def check_blocklist(jwt_header, jwt_payload):
+        return ApiTokenBlocklist.query.filter_by(jti=jwt_payload['jti']).first() is not None
     app.cli.add_command(email_sequence)
     app.cli.add_command(digest)
     app.cli.add_command(rsvp_reminders)
