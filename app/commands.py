@@ -24,6 +24,12 @@ from .email import (
 )
 
 
+def _request_ctx():
+    """Push a minimal request context so url_for(_external=True) works in CLI commands."""
+    base_url = current_app.config.get('BASE_URL', 'https://ourpeapod.com')
+    return current_app.test_request_context('/', base_url=base_url)
+
+
 def _admin_for(family):
     """Return the first verified admin user for a family, or None."""
     return (
@@ -50,56 +56,57 @@ def email_sequence(dry_run):
     families = Family.query.all()
     sent = skipped = 0
 
-    for family in families:
-        admin = _admin_for(family)
-        if not admin:
-            continue
+    with _request_ctx():
+        for family in families:
+            admin = _admin_for(family)
+            if not admin:
+                continue
 
-        days_old = (now - family.created_at).days if family.created_at else 999
+            days_old = (now - family.created_at).days if family.created_at else 999
 
-        # ── Day-3 nudge: send if pod is 3+ days old and has only the admin ──
-        if not family.email_nudge3_sent and days_old >= 3:
-            if _member_count(family) <= 1:
-                members_url = url_for('main.members', _external=True)
+            # ── Day-3 nudge: send if pod is 3+ days old and has only the admin ──
+            if not family.email_nudge3_sent and days_old >= 3:
+                if _member_count(family) <= 1:
+                    members_url = url_for('main.members', _external=True)
+                    if dry_run:
+                        click.echo(f'[DRY RUN] nudge-day3 → {admin.email} ({family.name})')
+                    else:
+                        send_nudge_day3_email(admin, family, members_url)
+                        sent += 1
+                family.email_nudge3_sent = True
+
+            # ── Day-7 feature highlight: send if pod is 7+ days old ──
+            if not family.email_nudge7_sent and days_old >= 7:
+                dashboard_url = url_for('main.home', _external=True)
                 if dry_run:
-                    click.echo(f'[DRY RUN] nudge-day3 → {admin.email} ({family.name})')
+                    click.echo(f'[DRY RUN] nudge-day7 → {admin.email} ({family.name})')
                 else:
-                    send_nudge_day3_email(admin, family, members_url)
+                    send_nudge_day7_email(admin, family, dashboard_url)
                     sent += 1
-            family.email_nudge3_sent = True
+                family.email_nudge7_sent = True
 
-        # ── Day-7 feature highlight: send if pod is 7+ days old ──
-        if not family.email_nudge7_sent and days_old >= 7:
-            dashboard_url = url_for('main.home', _external=True)
-            if dry_run:
-                click.echo(f'[DRY RUN] nudge-day7 → {admin.email} ({family.name})')
-            else:
-                send_nudge_day7_email(admin, family, dashboard_url)
-                sent += 1
-            family.email_nudge7_sent = True
+            # ── Trial warning: send when ≤5 days remain in the trial ──
+            if not family.email_trial_warning_sent and family.plan == 'trial' and family.trial_ends_at:
+                days_left = (family.trial_ends_at - now).days
+                if 0 <= days_left <= 5:
+                    billing_url = url_for('billing.billing_page', _external=True)
+                    if dry_run:
+                        click.echo(f'[DRY RUN] trial-warning ({days_left}d left) → {admin.email} ({family.name})')
+                    else:
+                        send_trial_warning_email(admin, family, days_left, billing_url)
+                        sent += 1
+                    family.email_trial_warning_sent = True
 
-        # ── Trial warning: send when ≤5 days remain in the trial ──
-        if not family.email_trial_warning_sent and family.plan == 'trial' and family.trial_ends_at:
-            days_left = (family.trial_ends_at - now).days
-            if 0 <= days_left <= 5:
-                billing_url = url_for('billing.billing_page', _external=True)
-                if dry_run:
-                    click.echo(f'[DRY RUN] trial-warning ({days_left}d left) → {admin.email} ({family.name})')
-                else:
-                    send_trial_warning_email(admin, family, days_left, billing_url)
-                    sent += 1
-                family.email_trial_warning_sent = True
-
-        # ── Trial ended: send once when trial has expired ──
-        if not family.email_trial_ended_sent and family.plan == 'trial' and family.trial_ends_at:
-            if family.trial_ends_at < now:
-                billing_url = url_for('billing.billing_page', _external=True)
-                if dry_run:
-                    click.echo(f'[DRY RUN] trial-ended → {admin.email} ({family.name})')
-                else:
-                    send_trial_ended_email(admin, family, billing_url)
-                    sent += 1
-                family.email_trial_ended_sent = True
+            # ── Trial ended: send once when trial has expired ──
+            if not family.email_trial_ended_sent and family.plan == 'trial' and family.trial_ends_at:
+                if family.trial_ends_at < now:
+                    billing_url = url_for('billing.billing_page', _external=True)
+                    if dry_run:
+                        click.echo(f'[DRY RUN] trial-ended → {admin.email} ({family.name})')
+                    else:
+                        send_trial_ended_email(admin, family, billing_url)
+                        sent += 1
+                    family.email_trial_ended_sent = True
 
     if not dry_run:
         db.session.commit()
@@ -153,31 +160,32 @@ def rsvp_reminders(dry_run):
     events = Event.query.filter_by(rsvp_deadline=target_date).all()
     sent = 0
 
-    for event in events:
-        responded_person_ids = {
-            r.person_id for r in EventRSVP.query.filter_by(event_id=event.id).all()
-        }
-        users = User.query.filter_by(
-            family_id=event.family_id, status='approved', email_verified=True
-        ).all()
+    with _request_ctx():
+        for event in events:
+            responded_person_ids = {
+                r.person_id for r in EventRSVP.query.filter_by(event_id=event.id).all()
+            }
+            users = User.query.filter_by(
+                family_id=event.family_id, status='approved', email_verified=True
+            ).all()
 
-        for user in users:
-            if not user.person_id or user.person_id in responded_person_ids:
-                continue
-            from .models import NotificationPreference
-            if not NotificationPreference.is_enabled(user.id, 'rsvp_reminder'):
-                continue
-            event_url = url_for('main.event_detail', event_id=event.id, _external=True)
-            if dry_run:
-                click.echo(f'[DRY RUN] rsvp-reminder → {user.email} for "{event.name}" (deadline {target_date})')
-            else:
-                send_rsvp_reminder_email(user, event, event_url)
-                deadline_str = target_date.strftime('%B %-d')
-                create_notification(user, 'rsvp_reminder',
-                                    title=f'RSVP reminder: {event.name}',
-                                    body=f'Deadline: {deadline_str}',
-                                    url=event_url)
-                sent += 1
+            for user in users:
+                if not user.person_id or user.person_id in responded_person_ids:
+                    continue
+                from .models import NotificationPreference
+                if not NotificationPreference.is_enabled(user.id, 'rsvp_reminder'):
+                    continue
+                event_url = url_for('main.event_detail', event_id=event.id, _external=True)
+                if dry_run:
+                    click.echo(f'[DRY RUN] rsvp-reminder → {user.email} for "{event.name}" (deadline {target_date})')
+                else:
+                    send_rsvp_reminder_email(user, event, event_url)
+                    deadline_str = target_date.strftime('%B %-d')
+                    create_notification(user, 'rsvp_reminder',
+                                        title=f'RSVP reminder: {event.name}',
+                                        body=f'Deadline: {deadline_str}',
+                                        url=event_url)
+                    sent += 1
 
     if not dry_run:
         click.echo(f'rsvp-reminders done: {sent} sent for {len(events)} event(s) with deadline {target_date}.')
@@ -263,41 +271,42 @@ def annual_events(dry_run):
     )
 
     checked = set()
-    for event in past_annuals:
-        key = (event.family_id, event.name.strip().lower())
-        if key in checked:
-            continue
-        checked.add(key)
+    with _request_ctx():
+        for event in past_annuals:
+            key = (event.family_id, event.name.strip().lower())
+            if key in checked:
+                continue
+            checked.add(key)
 
-        has_future = Event.query.filter(
-            Event.family_id == event.family_id,
-            Event.name == event.name,
-            Event.is_annual == True,
-            Event.start_date >= today,
-        ).first()
+            has_future = Event.query.filter(
+                Event.family_id == event.family_id,
+                Event.name == event.name,
+                Event.is_annual == True,
+                Event.start_date >= today,
+            ).first()
 
-        if has_future:
-            continue
+            if has_future:
+                continue
 
-        if dry_run:
-            new_start = _advance_year(event.start_date)
-            click.echo(f'[DRY RUN] would clone "{event.name}" ({event.family.name}) → {new_start}')
-        else:
-            new_event = _clone_event(event)
-            db.session.commit()
+            if dry_run:
+                new_start = _advance_year(event.start_date)
+                click.echo(f'[DRY RUN] would clone "{event.name}" ({event.family.name}) → {new_start}')
+            else:
+                new_event = _clone_event(event)
+                db.session.commit()
 
-            admin = _admin_for(event.family)
-            if admin:
-                event_url = url_for('main.event_detail', event_id=new_event.id, _external=True)
-                create_notification(admin, 'new_event',
-                                    title=f'Annual event auto-scheduled: {new_event.name}',
-                                    body=f'Review and update for {new_event.date_range_display()}',
-                                    url=event_url)
-                if current_app.config.get('MAIL_ENABLED'):
-                    send_annual_event_cloned_email(admin, new_event, event_url)
+                admin = _admin_for(event.family)
+                if admin:
+                    event_url = url_for('main.event_detail', event_id=new_event.id, _external=True)
+                    create_notification(admin, 'new_event',
+                                        title=f'Annual event auto-scheduled: {new_event.name}',
+                                        body=f'Review and update for {new_event.date_range_display()}',
+                                        url=event_url)
+                    if current_app.config.get('MAIL_ENABLED'):
+                        send_annual_event_cloned_email(admin, new_event, event_url)
 
-            click.echo(f'Cloned "{event.name}" ({event.family.name}) → {new_event.start_date}')
-            cloned += 1
+                click.echo(f'Cloned "{event.name}" ({event.family.name}) → {new_event.start_date}')
+                cloned += 1
 
     if not dry_run:
         click.echo(f'annual-events done: {cloned} event(s) cloned.')
