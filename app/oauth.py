@@ -39,17 +39,21 @@ def init_oauth(app):
             client_kwargs={'scope': 'openid email profile'},
         )
     if app.config.get('APPLE_CLIENT_ID'):
-        oauth.register(
-            name='apple',
-            client_id=app.config['APPLE_CLIENT_ID'],
-            client_secret=_apple_client_secret(app),
-            server_metadata_url='https://appleid.apple.com/.well-known/openid-configuration',
-            client_kwargs={
-                'scope': 'name email',
-                'response_mode': 'form_post',
-                'token_endpoint_auth_method': 'client_secret_post',
-            },
-        )
+        try:
+            apple_secret = _apple_client_secret(app)
+            oauth.register(
+                name='apple',
+                client_id=app.config['APPLE_CLIENT_ID'],
+                client_secret=apple_secret,
+                server_metadata_url='https://appleid.apple.com/.well-known/openid-configuration',
+                client_kwargs={
+                    'scope': 'name email',
+                    'response_mode': 'form_post',
+                    'token_endpoint_auth_method': 'client_secret_post',
+                },
+            )
+        except Exception as e:
+            app.logger.error(f'Apple Sign-In failed to initialize: {e}')
 
 
 # ── Google ────────────────────────────────────────────────────────────────────
