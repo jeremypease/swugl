@@ -2309,18 +2309,18 @@ def _build_ical(family, events):
     lines = [
         'BEGIN:VCALENDAR',
         'VERSION:2.0',
-        'PRODID:-//OurPeaPod//Family Calendar//EN',
+        'PRODID:-//Swugl//Family Calendar//EN',
         'CALSCALE:GREGORIAN',
         'METHOD:PUBLISH',
         f'X-WR-CALNAME:{_ical_escape(family.name)} Events',
-        'X-WR-CALDESC:Family events from OurPeaPod',
+        'X-WR-CALDESC:Family events from Swugl',
     ]
     now_stamp = datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
     for ev in events:
         end_date = (ev.end_date + timedelta(days=1)) if ev.end_date else (ev.start_date + timedelta(days=1))
         vevent = [
             'BEGIN:VEVENT',
-            f'UID:event-{ev.id}@ourpeapod.com',
+            f'UID:event-{ev.id}@swugl.com',
             f'DTSTAMP:{now_stamp}',
             f'DTSTART;VALUE=DATE:{ev.start_date.strftime("%Y%m%d")}',
             f'DTEND;VALUE=DATE:{end_date.strftime("%Y%m%d")}',

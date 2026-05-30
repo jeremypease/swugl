@@ -64,7 +64,7 @@ def create_app(test_config=None):
     app.config['REGISTRATION_OPEN'] = os.environ.get('REGISTRATION_OPEN', '').lower() == 'true'
 
     app.config['RESEND_API_KEY'] = os.environ.get('RESEND_API_KEY')
-    app.config['RESEND_FROM_EMAIL'] = os.environ.get('RESEND_FROM_EMAIL', 'Peavines <noreply@ourpeapod.com>')
+    app.config['RESEND_FROM_EMAIL'] = os.environ.get('RESEND_FROM_EMAIL', 'Swugl <noreply@swugl.com>')
     app.config['MAIL_ENABLED'] = os.environ.get('MAIL_ENABLED', '').lower() == 'true'
 
     app.config['STRIPE_SECRET_KEY'] = os.environ.get('STRIPE_SECRET_KEY')
@@ -82,7 +82,7 @@ def create_app(test_config=None):
     app.config['R2_PUBLIC_URL'] = os.environ.get('R2_PUBLIC_URL', '')
 
     app.config['WEBAUTHN_RP_ID'] = os.environ.get('WEBAUTHN_RP_ID', 'localhost')
-    app.config['WEBAUTHN_RP_NAME'] = os.environ.get('WEBAUTHN_RP_NAME', 'OurPeaPod')
+    app.config['WEBAUTHN_RP_NAME'] = os.environ.get('WEBAUTHN_RP_NAME', 'Swugl')
     app.config['WEBAUTHN_ORIGIN'] = os.environ.get('WEBAUTHN_ORIGIN', 'http://localhost:5000')
 
     app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY') or secret

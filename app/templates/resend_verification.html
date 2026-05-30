@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Verify your email — Peavines{% endblock %}
+{% block title %}Verify your email — Swugl{% endblock %}
 
 {% block content %}
 <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:40px 20px;background:var(--cream);">
     <div style="width:100%;max-width:400px;">
 
         <div style="text-align:center;margin-bottom:28px;">
-            <img src="{{ url_for('static', filename='assets/peavines-mark.svg') }}" alt="Peavines" style="height:52px;margin-bottom:16px;">
+            <img src="{{ url_for('static', filename='assets/peavines-mark.svg') }}" alt="Swugl" style="height:52px;margin-bottom:16px;">
             {% if expired %}
             <h2 style="font-size:26px;font-weight:300;margin-bottom:4px;">Verification link expired</h2>
             <p style="color:var(--slate);font-size:14px;">That link is no longer valid. Enter your email and we'll send a fresh one.</p>

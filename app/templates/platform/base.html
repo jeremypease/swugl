@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Platform Admin{% endblock %} — OurPeaPod</title>
+    <title>{% block title %}Platform Admin{% endblock %} — Swugl</title>
     <link rel="icon" href="{{ url_for('static', filename='assets/favicon.svg') }}" type="image/svg+xml">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/peavines.css') }}">
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -76,7 +76,7 @@
     <aside class="pa-sidebar">
         <div class="pa-brand">
             Platform Admin
-            <span>OurPeaPod internal</span>
+            <span>Swugl internal</span>
         </div>
         <nav class="pa-nav">
             <a href="{{ url_for('platform.dashboard') }}" {% if request.path == '/platform/dashboard' or request.path == '/platform/' %}class="active"{% endif %}>

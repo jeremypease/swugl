@@ -1,6 +1,6 @@
 {
-  "name": "OurPeaPod",
-  "short_name": "PeaPod",
+  "name": "Swugl",
+  "short_name": "Swugl",
   "description": "Your private family hub",
   "start_url": "/home",
   "display": "standalone",

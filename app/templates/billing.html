@@ -35,7 +35,7 @@
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
             <span style="background:var(--leaf-mist);color:var(--vine);font-weight:600;font-size:13px;padding:4px 10px;border-radius:99px;">Family Plan</span>
         </div>
-        <p style="font-size:14px;color:var(--slate);margin-bottom:16px;">All features unlocked. Thank you for supporting OurPeaPod.</p>
+        <p style="font-size:14px;color:var(--slate);margin-bottom:16px;">All features unlocked. Thank you for supporting Swugl.</p>
         {% if family.stripe_customer_id %}
         <form method="POST" action="/billing/portal">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

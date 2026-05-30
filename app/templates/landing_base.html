@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}OurPeaPod — Your family's private space{% endblock %}</title>
+    <title>{% block title %}Swugl — Your family's private space{% endblock %}</title>
     <link rel="icon" href="{{ url_for('static', filename='assets/favicon.svg') }}" type="image/svg+xml">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='assets/apple-touch-icon.png') }}">
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#3D7040">
-    <meta name="apple-mobile-web-app-title" content="OurPeaPod">
+    <meta name="apple-mobile-web-app-title" content="Swugl">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -21,8 +21,8 @@
 
 <header class="l-nav">
     <a href="/" class="l-nav-brand">
-        <img src="{{ url_for('static', filename='assets/peavines-mark.svg') }}" alt="OurPeaPod" height="28">
-        <span>OurPeaPod</span>
+        <img src="{{ url_for('static', filename='assets/peavines-mark.svg') }}" alt="Swugl" height="28">
+        <span>Swugl</span>
     </a>
     <nav class="l-nav-links">
         <a href="#features">Features</a>
@@ -47,15 +47,15 @@
 <footer class="l-footer">
     <div class="l-footer-inner">
         <div class="l-footer-brand">
-            <img src="{{ url_for('static', filename='assets/peavines-mark.svg') }}" alt="OurPeaPod" height="22">
-            <span>OurPeaPod</span>
+            <img src="{{ url_for('static', filename='assets/peavines-mark.svg') }}" alt="Swugl" height="22">
+            <span>Swugl</span>
         </div>
         <div class="l-footer-links">
             <a href="/privacy">Privacy Policy</a>
             <a href="/terms">Terms of Service</a>
-            <a href="mailto:hello@ourpeapod.com">Contact</a>
+            <a href="mailto:hello@swugl.com">Contact</a>
         </div>
-        <div class="l-footer-copy">© {{ now.year }} OurPeaPod. All rights reserved.</div>
+        <div class="l-footer-copy">© {{ now.year }} Swugl. All rights reserved.</div>
     </div>
 </footer>
 

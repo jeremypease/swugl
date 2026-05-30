@@ -34,7 +34,7 @@ def _rp_id():
     return current_app.config.get('WEBAUTHN_RP_ID', 'localhost')
 
 def _rp_name():
-    return current_app.config.get('WEBAUTHN_RP_NAME', 'OurPeaPod')
+    return current_app.config.get('WEBAUTHN_RP_NAME', 'Swugl')
 
 def _origin():
     return current_app.config.get('WEBAUTHN_ORIGIN', 'http://localhost:5000')
@@ -158,7 +158,7 @@ def totp_setup():
     secret = session.get('pending_totp_secret') or pyotp.random_base32()
     session['pending_totp_secret'] = secret
     uri = pyotp.totp.TOTP(secret).provisioning_uri(
-        name=current_user.email, issuer_name='OurPeaPod'
+        name=current_user.email, issuer_name='Swugl'
     )
     return render_template('totp_setup.html', secret=secret, qr_b64=_qr_png_b64(uri))
 

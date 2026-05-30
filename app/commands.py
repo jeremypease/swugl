@@ -26,7 +26,7 @@ from .email import (
 
 def _request_ctx():
     """Push a minimal request context so url_for(_external=True) works in CLI commands."""
-    base_url = current_app.config.get('BASE_URL', 'https://ourpeapod.com')
+    base_url = current_app.config.get('BASE_URL', 'https://swugl.com')
     return current_app.test_request_context('/', base_url=base_url)
 
 
