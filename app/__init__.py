@@ -97,6 +97,7 @@ def create_app(test_config=None):
     app.config['APPLE_KEY_ID'] = os.environ.get('APPLE_KEY_ID')
     app.config['APPLE_PRIVATE_KEY'] = os.environ.get('APPLE_PRIVATE_KEY', '')
     app.config['APPLE_BUNDLE_ID'] = os.environ.get('APPLE_BUNDLE_ID')
+    app.config['APPLE_DOMAIN_ASSOCIATION'] = os.environ.get('APPLE_DOMAIN_ASSOCIATION', '')
 
     # Session lifetime
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=14)

@@ -184,6 +184,14 @@ def members():
             bday_days[p.id] = (bday - today).days
     return render_template('members.html', people=people, family=current_user.active_family, bday_days=bday_days)
 
+@main.route('/.well-known/apple-developer-domain-association.txt')
+def apple_domain_association():
+    content = current_app.config.get('APPLE_DOMAIN_ASSOCIATION', '')
+    if not content:
+        abort(404)
+    return content, 200, {'Content-Type': 'text/plain'}
+
+
 @main.route('/')
 def index():
     if current_user.is_authenticated:
