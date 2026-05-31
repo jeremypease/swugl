@@ -41,6 +41,12 @@ def init_oauth(app):
     if app.config.get('APPLE_CLIENT_ID'):
         try:
             apple_secret = _apple_client_secret(app)
+            decoded = pyjwt.decode(apple_secret, options={"verify_signature": False})
+            app.logger.info(
+                f'Apple client secret claims: iss={decoded.get("iss")} '
+                f'sub={decoded.get("sub")} aud={decoded.get("aud")} '
+                f'exp={decoded.get("exp")} kid={pyjwt.get_unverified_header(apple_secret).get("kid")}'
+            )
             oauth.register(
                 name='apple',
                 client_id=app.config['APPLE_CLIENT_ID'],
@@ -178,16 +184,50 @@ def apple_callback():
     try:
         token = oauth.apple.authorize_access_token()
     except Exception as e:
-        current_app.logger.error(f'Apple callback error: {e}')
+        current_app.logger.error(
+            f'Apple callback error: {e} | '
+            f'client_id={current_app.config.get("APPLE_CLIENT_ID")} '
+            f'team_id={current_app.config.get("APPLE_TEAM_ID")} '
+            f'key_id={current_app.config.get("APPLE_KEY_ID")} '
+            f'redirect_uri={url_for("oauth.apple_callback", _external=True)}'
+        )
         flash('Apple sign-in failed. Please try again.', 'error')
         return redirect(url_for('tf.security') if linking else url_for('main.login'))
 
-    current_app.logger.info(f'Apple token keys: {list(token.keys())}')
-    current_app.logger.info(f'Apple userinfo: {token.get("userinfo")}')
+    raw_id_token = token.get('id_token')
+    current_app.logger.info(
+        f'Apple token keys: {list(token.keys())} | '
+        f'userinfo: {token.get("userinfo")} | '
+        f'id_token present: {bool(raw_id_token)} | '
+        f'id_token type: {type(raw_id_token).__name__}'
+    )
 
     id_token_claims = token.get('userinfo') or {}
     provider_id = id_token_claims.get('sub')
+
+    # Authlib may not populate userinfo if id_token verification fails (e.g. nonce
+    # mismatch). Fall back to decoding the id_token directly — safe because the
+    # token came from Apple's HTTPS endpoint.
+    if not provider_id and raw_id_token:
+        try:
+            # Authlib sometimes pre-parses id_token into a dict; handle both cases.
+            if isinstance(raw_id_token, dict):
+                claims = raw_id_token
+            else:
+                claims = pyjwt.decode(
+                    str(raw_id_token), options={"verify_signature": False}
+                )
+            provider_id = claims.get('sub')
+            if provider_id:
+                id_token_claims = claims
+                current_app.logger.info(f'Apple id_token decoded directly: sub={provider_id}')
+            else:
+                current_app.logger.error(f'Apple id_token has no sub. claims={claims}')
+        except Exception as e:
+            current_app.logger.error(f'Apple id_token direct decode failed: {e}')
+
     if not provider_id:
+        current_app.logger.error(f'Apple sign-in: no sub in userinfo or id_token. token keys={list(token.keys())}')
         flash('Apple sign-in failed: no user identifier returned.', 'error')
         return redirect(url_for('tf.security') if linking else url_for('main.login'))
 

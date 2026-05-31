@@ -112,6 +112,11 @@ def create_app(test_config=None):
         app.config['SESSION_COOKIE_SECURE'] = True
         app.config['SESSION_COOKIE_HTTPONLY'] = True
         app.config['SESSION_COOKIE_SAMESITE'] = 'None'
+        # Force https:// in all url_for(_external=True) calls. Without this, ProxyFix
+        # only helps if Cloudflare reliably sends X-Forwarded-Proto — and when it
+        # doesn't, Apple's form_post returns over http:// and the Secure session
+        # cookie is never sent, breaking state verification.
+        app.config['PREFERRED_URL_SCHEME'] = 'https'
 
     db.init_app(app)
     migrate.init_app(app, db)
