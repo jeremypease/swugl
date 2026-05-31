@@ -41,6 +41,9 @@ limiter = Limiter(
 def create_app(test_config=None):
     app = Flask(__name__)
 
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
     secret = os.environ.get('SECRET_KEY')
     if not secret:
         raise RuntimeError("SECRET_KEY environment variable is not set")
