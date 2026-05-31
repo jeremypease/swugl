@@ -182,6 +182,9 @@ def apple_callback():
         flash('Apple sign-in failed. Please try again.', 'error')
         return redirect(url_for('tf.security') if linking else url_for('main.login'))
 
+    current_app.logger.info(f'Apple token keys: {list(token.keys())}')
+    current_app.logger.info(f'Apple userinfo: {token.get("userinfo")}')
+
     id_token_claims = token.get('userinfo') or {}
     provider_id = id_token_claims.get('sub')
     if not provider_id:
