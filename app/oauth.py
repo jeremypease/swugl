@@ -1,5 +1,6 @@
 import json
 import time
+import requests as http_requests
 import jwt as pyjwt
 from flask import Blueprint, redirect, url_for, flash, session, current_app, abort, request
 from flask_login import login_user, login_required, current_user
@@ -181,22 +182,46 @@ def apple_callback():
 
     linking = session.pop('oauth_action', None) == 'link'
 
-    # Capture the id_token Apple includes in the form_post body before Authlib
-    # consumes it — this is our most reliable source of the user's sub claim.
+    # Capture these before authorize_access_token() consumes the form data.
     form_id_token = request.form.get('id_token')
+    form_code = request.form.get('code')
 
     try:
         token = oauth.apple.authorize_access_token()
     except Exception as e:
-        current_app.logger.error(
-            f'Apple callback error: {e} | '
-            f'client_id={current_app.config.get("APPLE_CLIENT_ID")} '
-            f'team_id={current_app.config.get("APPLE_TEAM_ID")} '
-            f'key_id={current_app.config.get("APPLE_KEY_ID")} '
-            f'redirect_uri={url_for("oauth.apple_callback", _external=True)}'
-        )
-        flash('Apple sign-in failed. Please try again.', 'error')
-        return redirect(url_for('tf.security') if linking else url_for('main.login'))
+        # Safari's native Apple Sign-In submits the form_post in a WebKit context
+        # that doesn't carry the session cookie, causing a state mismatch. Fall back
+        # to a direct token exchange so the callback always succeeds.
+        current_app.logger.warning(f'Apple authorize_access_token failed ({e}), trying direct exchange')
+        if not form_code:
+            current_app.logger.error('Apple callback: no code in form, cannot recover')
+            flash('Apple sign-in failed. Please try again.', 'error')
+            return redirect(url_for('tf.security') if linking else url_for('main.login'))
+        try:
+            redirect_uri = url_for('oauth.apple_callback', _external=True)
+            client_secret = _apple_client_secret(current_app._get_current_object())
+            resp = http_requests.post(
+                'https://appleid.apple.com/auth/token',
+                data={
+                    'client_id': current_app.config['APPLE_CLIENT_ID'],
+                    'client_secret': client_secret,
+                    'code': form_code,
+                    'grant_type': 'authorization_code',
+                    'redirect_uri': redirect_uri,
+                },
+                timeout=10,
+            )
+            resp.raise_for_status()
+            token = resp.json()
+            current_app.logger.info(f'Apple direct exchange succeeded, keys={list(token.keys())}')
+        except Exception as e2:
+            current_app.logger.error(
+                f'Apple direct exchange failed: {e2} | '
+                f'client_id={current_app.config.get("APPLE_CLIENT_ID")} '
+                f'redirect_uri={url_for("oauth.apple_callback", _external=True)}'
+            )
+            flash('Apple sign-in failed. Please try again.', 'error')
+            return redirect(url_for('tf.security') if linking else url_for('main.login'))
 
     raw_id_token = token.get('id_token')
     current_app.logger.info(
