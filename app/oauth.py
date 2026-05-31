@@ -181,6 +181,10 @@ def apple_callback():
 
     linking = session.pop('oauth_action', None) == 'link'
 
+    # Capture the id_token Apple includes in the form_post body before Authlib
+    # consumes it — this is our most reliable source of the user's sub claim.
+    form_id_token = request.form.get('id_token')
+
     try:
         token = oauth.apple.authorize_access_token()
     except Exception as e:
@@ -199,35 +203,48 @@ def apple_callback():
         f'Apple token keys: {list(token.keys())} | '
         f'userinfo: {token.get("userinfo")} | '
         f'id_token present: {bool(raw_id_token)} | '
-        f'id_token type: {type(raw_id_token).__name__}'
+        f'form id_token present: {bool(form_id_token)}'
     )
 
     id_token_claims = token.get('userinfo') or {}
     provider_id = id_token_claims.get('sub')
 
-    # Authlib may not populate userinfo if id_token verification fails (e.g. nonce
-    # mismatch). Fall back to decoding the id_token directly — safe because the
-    # token came from Apple's HTTPS endpoint.
+    def _decode_jwt(raw):
+        if isinstance(raw, dict):
+            return raw
+        return pyjwt.decode(str(raw), options={"verify_signature": False})
+
+    # Fallback 1: decode id_token from the token exchange response
     if not provider_id and raw_id_token:
         try:
-            # Authlib sometimes pre-parses id_token into a dict; handle both cases.
-            if isinstance(raw_id_token, dict):
-                claims = raw_id_token
-            else:
-                claims = pyjwt.decode(
-                    str(raw_id_token), options={"verify_signature": False}
-                )
+            claims = _decode_jwt(raw_id_token)
             provider_id = claims.get('sub')
             if provider_id:
                 id_token_claims = claims
-                current_app.logger.info(f'Apple id_token decoded directly: sub={provider_id}')
+                current_app.logger.info(f'Apple sub from token response id_token: {provider_id}')
             else:
-                current_app.logger.error(f'Apple id_token has no sub. claims={claims}')
+                current_app.logger.error(f'Apple token response id_token has no sub. claims={claims}')
         except Exception as e:
-            current_app.logger.error(f'Apple id_token direct decode failed: {e}')
+            current_app.logger.error(f'Apple token response id_token decode failed: {e}')
+
+    # Fallback 2: decode the id_token Apple included in the form_post body
+    if not provider_id and form_id_token:
+        try:
+            claims = _decode_jwt(form_id_token)
+            provider_id = claims.get('sub')
+            if provider_id:
+                id_token_claims = claims
+                current_app.logger.info(f'Apple sub from form_post id_token: {provider_id}')
+            else:
+                current_app.logger.error(f'Apple form_post id_token has no sub. claims={claims}')
+        except Exception as e:
+            current_app.logger.error(f'Apple form_post id_token decode failed: {e}')
 
     if not provider_id:
-        current_app.logger.error(f'Apple sign-in: no sub in userinfo or id_token. token keys={list(token.keys())}')
+        current_app.logger.error(
+            f'Apple sign-in: no sub found. '
+            f'token keys={list(token.keys())} form keys={list(request.form.keys())}'
+        )
         flash('Apple sign-in failed: no user identifier returned.', 'error')
         return redirect(url_for('tf.security') if linking else url_for('main.login'))
 
