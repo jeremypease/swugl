@@ -138,6 +138,7 @@ def create_app(test_config=None):
     app.register_blueprint(api_bp)
     init_oauth(app)
     csrf.exempt(app.view_functions['billing.webhook'])
+    csrf.exempt(app.view_functions['oauth.apple_callback'])
     csrf.exempt(api_bp)
 
     @jwt.token_in_blocklist_loader
