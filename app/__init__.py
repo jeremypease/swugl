@@ -107,10 +107,11 @@ def create_app(test_config=None):
     app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=30)
 
     # Secure cookies in production (HTTPS only)
+    # SameSite=None required for Apple Sign-In form_post callback to send session cookie
     if os.environ.get('FLASK_ENV') == 'production':
         app.config['SESSION_COOKIE_SECURE'] = True
         app.config['SESSION_COOKIE_HTTPONLY'] = True
-        app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+        app.config['SESSION_COOKIE_SAMESITE'] = 'None'
 
     db.init_app(app)
     migrate.init_app(app, db)
