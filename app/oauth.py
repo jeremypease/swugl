@@ -43,7 +43,7 @@ def init_oauth(app):
         try:
             apple_secret = _apple_client_secret(app)
             decoded = pyjwt.decode(apple_secret, options={"verify_signature": False})
-            app.logger.info(
+            app.logger.warning(
                 f'Apple client secret claims: iss={decoded.get("iss")} '
                 f'sub={decoded.get("sub")} aud={decoded.get("aud")} '
                 f'exp={decoded.get("exp")} kid={pyjwt.get_unverified_header(apple_secret).get("kid")}'
@@ -160,7 +160,7 @@ def apple_login():
     if current_user.is_authenticated:
         return redirect(url_for('main.home'))
     redirect_uri = url_for('oauth.apple_callback', _external=True)
-    current_app.logger.info(f'Apple login redirect_uri: {redirect_uri}')
+    current_app.logger.warning(f'Apple login redirect_uri: {redirect_uri}')
     return oauth.apple.authorize_redirect(redirect_uri)
 
 
@@ -213,7 +213,7 @@ def apple_callback():
             )
             resp.raise_for_status()
             token = resp.json()
-            current_app.logger.info(f'Apple direct exchange succeeded, keys={list(token.keys())}')
+            current_app.logger.warning(f'Apple direct exchange succeeded, keys={list(token.keys())}')
         except Exception as e2:
             current_app.logger.error(
                 f'Apple direct exchange failed: {e2} | '
@@ -224,7 +224,7 @@ def apple_callback():
             return redirect(url_for('tf.security') if linking else url_for('main.login'))
 
     raw_id_token = token.get('id_token')
-    current_app.logger.info(
+    current_app.logger.warning(
         f'Apple token keys: {list(token.keys())} | '
         f'userinfo: {token.get("userinfo")} | '
         f'id_token present: {bool(raw_id_token)} | '
@@ -246,7 +246,7 @@ def apple_callback():
             provider_id = claims.get('sub')
             if provider_id:
                 id_token_claims = claims
-                current_app.logger.info(f'Apple sub from token response id_token: {provider_id}')
+                current_app.logger.warning(f'Apple sub from token response id_token: {provider_id}')
             else:
                 current_app.logger.error(f'Apple token response id_token has no sub. claims={claims}')
         except Exception as e:
@@ -259,7 +259,7 @@ def apple_callback():
             provider_id = claims.get('sub')
             if provider_id:
                 id_token_claims = claims
-                current_app.logger.info(f'Apple sub from form_post id_token: {provider_id}')
+                current_app.logger.warning(f'Apple sub from form_post id_token: {provider_id}')
             else:
                 current_app.logger.error(f'Apple form_post id_token has no sub. claims={claims}')
         except Exception as e:
