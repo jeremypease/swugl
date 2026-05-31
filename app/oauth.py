@@ -159,7 +159,8 @@ def apple_login():
         return redirect(url_for('main.login'))
     if current_user.is_authenticated:
         return redirect(url_for('main.home'))
-    redirect_uri = url_for('oauth.apple_callback', _external=True)
+    redirect_uri = (current_app.config.get('APPLE_REDIRECT_URI')
+                    or url_for('oauth.apple_callback', _external=True))
     current_app.logger.warning(f'Apple login redirect_uri: {redirect_uri}')
     return oauth.apple.authorize_redirect(redirect_uri)
 
@@ -171,7 +172,8 @@ def apple_link():
         flash('Apple sign-in is not configured.', 'error')
         return redirect(url_for('tf.security'))
     session['oauth_action'] = 'link'
-    redirect_uri = url_for('oauth.apple_callback', _external=True)
+    redirect_uri = (current_app.config.get('APPLE_REDIRECT_URI')
+                    or url_for('oauth.apple_callback', _external=True))
     return oauth.apple.authorize_redirect(redirect_uri)
 
 
@@ -198,7 +200,8 @@ def apple_callback():
             flash('Apple sign-in failed. Please try again.', 'error')
             return redirect(url_for('tf.security') if linking else url_for('main.login'))
         try:
-            redirect_uri = url_for('oauth.apple_callback', _external=True)
+            redirect_uri = (current_app.config.get('APPLE_REDIRECT_URI')
+                            or url_for('oauth.apple_callback', _external=True))
             client_secret = _apple_client_secret(current_app._get_current_object())
             resp = http_requests.post(
                 'https://appleid.apple.com/auth/token',
