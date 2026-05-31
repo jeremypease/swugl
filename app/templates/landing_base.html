@@ -12,7 +12,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/peavines.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/swugl.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
     <script src="https://unpkg.com/lucide@latest"></script>
     {% block head %}{% endblock %}
@@ -21,7 +21,7 @@
 
 <header class="l-nav">
     <a href="/" class="l-nav-brand">
-        <img src="{{ url_for('static', filename='assets/peavines-mark.svg') }}" alt="Swugl" height="28">
+        <img src="{{ url_for('static', filename='assets/swugl-mark.svg') }}" alt="Swugl" height="28">
         <span>Swugl</span>
     </a>
     <nav class="l-nav-links">
@@ -47,7 +47,7 @@
 <footer class="l-footer">
     <div class="l-footer-inner">
         <div class="l-footer-brand">
-            <img src="{{ url_for('static', filename='assets/peavines-mark.svg') }}" alt="Swugl" height="22">
+            <img src="{{ url_for('static', filename='assets/swugl-mark.svg') }}" alt="Swugl" height="22">
             <span>Swugl</span>
         </div>
         <div class="l-footer-links">

@@ -2,8 +2,8 @@ const CACHE = 'peapod-v1';
 
 const PRECACHE = [
   '/offline',
-  '/static/css/peavines.css',
-  '/static/assets/peavines-mark.svg',
+  '/static/css/swugl.css',
+  '/static/assets/swugl-mark.svg',
   '/static/assets/icon-192.png',
 ];
 
