@@ -13,7 +13,7 @@ from datetime import date
 def test_landing_page(client):
     r = client.get('/')
     assert r.status_code == 200
-    assert b'OurPeaPod' in r.data
+    assert b'Swugl' in r.data
 
 def test_privacy_page(client):
     r = client.get('/privacy')

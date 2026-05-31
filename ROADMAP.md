@@ -1,8 +1,8 @@
-# Peavines / OurPeaPod — Product Roadmap
+# Swugl — Product Roadmap
 
 ## Vision
 
-**OurPeaPod** is a private, AI-native family hub — a place for families to stay connected, plan together, and preserve their shared history. The product launches as a hosted SaaS at `ourpeapod.com` where any family can create their own "pod" in minutes. AI is woven into the product from day one, not bolted on later — every feature should consider how intelligence can reduce effort and surface things families didn't know to look for.
+**Swugl** is a private family hub — a place for families to stay connected, plan together, and preserve their shared history. The product launches as a hosted SaaS at `swugl.com` where any family can create their own "pod" in minutes.
 
 ---
 
@@ -15,7 +15,7 @@
 - [x] Confirm all admin-only routes enforce `@admin_required` consistently
 - [x] Smoke-test suite — 18 tests covering auth, event CRUD, cross-family isolation
 - [x] **Wire up Cloudflare R2 for photo storage** — photos store to R2 and serve via `/photos/<key>` proxy (login required). R2 public URL deliberately not enabled — see note below.
-- [ ] **Re-evaluate R2 photo delivery** — currently photos proxy through Railway (`/photos/<key>`), which is secure (login required) but adds latency. If photo loading feels slow with real family usage, add a custom domain (e.g. `photos.ourpeapod.com`) in R2 → Custom Domains, set `R2_PUBLIC_URL` in Railway, and accept that URLs are publicly accessible to anyone who has them (mitigated by UUID keys).
+- [ ] **Re-evaluate R2 photo delivery** — currently photos proxy through Railway (`/photos/<key>`), which is secure (login required) but adds latency. If photo loading feels slow with real family usage, add a custom domain (e.g. `photos.swugl.com`) in R2 → Custom Domains, set `R2_PUBLIC_URL` in Railway, and accept that URLs are publicly accessible to anyone who has them (mitigated by UUID keys).
 
 ---
 
@@ -141,7 +141,7 @@ An iCal/CalDAV feed that members subscribe to in Apple Calendar, Google Calendar
 - [ ] Paid tier only
 
 ### 3B — Mobile Audit + Progressive Web App (PWA)
-Most family members will use OurPeaPod on their phone — checking events, viewing RSVPs, signing up for meals. Before building a PWA, audit every key flow at 390px.
+Most family members will use Swugl on their phone — checking events, viewing RSVPs, signing up for meals. Before building a PWA, audit every key flow at 390px.
 
 **Mobile audit (prerequisite to PWA ship):**
 - [ ] Walk every core flow on an actual phone: login → home → events → meal signup → task claim → sleeping assignment → family tree → member profile → photo upload
@@ -173,21 +173,21 @@ Most family members will use OurPeaPod on their phone — checking events, viewi
 ---
 
 ## Phase 4 — Support & Platform Operations
-*OurPeaPod (the company) needs its own tools to operate the platform, help users, and stay informed about what's happening across all pods.*
+*Swugl (the company) needs its own tools to operate the platform, help users, and stay informed about what's happening across all pods.*
 
 ### 4A — In-App Support Channel
 The simplest path for users to get help without leaving the app.
 
 - [ ] **"Get help" link** in sidebar footer — visible to all authenticated users
 - [ ] **Support request form** at `/support`: subject, description, category (billing, technical, account, other)
-  - Routes to `hello@ourpeapod.com` via Resend
+  - Routes to `hello@swugl.com` via Resend
   - Automatically includes: user email, family name, `account_id`, browser/OS (from user-agent) — the `account_id` is what support uses to look up the pod in the platform admin, not the display name
   - Confirms submission with a flash message
 - [ ] **Help center link** — link out to a Notion-based FAQ or help docs (lightweight, no custom build needed initially)
 - [ ] **Status page** — a simple hosted status page (Instatus or Statuspage.io) users can check during outages
 
 ### 4B — Platform Admin Panel
-A separate admin area for OurPeaPod staff — distinct from the family-level admin that pod admins already have.
+A separate admin area for Swugl staff — distinct from the family-level admin that pod admins already have.
 
 **Access model:**
 - New `is_platform_admin` boolean on the `User` model
@@ -229,12 +229,12 @@ A separate admin area for OurPeaPod staff — distinct from the family-level adm
 ### 4C — Support Documentation
 - [ ] Help center (Notion or similar) covering: getting started, inviting members, events, photos, billing
 - [ ] In-app contextual help tooltips on complex features (event planning, family tree)
-- [ ] `hello@ourpeapod.com` inbox monitored and routed
+- [ ] `hello@swugl.com` inbox monitored and routed
 
 ---
 
 ## Phase 5 — AI Features
-*AI is woven into OurPeaPod from day one — not bolted on later. All AI features are paid tier only. The goal is to make the product feel intelligent without requiring families to think about AI at all.*
+*AI is woven into Swugl from day one — not bolted on later. All AI features are paid tier only. The goal is to make the product feel intelligent without requiring families to think about AI at all.*
 
 **Platform:** Built on the **Claude API** (Anthropic SDK). Model selection: default to the latest Claude Sonnet for a balance of quality and cost; surface model choice in platform admin for tuning.
 
@@ -340,7 +340,7 @@ After an event passes, capture the memory before it fades.
 
 ## Security
 
-OurPeaPod stores personal information — names, birthdays, addresses, family relationships, photos. Security is not a phase; it's a constant. This section tracks what's in place and what still needs doing.
+Swugl stores personal information — names, birthdays, addresses, family relationships, photos. Security is not a phase; it's a constant. This section tracks what's in place and what still needs doing.
 
 ### Already in place
 - CSRF protection (Flask-WTF) on all forms
@@ -385,10 +385,10 @@ OurPeaPod stores personal information — names, birthdays, addresses, family re
 
 ## Content Moderation & Member Fairness
 
-Like Security, this is a constant — not a phase. OurPeaPod hosts personal content and family relationships. The platform's job is not to adjudicate family disputes, but to ensure legal compliance, protect members from abuse of power, and give AI a meaningful role in both.
+Like Security, this is a constant — not a phase. Swugl hosts personal content and family relationships. The platform's job is not to adjudicate family disputes, but to ensure legal compliance, protect members from abuse of power, and give AI a meaningful role in both.
 
 ### Policy
-- Pod admins are responsible for their pod's content and membership decisions. OurPeaPod does not override admin decisions except in cases of illegal content or documented platform abuse.
+- Pod admins are responsible for their pod's content and membership decisions. Swugl does not override admin decisions except in cases of illegal content or documented platform abuse.
 - A removed member always receives advance notice and time to export their data before access is revoked.
 - Disputes can be escalated to platform support, which can review pod activity and act at the pod level (e.g. suspending a pod) — but will not reinstate individual memberships.
 
@@ -411,7 +411,7 @@ Like Security, this is a constant — not a phase. OurPeaPod hosts personal cont
 
 ## Accessibility
 
-OurPeaPod's core demographic includes grandparents and older family members. Accessibility is not an edge case — it is the product. WCAG 2.1 AA compliance is the target. Like Security, this is a constant, not a phase.
+Swugl's core demographic includes grandparents and older family members. Accessibility is not an edge case — it is the product. WCAG 2.1 AA compliance is the target. Like Security, this is a constant, not a phase.
 
 ### Principles
 - Every new template ships accessible. Retrofitting later costs 3× more than doing it right the first time.
@@ -467,7 +467,7 @@ Flask-Limiter uses in-memory storage by default — this breaks as soon as you r
 
 ## Recommended Execution Order
 
-1. **Go Live** — Get the existing app running on ourpeapod.com ✓ done
+1. **Go Live** — Get the existing app running on swugl.com ✓ done
 2. **Phase 0** — Harden what exists + wire up S3/R2 for photos ✓ done (except S3)
 3. **Phase 1C** — Landing page ✓ done
 4. **Phase 1A** — Self-serve pod signup + onboarding email sequence ✓ done
@@ -492,12 +492,12 @@ Flask-Limiter uses in-memory storage by default — this breaks as soon as you r
 
 ## Go Live Plan
 
-*Everything needed to get the app running at ourpeapod.com. Target platform: **Railway**.*
+*Everything needed to get the app running at swugl.com. Target platform: **Railway**.*
 
 ### What We Have
-- **Domain:** `ourpeapod.com` registered at GoDaddy; nameservers point to Cloudflare
+- **Domain:** `swugl.com` registered at GoDaddy; nameservers point to Cloudflare
 - **DNS:** Managed in Cloudflare
-- **Email:** Resend domain verified via Cloudflare DNS records — ready to send from `ourpeapod.com`
+- **Email:** Resend domain verified via Cloudflare DNS records — ready to send from `swugl.com`
 - **Hosting:** Railway connected through Cloudflare
 - **Hostgator Baby Plan:** Not needed once Railway is live; can be cancelled
 - **App:** Flask + SQLite, currently running locally
