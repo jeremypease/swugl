@@ -153,6 +153,7 @@ def apple_login():
     if current_user.is_authenticated:
         return redirect(url_for('main.home'))
     redirect_uri = url_for('oauth.apple_callback', _external=True)
+    current_app.logger.info(f'Apple login redirect_uri: {redirect_uri}')
     return oauth.apple.authorize_redirect(redirect_uri)
 
 
