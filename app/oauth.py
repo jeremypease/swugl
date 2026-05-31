@@ -177,7 +177,8 @@ def apple_callback():
 
     try:
         token = oauth.apple.authorize_access_token()
-    except Exception:
+    except Exception as e:
+        current_app.logger.error(f'Apple callback error: {e}')
         flash('Apple sign-in failed. Please try again.', 'error')
         return redirect(url_for('tf.security') if linking else url_for('main.login'))
 
