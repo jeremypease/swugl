@@ -188,6 +188,7 @@ def _handle_event(event):
             family.plan = 'free'
             family.stripe_subscription_id = None
             db.session.commit()
+            _send_billing_email(family, 'cancelled')
 
     elif etype == 'invoice.payment_failed':
         customer_id = data.get('customer')
@@ -196,6 +197,7 @@ def _handle_event(event):
             family.plan = 'past_due'
             family.trial_ends_at = datetime.utcnow()  # grace period starts now
             db.session.commit()
+            _send_billing_email(family, 'payment_failed')
 
     elif etype == 'invoice.payment_succeeded':
         customer_id = data.get('customer')
@@ -204,6 +206,21 @@ def _handle_event(event):
             family.plan = 'paid'
             family.trial_ends_at = None
             db.session.commit()
+
+
+def _send_billing_email(family, event_type):
+    """Send a billing lifecycle email to the family's admin user."""
+    from .models import User
+    from .email import send_payment_failed_email, send_subscription_cancelled_email
+    admin = User.query.filter_by(family_id=family.id, role='admin', status='approved').first()
+    if not admin or not current_app.config.get('MAIL_ENABLED'):
+        return
+    billing_url = 'https://swugl.com/billing'
+    name = admin.first_name or admin.email
+    if event_type == 'payment_failed':
+        send_payment_failed_email(admin.email, name, billing_url)
+    elif event_type == 'cancelled':
+        send_subscription_cancelled_email(admin.email, name, billing_url)
 
 
 def _sync_subscription(sub):

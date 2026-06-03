@@ -433,6 +433,45 @@ def send_pod_added_email(user, family_name, dashboard_url):
     )
 
 
+def send_payment_failed_email(admin_email, admin_name, billing_url):
+    return send_email(
+        admin_email,
+        "Action needed: update your Swugl payment method",
+        f"""
+        <h2>Your payment didn't go through</h2>
+        <p>Hi {admin_name},</p>
+        <p>We weren't able to process your Swugl subscription payment. Your family still has access
+        during a short grace period, but please update your payment method soon to avoid losing
+        access to paid features.</p>
+        <p><a href="{billing_url}" style="background:#3D7040;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block;">Update Payment Method</a></p>
+        <p style="color:#888;font-size:13px;">If you have questions, reply to this email or contact support@swugl.com.</p>
+        """
+    )
+
+
+def send_subscription_cancelled_email(admin_email, admin_name, billing_url):
+    return send_email(
+        admin_email,
+        "Your Swugl subscription has been cancelled",
+        f"""
+        <h2>Subscription cancelled</h2>
+        <p>Hi {admin_name},</p>
+        <p>Your Swugl Family Plan has been cancelled and your pod has moved to the free plan.
+        Your family's data — members, events, and photos — is safe and still accessible.</p>
+        <p><strong>What you still have on the free plan:</strong></p>
+        <ul>
+            <li>Family tree (up to 25 members)</li>
+            <li>Up to 3 upcoming events</li>
+            <li>Member directory &amp; profiles</li>
+            <li>In-app notifications</li>
+        </ul>
+        <p>If you'd like to reactivate, you can upgrade again any time:</p>
+        <p><a href="{billing_url}" style="background:#3D7040;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block;">Reactivate Family Plan</a></p>
+        <p style="color:#888;font-size:13px;">If you have questions, reply to this email or contact support@swugl.com.</p>
+        """
+    )
+
+
 def send_support_email(user, family, category, message, support_email):
     category_labels = {
         'billing':   'Billing or subscription',
