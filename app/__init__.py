@@ -183,6 +183,22 @@ def create_app(test_config=None):
     def datetime_format(ts):
         return datetime.utcfromtimestamp(int(ts)).strftime('%b %d, %Y')
 
+    @app.template_filter('timeago')
+    def timeago_filter(dt):
+        now = datetime.utcnow()
+        s = (now - dt).total_seconds()
+        if s < 60:
+            return 'just now'
+        if s < 3600:
+            return f'{int(s // 60)}m ago'
+        if s < 86400:
+            return f'{int(s // 3600)}h ago'
+        if s < 172800:
+            return 'yesterday'
+        if s < 604800:
+            return f'{int(s // 86400)} days ago'
+        return dt.strftime('%b %-d')
+
     # Block unauthenticated access to uploaded family files
     @app.before_request
     def protect_uploads():

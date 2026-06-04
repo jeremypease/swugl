@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, send_file, session, abort
 from flask_login import login_user, logout_user, login_required, current_user
-from .models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, ASSIGNMENT_CATEGORIES, EventRSVP, EventSleepingSpot, EventComment, Announcement, Album, Photo, NotificationPreference, NOTIFICATION_EVENTS, UserPodMembership, CalendarToken
+from .models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, ASSIGNMENT_CATEGORIES, EventRSVP, EventSleepingSpot, EventComment, Announcement, Album, Photo, Poll, NotificationPreference, NOTIFICATION_EVENTS, UserPodMembership, CalendarToken
 from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm, ForgotPasswordForm, ResetPasswordForm, AddPersonForm, RelativeForm, AddParentForm, FamilySettingsForm, EditPersonForm, EventForm, EventCommentForm, EventMealForm, EventMealFamilyAssignForm, EventMealItemForm, EventMealSelfSignupForm, EventMealAssignForm, EventAssignmentForm, EventAssignmentAdminAssignForm, EventSleepingSpotForm, EventSleepingAssignForm, GENDER_CHOICES_DEFAULT, GENDER_CHOICES_EXPANDED, PRONOUN_CHOICES, AnnouncementForm, AlbumForm, PhotoUploadForm, SupportForm
 from .email import send_verification_email, send_pending_notification, send_approval_notification, send_spouse_confirmation_email, send_spouse_invitation_email, send_password_reset_email, send_member_invitation_email, send_welcome_email, send_support_email, send_pod_added_email
 from datetime import date, datetime, timedelta
@@ -12,6 +12,7 @@ import secrets
 import hashlib
 import re
 import os
+from collections import defaultdict
 
 
 def _hash_token(token: str) -> str:
@@ -306,6 +307,68 @@ def home():
         incomplete = [s for s in steps if not s[3]]
         if incomplete:
             onboarding = steps
+    # Activity feed — last 30 days across all content types
+    _since = datetime.utcnow() - timedelta(days=30)
+    _activity = []
+
+    for a in Announcement.query.filter(
+        Announcement.family_id == current_user.active_family_id,
+        Announcement.created_at >= _since
+    ).order_by(Announcement.created_at.desc()).limit(8).all():
+        _activity.append({
+            'type': 'announcement', 'ts': a.created_at,
+            'actor': a.author, 'label': f'posted "{a.title}"',
+            'url': '/announcements', 'icon': 'megaphone',
+        })
+
+    for e in Event.query.filter(
+        Event.family_id == current_user.active_family_id,
+        Event.created_at >= _since
+    ).order_by(Event.created_at.desc()).limit(8).all():
+        _activity.append({
+            'type': 'event', 'ts': e.created_at, 'actor': None,
+            'label': f'New event: {e.name}', 'url': f'/events/{e.id}', 'icon': 'calendar',
+        })
+
+    _photos = Photo.query.filter(
+        Photo.family_id == current_user.active_family_id,
+        Photo.created_at >= _since
+    ).order_by(Photo.created_at.desc()).limit(60).all()
+    _photo_groups = defaultdict(list)
+    for _p in _photos:
+        _photo_groups[(_p.album_id, _p.uploaded_by_id, _p.created_at.date())].append(_p)
+    for (_aid, _, _d), _grp in _photo_groups.items():
+        _latest = max(_grp, key=lambda p: p.created_at)
+        _cnt = len(_grp)
+        _alb = _grp[0].album
+        _activity.append({
+            'type': 'photos', 'ts': _latest.created_at, 'actor': _grp[0].uploaded_by,
+            'label': f'added {_cnt} photo{"s" if _cnt > 1 else ""} to {_alb.name}',
+            'url': f'/albums/{_aid}', 'icon': 'image',
+        })
+
+    for c in EventComment.query.join(Event, EventComment.event_id == Event.id).filter(
+        Event.family_id == current_user.active_family_id,
+        EventComment.created_at >= _since
+    ).order_by(EventComment.created_at.desc()).limit(10).all():
+        _activity.append({
+            'type': 'comment', 'ts': c.created_at, 'actor': c.person,
+            'label': f'commented on {c.event.name}', 'url': f'/events/{c.event_id}',
+            'icon': 'message-circle',
+        })
+
+    for _poll in Poll.query.filter(
+        Poll.family_id == current_user.active_family_id,
+        Poll.created_at >= _since
+    ).order_by(Poll.created_at.desc()).limit(5).all():
+        _activity.append({
+            'type': 'poll', 'ts': _poll.created_at, 'actor': _poll.created_by,
+            'label': f'added a poll: "{_poll.question}"', 'url': '/polls', 'icon': 'bar-chart-2',
+        })
+
+    _activity.sort(key=lambda x: x['ts'], reverse=True)
+    activity_feed = _activity[:15]
+
     return render_template('home.html', member_count=member_count, family=current_user.active_family,
                            upcoming_birthdays=upcoming_birthdays, upcoming_events=upcoming_events,
                            profile_nudge=profile_nudge, me=me,
@@ -313,6 +376,7 @@ def home():
                            recent_photos=recent_photos,
                            on_this_day=on_this_day,
                            onboarding=onboarding,
+                           activity_feed=activity_feed,
                            now=datetime.now())
 
 @main.route('/login', methods=['GET', 'POST'])
