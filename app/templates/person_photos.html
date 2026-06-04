@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Photos of {{ person.get_display_name() }} — Swugl{% endblock %}
+{% block content %}
+<div class="page-head">
+    <div>
+        <div class="eyebrow"><a href="/person/{{ person.id }}" style="color:inherit;text-decoration:none;">← {{ person.get_display_name() }}</a></div>
+        <h1>Photos of {{ person.get_display_name() }}</h1>
+        <p class="sub">{{ photos|length }} tagged photo{{ 's' if photos|length != 1 }}</p>
+    </div>
+</div>
+
+{% if photos %}
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;">
+    {% for photo in photos %}
+    <a href="/albums/{{ photo.album_id }}" style="display:block;aspect-ratio:1;overflow:hidden;border-radius:var(--r-s);background:var(--hairline);">
+        <img src="{{ photo_url(photo.path) }}" alt="{{ photo.caption or '' }}"
+             style="width:100%;height:100%;object-fit:cover;transition:transform 0.2s;"
+             loading="lazy"
+             onmouseover="this.style.transform='scale(1.04)'"
+             onmouseout="this.style.transform='scale(1)'">
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div style="text-align:center;padding:64px 24px;">
+    <i data-lucide="image" style="width:48px;height:48px;color:var(--sprout);margin-bottom:16px;"></i>
+    <div style="font-weight:600;font-size:16px;margin-bottom:6px;">No tagged photos yet</div>
+    <div style="color:var(--slate);font-size:14px;">Tag {{ person.get_display_name() }} in photos from the album page.</div>
+</div>
+{% endif %}
+{% endblock %}

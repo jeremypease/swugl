@@ -755,7 +755,27 @@ class Photo(db.Model):
     taken_date = db.Column(db.Date, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    uploaded_by = db.relationship('Person')
+    uploaded_by = db.relationship('Person', foreign_keys=[uploaded_by_id])
+    tags = db.relationship('PhotoTag', backref='photo', cascade='all, delete-orphan',
+                           order_by='PhotoTag.created_at')
+
+
+# ── Photo tags ────────────────────────────────────────────────────────────────
+
+class PhotoTag(db.Model):
+    __tablename__ = 'photo_tags'
+
+    id = db.Column(db.Integer, primary_key=True)
+    photo_id = db.Column(db.Integer, db.ForeignKey('photos.id'), nullable=False, index=True)
+    person_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=False)
+    tagged_by_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint('photo_id', 'person_id', name='uq_photo_tag'),
+    )
+
+    person = db.relationship('Person', foreign_keys=[person_id])
 
 
 # ── Carpool ───────────────────────────────────────────────────────────────────

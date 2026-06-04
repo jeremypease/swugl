@@ -268,6 +268,22 @@
     </div>
     {% endif %}
 
+    {% if tagged_photos %}
+    <div class="card">
+        <div class="card-header">
+            <h3>Photos</h3>
+            <a href="{{ url_for('main.person_photos', person_id=person.id) }}" style="font-size:13px;color:var(--slate);text-decoration:none;">See all →</a>
+        </div>
+        <div class="photo-grid-sm">
+            {% for photo in tagged_photos %}
+            <a href="/albums/{{ photo.album_id }}">
+                <img src="{{ photo_url(photo.path) }}" alt="" loading="lazy">
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
 </div>
 </div>
 {% endblock %}

@@ -68,6 +68,14 @@
             {{ photo.caption }}
         </div>
         {% endif %}
+        {% if photo.tags %}
+        <div style="position:absolute;bottom:4px;right:4px;display:flex;gap:2px;flex-wrap:wrap;justify-content:flex-end;">
+            {% for tag in photo.tags[:3] %}
+            <div class="av" style="width:20px;height:20px;font-size:8px;background:var(--vine);border:1.5px solid #fff;flex-shrink:0;" title="{{ tag.person.get_display_name() }}">{{ tag.person.name[:2].upper() }}</div>
+            {% endfor %}
+            {% if photo.tags|length > 3 %}<div style="background:rgba(0,0,0,0.5);color:#fff;font-size:9px;padding:1px 4px;border-radius:3px;">+{{ photo.tags|length - 3 }}</div>{% endif %}
+        </div>
+        {% endif %}
     </div>
     {% endfor %}
 </div>
@@ -101,6 +109,26 @@
     <!-- Caption + uploader -->
     <div id="lb-meta" style="text-align:center;margin-top:12px;color:rgba(255,255,255,0.8);font-size:13px;max-width:600px;"></div>
 
+    <!-- Tags -->
+    <div id="lb-tags" style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:8px;max-width:600px;min-height:24px;"></div>
+
+    <!-- Tag form -->
+    {% if current_user.person %}
+    <div id="lb-tag-panel" style="margin-top:8px;display:flex;gap:6px;align-items:center;">
+        <form id="lb-tag-form" method="POST" style="display:flex;gap:6px;align-items:center;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="open_idx" id="lb-tag-open-idx" value="">
+            <select name="person_id" id="lb-tag-select" style="font-size:12px;padding:3px 6px;background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);border-radius:4px;">
+                <option value="">Tag someone…</option>
+                {% for p in people %}
+                <option value="{{ p.id }}">{{ p.get_display_name() }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:4px;padding:3px 10px;cursor:pointer;font-size:12px;">Tag</button>
+        </form>
+    </div>
+    {% endif %}
+
     <!-- Arrows -->
     <button id="lb-prev" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.15);border:none;border-radius:50%;width:44px;height:44px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;">‹</button>
     <button id="lb-next" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.15);border:none;border-radius:50%;width:44px;height:44px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;">›</button>
@@ -115,6 +143,8 @@ const photos = [
         uploader: {{ (photo.uploaded_by.get_display_name() if photo.uploaded_by else None) | tojson }},
         downloadUrl: "{{ photo_url(photo.path) }}",
         deleteUrl: "/albums/{{ album.id }}/photos/{{ photo.id }}/delete",
+        tagUrl: "/photos/{{ photo.id }}/tag",
+        tags: [{% for tag in photo.tags %}{id:{{ tag.id }},name:{{ tag.person.get_display_name()|tojson }},personId:{{ tag.person_id }},removeUrl:"/photos/{{ photo.id }}/tags/{{ tag.id }}/remove"}{% if not loop.last %},{% endif %}{% endfor %}],
     },
     {% endfor %}
 ];
@@ -145,6 +175,36 @@ function showPhoto() {
     document.getElementById('lb-meta').textContent = meta.join(' · ');
     const deleteForm = document.getElementById('lb-delete-form');
     if (deleteForm) deleteForm.action = p.deleteUrl;
+
+    // Tags
+    const tagsEl = document.getElementById('lb-tags');
+    if (tagsEl) {
+        tagsEl.innerHTML = '';
+        (p.tags || []).forEach(function(tag) {
+            const chip = document.createElement('span');
+            chip.style.cssText = 'display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,0.2);color:#fff;border-radius:99px;padding:2px 8px;font-size:12px;';
+            const link = document.createElement('a');
+            link.href = '/members/' + tag.personId + '/photos';
+            link.textContent = tag.name;
+            link.style.cssText = 'color:#fff;text-decoration:none;';
+            chip.appendChild(link);
+            const rmForm = document.createElement('form');
+            rmForm.method = 'POST'; rmForm.action = tag.removeUrl; rmForm.style.display = 'contents';
+            rmForm.innerHTML = '<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">'
+                + '<input type="hidden" name="open_idx" value="' + current + '">'
+                + '<button type="submit" style="background:none;border:none;color:rgba(255,255,255,0.6);cursor:pointer;font-size:13px;padding:0 0 0 2px;line-height:1;">×</button>';
+            chip.appendChild(rmForm);
+            tagsEl.appendChild(chip);
+        });
+    }
+
+    // Tag form
+    const tagForm = document.getElementById('lb-tag-form');
+    if (tagForm) {
+        tagForm.action = p.tagUrl;
+        document.getElementById('lb-tag-open-idx').value = current;
+        document.getElementById('lb-tag-select').value = '';
+    }
 }
 
 function prevPhoto() { current = (current - 1 + photos.length) % photos.length; showPhoto(); }
@@ -170,6 +230,12 @@ if (lbDeleteForm) {
     lbDeleteForm.addEventListener('submit', function(e) {
         if (!confirm('Delete this photo?')) e.preventDefault();
     });
+}
+
+// Reopen lightbox after tag POST redirect
+const openIdx = new URLSearchParams(window.location.search).get('open');
+if (openIdx !== null && photos.length > 0) {
+    openLightbox(Math.min(parseInt(openIdx) || 0, photos.length - 1));
 }
 
 function updateFileLabel(input) {

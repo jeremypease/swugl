@@ -821,7 +821,11 @@ def album_detail(album_id):
         flash('Album not found.', 'error')
         return redirect(url_for('main.albums'))
     upload_form = PhotoUploadForm()
-    return render_template('album_detail.html', album=album, upload_form=upload_form)
+    people = Person.query.filter_by(
+        family_id=current_user.active_family_id, in_directory=True
+    ).order_by(Person.name).all()
+    return render_template('album_detail.html', album=album, upload_form=upload_form,
+                           people=people)
 
 @main.route('/albums/<int:album_id>/upload', methods=['POST'])
 @login_required
@@ -882,6 +886,62 @@ def delete_photo(album_id, photo_id):
         db.session.commit()
         flash('Photo deleted.', 'info')
     return redirect(url_for('main.album_detail', album_id=album_id))
+
+@main.route('/photos/<int:photo_id>/tag', methods=['POST'])
+@login_required
+def photo_tag(photo_id):
+    from .models import PhotoTag
+    photo = db.session.get(Photo, photo_id)
+    if not photo or photo.family_id != current_user.active_family_id:
+        abort(404)
+    person_id = request.form.get('person_id', type=int)
+    if person_id:
+        person = db.session.get(Person, person_id)
+        if person and person.family_id == current_user.active_family_id:
+            existing = PhotoTag.query.filter_by(photo_id=photo_id, person_id=person_id).first()
+            if not existing:
+                db.session.add(PhotoTag(
+                    photo_id=photo_id, person_id=person_id,
+                    tagged_by_id=current_user.person.id if current_user.person else None,
+                ))
+                db.session.commit()
+    open_idx = request.form.get('open_idx', '')
+    return redirect(url_for('main.album_detail', album_id=photo.album_id,
+                            _anchor=f'photo-{photo_id}') + (f'?open={open_idx}' if open_idx else ''))
+
+
+@main.route('/photos/<int:photo_id>/tags/<int:tag_id>/remove', methods=['POST'])
+@login_required
+def photo_untag(photo_id, tag_id):
+    from .models import PhotoTag
+    tag = db.session.get(PhotoTag, tag_id)
+    if not tag or tag.photo.family_id != current_user.active_family_id:
+        abort(404)
+    is_tagger = current_user.person and tag.tagged_by_id == current_user.person.id
+    is_tagged = current_user.person and tag.person_id == current_user.person.id
+    if current_user.active_is_admin or is_tagger or is_tagged:
+        photo = tag.photo
+        db.session.delete(tag)
+        db.session.commit()
+        open_idx = request.form.get('open_idx', '')
+        return redirect(url_for('main.album_detail', album_id=photo.album_id)
+                        + (f'?open={open_idx}' if open_idx else ''))
+    abort(403)
+
+
+@main.route('/members/<int:person_id>/photos')
+@login_required
+def person_photos(person_id):
+    from .models import PhotoTag
+    person = db.session.get(Person, person_id)
+    if not person or person.family_id != current_user.active_family_id:
+        abort(404)
+    tags = PhotoTag.query.filter_by(person_id=person_id)\
+        .join(Photo).filter(Photo.family_id == current_user.active_family_id)\
+        .order_by(Photo.created_at.desc()).all()
+    photos = [t.photo for t in tags]
+    return render_template('person_photos.html', person=person, photos=photos)
+
 
 @main.route('/albums/<int:album_id>/delete', methods=['POST'])
 @login_required
@@ -1549,7 +1609,14 @@ def person_detail(person_id):
         flash('Person not found.', 'error')
         return redirect(url_for('main.home'))
     relationship = get_relationship(current_user.person, person) if current_user.person else None
-    return render_template('profile.html', person=person, relationship=relationship, parent_roles=PARENT_ROLES, spouse_roles=SPOUSE_ROLES)
+    from .models import PhotoTag
+    tagged_photos = PhotoTag.query.filter_by(person_id=person_id)\
+        .join(Photo).filter(Photo.family_id == current_user.active_family_id)\
+        .order_by(Photo.created_at.desc()).limit(6).all()
+    tagged_photos = [t.photo for t in tagged_photos]
+    return render_template('profile.html', person=person, relationship=relationship,
+                           parent_roles=PARENT_ROLES, spouse_roles=SPOUSE_ROLES,
+                           tagged_photos=tagged_photos)
 
 @main.route('/person/<int:person_id>/edit', methods=['GET', 'POST'])
 @login_required
