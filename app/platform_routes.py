@@ -325,6 +325,53 @@ def announce():
     return render_template('platform/announce.html', announcements=announcements)
 
 
+@platform.route('/debug/weather')
+@login_required
+@platform_admin_required
+def debug_weather():
+    """Diagnostic endpoint — tests geocoding and WeatherKit for a given location."""
+    from flask import jsonify
+    from .weather import _geocode, _weatherkit_jwt
+    import requests as _req
+
+    location = request.args.get('location', '')
+    if not location:
+        return jsonify({'error': 'Pass ?location=City, State'}), 400
+
+    result = {'location': location}
+
+    coords = _geocode(location)
+    result['geocode'] = {'lat': coords[0], 'lon': coords[1]} if coords else None
+    if not coords:
+        return jsonify(result)
+
+    token = _weatherkit_jwt()
+    result['jwt_generated'] = bool(token)
+    if not token:
+        result['jwt_error'] = 'Missing WEATHERKIT_KEY_ID, WEATHERKIT_SERVICE_ID, APPLE_TEAM_ID, or APPLE_PRIVATE_KEY'
+        return jsonify(result)
+
+    lat, lon = coords
+    try:
+        resp = _req.get(
+            f'https://weatherkit.apple.com/api/v1/weather/en/{lat}/{lon}',
+            params={'dataSets': 'forecastDaily', 'timezone': 'UTC'},
+            headers={'Authorization': f'Bearer {token}'},
+            timeout=5,
+        )
+        result['weatherkit_status'] = resp.status_code
+        if resp.status_code == 200:
+            days = resp.json().get('forecastDaily', {}).get('days', [])
+            result['forecast_days'] = len(days)
+            result['sample'] = days[0] if days else None
+        else:
+            result['weatherkit_body'] = resp.text[:500]
+    except Exception as e:
+        result['weatherkit_error'] = str(e)
+
+    return jsonify(result)
+
+
 @platform.route('/dismiss-announcement/<int:ann_id>', methods=['POST'])
 @login_required
 def dismiss_announcement(ann_id):
