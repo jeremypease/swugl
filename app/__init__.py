@@ -105,6 +105,9 @@ def create_app(test_config=None):
     # the user accessed the site via www or non-www, preventing Apple rejections.
     app.config['APPLE_REDIRECT_URI'] = os.environ.get('APPLE_REDIRECT_URI', '')
 
+    app.config['WEATHERKIT_KEY_ID'] = os.environ.get('WEATHERKIT_KEY_ID', '')
+    app.config['WEATHERKIT_SERVICE_ID'] = os.environ.get('WEATHERKIT_SERVICE_ID', '')
+
     # Session lifetime
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=14)
     app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=30)

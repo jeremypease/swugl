@@ -2092,6 +2092,12 @@ def event_detail(event_id):
     # Full family groups for admin/contributor view
     family_groups = _build_family_groups(all_people, rsvp_map) if (current_user.active_is_admin or current_user.active_is_delegate) else []
 
+    from .weather import get_event_weather
+    try:
+        weather = get_event_weather(event)
+    except Exception:
+        weather = None
+
     return render_template('event_detail.html',
         event=event,
         meal_form=meal_form,
@@ -2113,6 +2119,7 @@ def event_detail(event_id):
         rsvp_groups=rsvp_groups,
         family_groups=family_groups,
         all_people=all_people,
+        weather=weather,
     )
 
 

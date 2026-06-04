@@ -205,6 +205,27 @@ details[open] .details-chevron { transform: rotate(180deg); }
         {% endif %}
     </div>
 
+    {# Weather forecast #}
+    {% if weather %}
+    <div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;">
+        {% for day in weather %}
+        {% set is_today = day.date == now.date() %}
+        {% set is_tomorrow = (day.date - now.date()).days == 1 %}
+        <div style="background:var(--leaf-mist);border-radius:var(--r-m);padding:10px 14px;text-align:center;min-width:72px;flex:1;max-width:100px;">
+            <div style="font-size:11px;font-weight:600;color:var(--slate);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px;">
+                {% if is_today %}Today{% elif is_tomorrow %}Tmrw{% else %}{{ day.date.strftime('%a') }}{% endif %}
+            </div>
+            <div style="font-size:22px;line-height:1.2;margin:2px 0;">{{ day.emoji }}</div>
+            <div style="font-size:13px;font-weight:600;color:var(--ink);">{{ day.high_f }}°</div>
+            <div style="font-size:11px;color:var(--slate);">{{ day.low_f }}°</div>
+            {% if day.rain_chance >= 20 %}
+            <div style="font-size:10px;color:var(--slate);margin-top:2px;">{{ day.rain_chance }}% 💧</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     {# Cover image #}
     {% if event.cover_image_path %}
     <img src="{{ photo_url(event.cover_image_path) }}" class="ev-cover" alt="{{ event.name }}">
