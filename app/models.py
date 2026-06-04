@@ -484,6 +484,7 @@ class Event(db.Model):
     has_meals = db.Column(db.Boolean, default=False)
     has_assignments = db.Column(db.Boolean, default=False)
     has_sleeping = db.Column(db.Boolean, default=False)
+    has_carpool = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     cover_image_path = db.Column(db.String(200), nullable=True)
 
@@ -492,6 +493,8 @@ class Event(db.Model):
     sleeping_spots = db.relationship('EventSleepingSpot', backref='event', cascade='all, delete-orphan')
     rsvps = db.relationship('EventRSVP', backref='event', cascade='all, delete-orphan')
     comments = db.relationship('EventComment', backref='event', cascade='all, delete-orphan', order_by='EventComment.created_at')
+    carpool_offers = db.relationship('CarpoolOffer', backref='event', cascade='all, delete-orphan')
+    survey_responses = db.relationship('EventSurveyResponse', backref='event', cascade='all, delete-orphan')
 
     def date_range_display(self):
         if not self.end_date or self.end_date == self.start_date:
@@ -753,3 +756,80 @@ class Photo(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     uploaded_by = db.relationship('Person')
+
+
+# ── Carpool ───────────────────────────────────────────────────────────────────
+
+class CarpoolOffer(db.Model):
+    __tablename__ = 'carpool_offers'
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.Integer, db.ForeignKey('events.id'), nullable=False, index=True)
+    person_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=False)
+    role = db.Column(db.String(10), nullable=False)  # 'driver' or 'rider'
+    seats = db.Column(db.Integer, nullable=True)      # drivers only
+    notes = db.Column(db.String(200), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint('event_id', 'person_id', name='uq_carpool_offer'),
+    )
+
+    person = db.relationship('Person')
+
+
+# ── Checklists ────────────────────────────────────────────────────────────────
+
+class Checklist(db.Model):
+    __tablename__ = 'checklists'
+
+    id = db.Column(db.Integer, primary_key=True)
+    family_id = db.Column(db.Integer, db.ForeignKey('families.id'), nullable=False, index=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=True)
+    event_id = db.Column(db.Integer, db.ForeignKey('events.id'), nullable=True)
+    title = db.Column(db.String(150), nullable=False)
+    list_type = db.Column(db.String(20), default='general')  # packing, shopping, general
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    created_by = db.relationship('Person')
+    event = db.relationship('Event')
+    items = db.relationship('ChecklistItem', backref='checklist',
+                            cascade='all, delete-orphan',
+                            order_by='ChecklistItem.created_at')
+
+    @property
+    def done_count(self):
+        return sum(1 for i in self.items if i.is_done)
+
+
+class ChecklistItem(db.Model):
+    __tablename__ = 'checklist_items'
+
+    id = db.Column(db.Integer, primary_key=True)
+    checklist_id = db.Column(db.Integer, db.ForeignKey('checklists.id'), nullable=False, index=True)
+    label = db.Column(db.String(200), nullable=False)
+    is_done = db.Column(db.Boolean, default=False, nullable=False)
+    claimed_by_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    claimed_by = db.relationship('Person')
+
+
+# ── Post-event survey ─────────────────────────────────────────────────────────
+
+class EventSurveyResponse(db.Model):
+    __tablename__ = 'event_survey_responses'
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.Integer, db.ForeignKey('events.id'), nullable=False, index=True)
+    person_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=False)
+    rating = db.Column(db.Integer, nullable=False)   # 1–5
+    what_worked = db.Column(db.Text, nullable=True)
+    suggestions = db.Column(db.Text, nullable=True)
+    submitted_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint('event_id', 'person_id', name='uq_survey_response'),
+    )
+
+    person = db.relationship('Person')

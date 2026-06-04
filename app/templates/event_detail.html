@@ -569,6 +569,108 @@ details[open] .details-chevron { transform: rotate(180deg); }
     </form>
     {% endif %}
 
+    {# ── CARPOOL ─────────────────────────────────────────────────────── #}
+    {% if event.has_carpool %}
+    <div class="card">
+        <div class="card-header">
+            <h3>Carpool</h3>
+            <div style="display:flex;gap:6px;align-items:center;">
+                {% if current_user.active_is_admin %}
+                <form method="POST" action="/events/{{ event.id }}/disable-section" style="display:contents;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="section" value="carpool">
+                    <button type="submit" class="btn btn-ghost btn-sm" title="Hide" style="color:var(--slate-soft);padding:4px 6px;">
+                        <i data-lucide="eye-off" style="width:14px;height:14px;"></i>
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+
+        {% set drivers = event.carpool_offers | selectattr('role', 'equalto', 'driver') | list %}
+        {% set riders = event.carpool_offers | selectattr('role', 'equalto', 'rider') | list %}
+        {% set my_offer = event.carpool_offers | selectattr('person_id', 'equalto', current_user.person.id if current_user.person else -1) | first | default(none) %}
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+            <div>
+                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);margin-bottom:8px;">Drivers ({{ drivers|length }})</div>
+                {% for offer in drivers %}
+                <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--hairline);">
+                    <span style="font-size:13px;font-weight:600;">{{ offer.person.get_display_name() }}</span>
+                    {% if offer.seats %}<span style="font-size:12px;color:var(--slate);">{{ offer.seats }} seat{{ 's' if offer.seats != 1 }}</span>{% endif %}
+                    {% if offer.notes %}<span style="font-size:12px;color:var(--slate);">· {{ offer.notes }}</span>{% endif %}
+                </div>
+                {% else %}
+                <p style="font-size:13px;color:var(--slate);">No drivers yet.</p>
+                {% endfor %}
+            </div>
+            <div>
+                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);margin-bottom:8px;">Need a ride ({{ riders|length }})</div>
+                {% for offer in riders %}
+                <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--hairline);">
+                    <span style="font-size:13px;font-weight:600;">{{ offer.person.get_display_name() }}</span>
+                    {% if offer.notes %}<span style="font-size:12px;color:var(--slate);">· {{ offer.notes }}</span>{% endif %}
+                </div>
+                {% else %}
+                <p style="font-size:13px;color:var(--slate);">No riders listed yet.</p>
+                {% endfor %}
+            </div>
+        </div>
+
+        {% if current_user.person %}
+        {% if my_offer %}
+        <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--leaf-mist);border-radius:var(--r-s);margin-bottom:8px;">
+            <span style="font-size:13px;">You're listed as a <strong>{{ my_offer.role }}</strong>{% if my_offer.seats %} with {{ my_offer.seats }} seat{{ 's' if my_offer.seats != 1 }}{% endif %}.</span>
+            <form method="POST" action="/events/{{ event.id }}/carpool/remove" style="margin-left:auto;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);">Remove</button>
+            </form>
+        </div>
+        {% endif %}
+        <form method="POST" action="/events/{{ event.id }}/carpool/offer" style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="field" style="margin:0;">
+                <select name="role" style="font-size:13px;padding:5px 8px;">
+                    <option value="driver">I can drive</option>
+                    <option value="rider">I need a ride</option>
+                </select>
+            </div>
+            <div class="field" style="margin:0;">
+                <input type="number" name="seats" min="1" max="9" placeholder="Seats available" style="font-size:13px;width:130px;">
+            </div>
+            <div class="field" style="margin:0;flex:1;min-width:140px;">
+                <input type="text" name="notes" placeholder="Notes (optional)" style="font-size:13px;">
+            </div>
+            <button type="submit" class="btn btn-ghost btn-sm">{% if my_offer %}Update{% else %}Add me{% endif %}</button>
+        </form>
+        {% else %}
+        <p style="font-size:13px;color:var(--slate);">Link your family profile to join carpool.</p>
+        {% endif %}
+    </div>
+    {% elif current_user.active_is_admin %}
+    <form method="POST" action="/events/{{ event.id }}/enable-section">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="section" value="carpool">
+        <button type="submit" class="btn btn-ghost btn-sm" style="font-size:13px;color:var(--slate);padding:0;">
+            <i data-lucide="plus" style="width:13px;height:13px;"></i> Enable Carpool
+        </button>
+    </form>
+    {% endif %}
+
+    {# ── SURVEY LINK (post-event) ────────────────────────────────────── #}
+    {% if event.start_date <= now.date() %}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <a href="/events/{{ event.id }}/survey" class="btn btn-ghost btn-sm" style="font-size:13px;">
+            <i data-lucide="star" style="width:13px;height:13px;"></i> Rate this event
+        </a>
+        {% if current_user.active_is_admin %}
+        <a href="/events/{{ event.id }}/survey/results" class="btn btn-ghost btn-sm" style="font-size:13px;color:var(--slate);">
+            <i data-lucide="bar-chart" style="width:13px;height:13px;"></i> Survey results
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+
     {# ── PHOTOS ──────────────────────────────────────────────────────── #}
     {% if event.albums or current_user.active_is_admin or current_user.active_is_delegate %}
     <div class="card">
@@ -833,6 +935,7 @@ details[open] .details-chevron { transform: rotate(180deg); }
                 <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;">{{ event_form.has_meals() }} Meals</label>
                 <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;">{{ event_form.has_assignments() }} Assignments</label>
                 <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;">{{ event_form.has_sleeping() }} Sleeping</label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;"><input type="checkbox" name="has_carpool" {% if event.has_carpool %}checked{% endif %}> Carpool</label>
             </div>
             <div class="field">
                 {{ event_form.cover_image.label }}

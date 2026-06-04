@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}{{ checklist.title }} — {{ current_user.active_family.name }}{% endblock %}
+{% block content %}
+<div class="canvas-inner" style="max-width:640px;">
+
+<div class="page-head" style="margin-bottom:20px;">
+    <div>
+        <div class="eyebrow"><a href="{{ url_for('main.checklists') }}" style="color:inherit;text-decoration:none;">← Checklists</a></div>
+        <h1 style="font-size:22px;">{{ checklist.title }}</h1>
+        <div style="font-size:12px;color:var(--slate);margin-top:4px;display:flex;gap:10px;flex-wrap:wrap;">
+            <span>{{ checklist.done_count }}/{{ checklist.items|length }} done</span>
+            {% if checklist.event %}<span>{{ checklist.event.name }}</span>{% endif %}
+        </div>
+    </div>
+    {% set is_creator = current_user.person and checklist.created_by_id == current_user.person.id %}
+    {% if current_user.active_is_admin or is_creator %}
+    <form method="POST" action="{{ url_for('main.checklist_delete', checklist_id=checklist.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-secondary" style="color:var(--tomato);"
+                data-confirm="Delete this checklist?">
+            <i data-lucide="trash-2" style="width:14px;height:14px;"></i>
+        </button>
+    </form>
+    {% endif %}
+</div>
+
+<div class="card" style="margin-bottom:16px;">
+    {% if checklist.items %}
+    <div style="display:flex;flex-direction:column;">
+        {% for item in checklist.items %}
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 0;{% if not loop.last %}border-bottom:1px solid var(--hairline);{% endif %}">
+            <form method="POST" action="{{ url_for('main.checklist_toggle_item', checklist_id=checklist.id, item_id=item.id) }}" style="display:contents;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="task-check {% if item.is_done %}task-done{% endif %}" title="Toggle"></button>
+            </form>
+            <span style="flex:1;font-size:14px;{% if item.is_done %}text-decoration:line-through;color:var(--slate);{% endif %}">{{ item.label }}</span>
+            {% if item.claimed_by and item.is_done %}
+            <span style="font-size:12px;color:var(--slate);">{{ item.claimed_by.get_display_name() }}</span>
+            {% endif %}
+            {% if current_user.active_is_admin or (current_user.person and checklist.created_by_id == current_user.person.id) %}
+            <form method="POST" action="{{ url_for('main.checklist_delete_item', checklist_id=checklist.id, item_id=item.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);padding:2px 6px;">×</button>
+            </form>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p style="font-size:14px;color:var(--slate);padding:4px 0;">No items yet. Add the first one below.</p>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('main.checklist_add_item', checklist_id=checklist.id) }}"
+          style="display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--hairline);">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="text" name="label" placeholder="Add an item…" style="flex:1;font-size:13px;" required>
+        <button type="submit" class="btn btn-ghost btn-sm">+ Add</button>
+    </form>
+</div>
+
+</div>
+{% endblock %}

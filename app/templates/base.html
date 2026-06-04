@@ -78,6 +78,9 @@
             <a href="/polls" {% if request.path.startswith('/polls') %}class="active"{% endif %}>
                 <i data-lucide="bar-chart-2"></i> Polls
             </a>
+            <a href="/checklists" {% if request.path.startswith('/checklists') %}class="active"{% endif %}>
+                <i data-lucide="list-checks"></i> Lists
+            </a>
             <a href="/notifications" {% if request.path == '/notifications' %}class="active"{% endif %} style="position:relative;">
                 <i data-lucide="bell"></i> Notifications
                 {% if unread_notification_count %}

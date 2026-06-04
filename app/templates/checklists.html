@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Checklists — {{ current_user.active_family.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+    <div>
+        <div class="eyebrow">{{ current_user.active_family.name }}</div>
+        <h1>Checklists</h1>
+    </div>
+    <button class="btn btn-primary" data-open-modal="new-list-modal">
+        <i data-lucide="list-checks"></i> New list
+    </button>
+</div>
+
+{% if checklists %}
+<div style="display:flex;flex-direction:column;gap:12px;max-width:680px;">
+    {% for cl in checklists %}
+    <a href="{{ url_for('main.checklist_detail', checklist_id=cl.id) }}" style="text-decoration:none;color:inherit;">
+        <div class="card">
+            <div style="display:flex;align-items:center;gap:12px;">
+                <div style="font-size:24px;flex-shrink:0;">
+                    {% if cl.list_type == 'packing' %}🎒{% elif cl.list_type == 'shopping' %}🛒{% else %}✅{% endif %}
+                </div>
+                <div style="flex:1;">
+                    <div style="font-weight:600;font-size:15px;margin-bottom:2px;">{{ cl.title }}</div>
+                    <div style="font-size:12px;color:var(--slate);display:flex;gap:10px;flex-wrap:wrap;">
+                        <span>{{ cl.done_count }}/{{ cl.items|length }} done</span>
+                        {% if cl.event %}<span>{{ cl.event.name }}</span>{% endif %}
+                        {% if cl.created_by %}<span>{{ cl.created_by.get_display_name() }}</span>{% endif %}
+                    </div>
+                </div>
+                {% if cl.items %}
+                <div style="width:60px;height:6px;border-radius:3px;background:var(--hairline-strong);overflow:hidden;flex-shrink:0;">
+                    <div style="height:100%;width:{{ ((cl.done_count / cl.items|length) * 100)|int }}%;background:var(--vine);border-radius:3px;"></div>
+                </div>
+                {% endif %}
+                <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--slate);flex-shrink:0;"></i>
+            </div>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div style="max-width:440px;text-align:center;padding:64px 24px;">
+    <div style="font-size:48px;margin-bottom:16px;">✅</div>
+    <div style="font-weight:600;font-size:16px;margin-bottom:6px;">No checklists yet</div>
+    <div style="color:var(--slate);font-size:14px;">Create packing lists, shopping lists, or any shared checklist for the family.</div>
+</div>
+{% endif %}
+
+<div id="new-list-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;align-items:center;justify-content:center;padding:20px;">
+    <div class="card" style="width:100%;max-width:480px;">
+        <div class="card-header">
+            <h3>New Checklist</h3>
+            <button class="btn btn-ghost btn-sm" data-close-modal="new-list-modal"><i data-lucide="x"></i></button>
+        </div>
+        <form method="POST" action="{{ url_for('main.create_checklist') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="field">
+                <label>Title</label>
+                <input type="text" name="title" placeholder="Reunion packing list" required style="width:100%;">
+            </div>
+            <div class="field">
+                <label>Type</label>
+                <select name="list_type" style="width:100%;">
+                    <option value="packing">🎒 Packing</option>
+                    <option value="shopping">🛒 Shopping</option>
+                    <option value="general">✅ General</option>
+                </select>
+            </div>
+            <div class="field">
+                <label>Link to event <span style="color:var(--slate);font-size:12px;">(optional)</span></label>
+                <select name="event_id" style="width:100%;">
+                    <option value="">None</option>
+                    {% for event in events %}
+                    <option value="{{ event.id }}">{{ event.name }} — {{ event.start_date.strftime('%b %-d') }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div style="display:flex;gap:10px;">
+                <button type="submit" class="btn btn-primary">Create</button>
+                <button type="button" class="btn btn-secondary" data-close-modal="new-list-modal">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

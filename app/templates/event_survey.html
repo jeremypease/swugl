@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Rate {{ event.name }} — {{ current_user.active_family.name }}{% endblock %}
+{% block content %}
+<div class="canvas-inner" style="max-width:560px;">
+
+<div class="page-head" style="margin-bottom:24px;">
+    <div>
+        <div class="eyebrow"><a href="/events/{{ event.id }}" style="color:inherit;text-decoration:none;">← {{ event.name }}</a></div>
+        <h1 style="font-size:22px;">How did it go?</h1>
+    </div>
+</div>
+
+<div class="card">
+    <form method="POST" action="/events/{{ event.id }}/survey">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="field">
+            <label style="font-size:15px;font-weight:600;">Overall rating</label>
+            <div style="display:flex;gap:8px;margin-top:8px;">
+                {% for n in [1,2,3,4,5] %}
+                <label style="cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;">
+                    <input type="radio" name="rating" value="{{ n }}" {% if my_response and my_response.rating == n %}checked{% endif %} required
+                           style="accent-color:var(--vine);">
+                    <span style="font-size:20px;">{{ ['😞','😐','🙂','😄','🤩'][n-1] }}</span>
+                    <span style="font-size:11px;color:var(--slate);">{{ n }}</span>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="field">
+            <label>What worked well?</label>
+            <textarea name="what_worked" rows="3" placeholder="What was your favourite part?" style="width:100%;">{{ my_response.what_worked if my_response and my_response.what_worked else '' }}</textarea>
+        </div>
+
+        <div class="field">
+            <label>Suggestions for next time</label>
+            <textarea name="suggestions" rows="3" placeholder="What could be improved?" style="width:100%;">{{ my_response.suggestions if my_response and my_response.suggestions else '' }}</textarea>
+        </div>
+
+        <div style="display:flex;gap:10px;">
+            <button type="submit" class="btn btn-primary">
+                {% if my_response %}Update feedback{% else %}Submit feedback{% endif %}
+            </button>
+            <a href="/events/{{ event.id }}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+
+</div>
+{% endblock %}

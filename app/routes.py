@@ -897,6 +897,108 @@ def delete_album(album_id):
     flash('Album deleted.', 'info')
     return redirect(url_for('main.albums'))
 
+# ── Checklists ───────────────────────────────────────────────────────────────
+
+@main.route('/checklists')
+@login_required
+def checklists():
+    from .models import Checklist
+    all_lists = Checklist.query.filter_by(family_id=current_user.active_family_id)\
+        .order_by(Checklist.created_at.desc()).all()
+    upcoming_events = Event.query.filter_by(family_id=current_user.active_family_id)\
+        .filter(Event.start_date >= date.today()).order_by(Event.start_date).limit(10).all()
+    return render_template('checklists.html', checklists=all_lists, events=upcoming_events)
+
+
+@main.route('/checklists/new', methods=['POST'])
+@login_required
+def create_checklist():
+    from .models import Checklist
+    title = request.form.get('title', '').strip()
+    list_type = request.form.get('list_type', 'general')
+    event_id = request.form.get('event_id', type=int)
+    if not title:
+        flash('Please enter a title.', 'error')
+        return redirect(url_for('main.checklists'))
+    cl = Checklist(
+        family_id=current_user.active_family_id,
+        created_by_id=current_user.person.id if current_user.person else None,
+        title=title,
+        list_type=list_type,
+        event_id=event_id or None,
+    )
+    db.session.add(cl)
+    db.session.commit()
+    return redirect(url_for('main.checklist_detail', checklist_id=cl.id))
+
+
+@main.route('/checklists/<int:checklist_id>')
+@login_required
+def checklist_detail(checklist_id):
+    from .models import Checklist
+    cl = db.session.get(Checklist, checklist_id)
+    if not cl or cl.family_id != current_user.active_family_id:
+        abort(404)
+    return render_template('checklist_detail.html', checklist=cl)
+
+
+@main.route('/checklists/<int:checklist_id>/items/add', methods=['POST'])
+@login_required
+def checklist_add_item(checklist_id):
+    from .models import Checklist, ChecklistItem
+    cl = db.session.get(Checklist, checklist_id)
+    if not cl or cl.family_id != current_user.active_family_id:
+        abort(404)
+    label = request.form.get('label', '').strip()
+    if label:
+        db.session.add(ChecklistItem(checklist_id=checklist_id, label=label))
+        db.session.commit()
+    return redirect(url_for('main.checklist_detail', checklist_id=checklist_id))
+
+
+@main.route('/checklists/<int:checklist_id>/items/<int:item_id>/toggle', methods=['POST'])
+@login_required
+def checklist_toggle_item(checklist_id, item_id):
+    from .models import ChecklistItem
+    item = db.session.get(ChecklistItem, item_id)
+    if not item or item.checklist.family_id != current_user.active_family_id:
+        abort(404)
+    item.is_done = not item.is_done
+    item.claimed_by_id = current_user.person.id if (item.is_done and current_user.person) else None
+    db.session.commit()
+    return redirect(url_for('main.checklist_detail', checklist_id=checklist_id))
+
+
+@main.route('/checklists/<int:checklist_id>/items/<int:item_id>/delete', methods=['POST'])
+@login_required
+def checklist_delete_item(checklist_id, item_id):
+    from .models import ChecklistItem
+    item = db.session.get(ChecklistItem, item_id)
+    if not item or item.checklist.family_id != current_user.active_family_id:
+        abort(404)
+    if not current_user.active_is_admin and not (current_user.person and item.checklist.created_by_id == current_user.person.id):
+        abort(403)
+    db.session.delete(item)
+    db.session.commit()
+    return redirect(url_for('main.checklist_detail', checklist_id=checklist_id))
+
+
+@main.route('/checklists/<int:checklist_id>/delete', methods=['POST'])
+@login_required
+def checklist_delete(checklist_id):
+    from .models import Checklist
+    cl = db.session.get(Checklist, checklist_id)
+    if not cl or cl.family_id != current_user.active_family_id:
+        abort(404)
+    is_creator = current_user.person and cl.created_by_id == current_user.person.id
+    if not current_user.active_is_admin and not is_creator:
+        abort(403)
+    db.session.delete(cl)
+    db.session.commit()
+    flash('Checklist deleted.', 'info')
+    return redirect(url_for('main.checklists'))
+
+
 # ── Polls ─────────────────────────────────────────────────────────────────────
 
 @main.route('/polls')
@@ -1904,6 +2006,7 @@ def event_edit(event_id):
         event.has_meals = form.has_meals.data
         event.has_assignments = form.has_assignments.data
         event.has_sleeping = form.has_sleeping.data
+        event.has_carpool = bool(request.form.get('has_carpool'))
         if form.remove_cover.data and event.cover_image_path:
             delete_object(event.cover_image_path)
             event.cover_image_path = None
@@ -1946,6 +2049,8 @@ def event_enable_section(event_id):
         event.has_assignments = True
     elif section == 'sleeping':
         event.has_sleeping = True
+    elif section == 'carpool':
+        event.has_carpool = True
     db.session.commit()
     return redirect(url_for('main.event_detail', event_id=event_id))
 
@@ -1964,8 +2069,105 @@ def event_disable_section(event_id):
         event.has_assignments = False
     elif section == 'sleeping':
         event.has_sleeping = False
+    elif section == 'carpool':
+        event.has_carpool = False
     db.session.commit()
     return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+# ── Carpool ───────────────────────────────────────────────────────────────────
+
+@main.route('/events/<int:event_id>/carpool/offer', methods=['POST'])
+@login_required
+def carpool_offer(event_id):
+    from .models import CarpoolOffer
+    event = db.session.get(Event, event_id)
+    if not event or event.family_id != current_user.active_family_id or not current_user.person:
+        return redirect(url_for('main.events_list'))
+    role = request.form.get('role', 'rider')
+    seats = request.form.get('seats', type=int)
+    notes = request.form.get('notes', '').strip()[:200]
+    existing = CarpoolOffer.query.filter_by(event_id=event_id, person_id=current_user.person.id).first()
+    if existing:
+        existing.role = role
+        existing.seats = seats if role == 'driver' else None
+        existing.notes = notes or None
+    else:
+        db.session.add(CarpoolOffer(
+            event_id=event_id, person_id=current_user.person.id,
+            role=role, seats=seats if role == 'driver' else None,
+            notes=notes or None,
+        ))
+    db.session.commit()
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+@main.route('/events/<int:event_id>/carpool/remove', methods=['POST'])
+@login_required
+def carpool_remove(event_id):
+    from .models import CarpoolOffer
+    if current_user.person:
+        CarpoolOffer.query.filter_by(event_id=event_id, person_id=current_user.person.id).delete()
+        db.session.commit()
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+# ── Survey ────────────────────────────────────────────────────────────────────
+
+@main.route('/events/<int:event_id>/survey', methods=['GET', 'POST'])
+@login_required
+def event_survey(event_id):
+    from .models import EventSurveyResponse
+    event = db.session.get(Event, event_id)
+    if not event or event.family_id != current_user.active_family_id:
+        abort(404)
+    # Only available after event has passed
+    if event.start_date > date.today():
+        flash('The survey will be available after the event.', 'info')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    my_response = None
+    if current_user.person:
+        my_response = EventSurveyResponse.query.filter_by(
+            event_id=event_id, person_id=current_user.person.id
+        ).first()
+    if request.method == 'POST':
+        if not current_user.person:
+            flash('Link your family profile to submit a survey.', 'error')
+            return redirect(url_for('main.event_survey', event_id=event_id))
+        rating = request.form.get('rating', type=int)
+        if not rating or rating < 1 or rating > 5:
+            flash('Please select a rating.', 'error')
+            return redirect(url_for('main.event_survey', event_id=event_id))
+        what_worked = request.form.get('what_worked', '').strip() or None
+        suggestions = request.form.get('suggestions', '').strip() or None
+        if my_response:
+            my_response.rating = rating
+            my_response.what_worked = what_worked
+            my_response.suggestions = suggestions
+        else:
+            db.session.add(EventSurveyResponse(
+                event_id=event_id, person_id=current_user.person.id,
+                rating=rating, what_worked=what_worked, suggestions=suggestions,
+            ))
+        db.session.commit()
+        flash('Thanks for your feedback!', 'success')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    return render_template('event_survey.html', event=event, my_response=my_response)
+
+
+@main.route('/events/<int:event_id>/survey/results')
+@login_required
+@admin_required
+def event_survey_results(event_id):
+    from .models import EventSurveyResponse
+    event = db.session.get(Event, event_id)
+    if not event or event.family_id != current_user.active_family_id:
+        abort(404)
+    responses = EventSurveyResponse.query.filter_by(event_id=event_id)\
+        .order_by(EventSurveyResponse.submitted_at.desc()).all()
+    avg_rating = (sum(r.rating for r in responses) / len(responses)) if responses else None
+    return render_template('event_survey_results.html', event=event,
+                           responses=responses, avg_rating=avg_rating)
 
 
 # ── Comments ──────────────────────────────────────────────────────────────────
