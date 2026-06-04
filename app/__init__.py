@@ -246,7 +246,7 @@ def create_app(test_config=None):
             "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; "
             "font-src 'self' https://fonts.gstatic.com; "
             f"img-src {img_src}; "
-            "connect-src 'self';"
+            "connect-src 'self' https://photon.komoot.io https://nominatim.openstreetmap.org;"
         )
         return response
 
