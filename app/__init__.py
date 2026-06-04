@@ -107,6 +107,7 @@ def create_app(test_config=None):
 
     app.config['WEATHERKIT_KEY_ID'] = os.environ.get('WEATHERKIT_KEY_ID', '')
     app.config['WEATHERKIT_SERVICE_ID'] = os.environ.get('WEATHERKIT_SERVICE_ID', '')
+    app.config['WEATHERKIT_PRIVATE_KEY'] = os.environ.get('WEATHERKIT_PRIVATE_KEY', '')
 
     # Session lifetime
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=14)

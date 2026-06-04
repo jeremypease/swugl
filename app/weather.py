@@ -66,7 +66,10 @@ def _weatherkit_jwt() -> str:
     team_id = app.config.get('APPLE_TEAM_ID', '')
     key_id = app.config.get('WEATHERKIT_KEY_ID', '')
     service_id = app.config.get('WEATHERKIT_SERVICE_ID', '')
-    private_key = app.config.get('APPLE_PRIVATE_KEY', '').replace('\\n', '\n')
+    private_key = (
+        app.config.get('WEATHERKIT_PRIVATE_KEY') or
+        app.config.get('APPLE_PRIVATE_KEY', '')
+    ).replace('\\n', '\n')
 
     if not all([team_id, key_id, service_id, private_key]):
         return ''
