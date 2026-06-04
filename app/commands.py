@@ -126,22 +126,23 @@ def digest(dry_run):
 
     families = Family.query.all()
     total_sent = 0
-    for family in families:
-        if dry_run:
-            from .notifications import compute_digest
-            content = compute_digest(family)
-            if content:
-                member_count = User.query.filter_by(
-                    family_id=family.id, status='approved'
-                ).count()
-                click.echo(f'[DRY RUN] {family.name} — would notify up to {member_count} member(s)')
+    with _request_ctx():
+        for family in families:
+            if dry_run:
+                from .notifications import compute_digest
+                content = compute_digest(family)
+                if content:
+                    member_count = User.query.filter_by(
+                        family_id=family.id, status='approved'
+                    ).count()
+                    click.echo(f'[DRY RUN] {family.name} — would notify up to {member_count} member(s)')
+                else:
+                    click.echo(f'[DRY RUN] {family.name} — nothing to send')
             else:
-                click.echo(f'[DRY RUN] {family.name} — nothing to send')
-        else:
-            sent = send_family_digest(family)
-            total_sent += sent
-            if sent:
-                click.echo(f'{family.name}: {sent} sent')
+                sent = send_family_digest(family)
+                total_sent += sent
+                if sent:
+                    click.echo(f'{family.name}: {sent} sent')
 
     if not dry_run:
         click.echo(f'digest done: {total_sent} email(s) sent across {len(families)} family/families.')
