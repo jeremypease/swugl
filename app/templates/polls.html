@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Polls — {{ current_user.active_family.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+    <div>
+        <div class="eyebrow">{{ current_user.active_family.name }}</div>
+        <h1>Polls</h1>
+    </div>
+    <button class="btn btn-primary" data-open-modal="new-poll-modal">
+        <i data-lucide="bar-chart-2"></i> New poll
+    </button>
+</div>
+
+{% if polls %}
+<div style="display:flex;flex-direction:column;gap:12px;max-width:680px;">
+    {% for poll in polls %}
+    <a href="{{ url_for('main.poll_detail', poll_id=poll.id) }}" style="text-decoration:none;color:inherit;">
+        <div class="card" style="transition:box-shadow .15s;">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+                <div style="flex:1;">
+                    <div style="font-weight:600;font-size:15px;margin-bottom:4px;">{{ poll.question }}</div>
+                    <div style="font-size:12px;color:var(--slate);display:flex;gap:10px;flex-wrap:wrap;">
+                        {% if poll.created_by %}<span>{{ poll.created_by.get_display_name() }}</span>{% endif %}
+                        <span>{{ poll.options | length }} options</span>
+                        <span>{{ poll.total_voters }} vote{{ 's' if poll.total_voters != 1 }}</span>
+                        {% if poll.is_closed %}<span style="color:var(--tomato);font-weight:600;">Closed</span>
+                        {% elif poll.closes_at %}<span>Closes {{ poll.closes_at.strftime('%b %-d') }}</span>{% endif %}
+                    </div>
+                </div>
+                <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--slate);flex-shrink:0;margin-top:2px;"></i>
+            </div>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div style="max-width:440px;text-align:center;padding:64px 24px;">
+    <i data-lucide="bar-chart-2" style="width:48px;height:48px;color:var(--sprout);margin-bottom:16px;"></i>
+    <div style="font-weight:600;font-size:16px;margin-bottom:6px;">No polls yet</div>
+    <div style="color:var(--slate);font-size:14px;">Use polls to pick event dates, decide on meals, or settle any family debate.</div>
+</div>
+{% endif %}
+
+{# New poll modal #}
+<div id="new-poll-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;align-items:center;justify-content:center;padding:20px;">
+    <div class="card" style="width:100%;max-width:560px;max-height:90vh;overflow-y:auto;">
+        <div class="card-header">
+            <h3>New Poll</h3>
+            <button class="btn btn-ghost btn-sm" data-close-modal="new-poll-modal">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <form method="POST" action="{{ url_for('main.create_poll') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="field">
+                <label>Question</label>
+                <input type="text" name="question" placeholder="Which weekend works for the reunion?" required style="width:100%;">
+            </div>
+            <div class="field">
+                <label>Options <span style="color:var(--slate);font-size:12px;">(one per line, at least 2)</span></label>
+                <div id="options-list" style="display:flex;flex-direction:column;gap:6px;">
+                    <input type="text" name="options" placeholder="Option 1" style="width:100%;">
+                    <input type="text" name="options" placeholder="Option 2" style="width:100%;">
+                    <input type="text" name="options" placeholder="Option 3 (optional)" style="width:100%;">
+                </div>
+                <button type="button" id="add-option" class="btn btn-ghost btn-sm" style="margin-top:6px;">
+                    <i data-lucide="plus" style="width:13px;height:13px;"></i> Add option
+                </button>
+            </div>
+            <div class="field">
+                <label>Close date <span style="color:var(--slate);font-size:12px;">(optional)</span></label>
+                <input type="date" name="closes_at" style="width:100%;">
+            </div>
+            <div style="display:flex;gap:10px;">
+                <button type="submit" class="btn btn-primary">Create poll</button>
+                <button type="button" class="btn btn-secondary" data-close-modal="new-poll-modal">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% block scripts %}
+<script nonce="{{ g.csp_nonce }}">
+document.getElementById('add-option').addEventListener('click', function() {
+    const list = document.getElementById('options-list');
+    const n = list.children.length + 1;
+    const inp = document.createElement('input');
+    inp.type = 'text'; inp.name = 'options';
+    inp.placeholder = 'Option ' + n; inp.style.width = '100%';
+    list.appendChild(inp);
+    inp.focus();
+});
+</script>
+{% endblock %}
+{% endblock %}

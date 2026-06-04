@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Address List — {{ family.name }}{% endblock %}
+{% block content %}
+<div class="canvas-inner" style="max-width:800px;">
+
+<div class="page-head" style="margin-bottom:20px;">
+    <div>
+        <div class="eyebrow">{{ family.name }}</div>
+        <h1>Address List</h1>
+    </div>
+    <div style="display:flex;gap:8px;">
+        <a href="{{ url_for('main.address_export', format='csv') }}" class="btn btn-secondary">
+            <i data-lucide="download"></i> Download CSV
+        </a>
+        <button onclick="window.print()" class="btn btn-secondary">
+            <i data-lucide="printer"></i> Print
+        </button>
+    </div>
+</div>
+
+{% set has_any = people | selectattr('address') | list or people | selectattr('email') | list or people | selectattr('phone') | list %}
+{% if has_any %}
+<div class="card">
+    <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <thead>
+            <tr style="border-bottom:2px solid var(--hairline-strong);">
+                <th style="text-align:left;padding:8px 12px 8px 0;font-weight:600;color:var(--slate);">Name</th>
+                <th style="text-align:left;padding:8px 12px;font-weight:600;color:var(--slate);">Address</th>
+                <th style="text-align:left;padding:8px 12px;font-weight:600;color:var(--slate);">Email</th>
+                <th style="text-align:left;padding:8px 0 8px 12px;font-weight:600;color:var(--slate);">Phone</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in people %}
+            {% if p.address or p.email or p.phone %}
+            <tr style="border-bottom:1px solid var(--hairline);">
+                <td style="padding:10px 12px 10px 0;font-weight:600;white-space:nowrap;">{{ p.get_display_name() }}</td>
+                <td style="padding:10px 12px;color:var(--ink-soft);">{{ p.address or '—' }}</td>
+                <td style="padding:10px 12px;color:var(--ink-soft);">{{ p.email or '—' }}</td>
+                <td style="padding:10px 0 10px 12px;color:var(--ink-soft);">{{ p.phone or '—' }}</td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+<p style="font-size:12px;color:var(--slate);margin-top:12px;">
+    Only members with at least one contact field filled in are shown.
+    Members can update their details from their profile.
+</p>
+{% else %}
+<div class="card">
+    <p style="color:var(--slate);font-size:14px;padding:8px 0;">
+        No members have added their address, email, or phone yet.
+        Members can add this information from their profile page.
+    </p>
+</div>
+{% endif %}
+
+</div>
+
+<style>
+@media print {
+    .nav-bar, .page-head .btn, footer { display: none !important; }
+    .canvas-inner { max-width: 100% !important; }
+}
+</style>
+{% endblock %}

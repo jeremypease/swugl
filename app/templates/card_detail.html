@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}{{ card.title }} — {{ current_user.active_family.name }}{% endblock %}
+{% block content %}
+<div class="canvas-inner" style="max-width:640px;">
+
+<div class="page-head" style="margin-bottom:20px;">
+    <div>
+        <div class="eyebrow"><a href="{{ url_for('main.cards') }}" style="color:inherit;text-decoration:none;">← Cards</a></div>
+        <h1 style="font-size:22px;">{{ card.title }}</h1>
+        <div style="font-size:13px;color:var(--slate);margin-top:4px;">
+            For <strong>{{ card.recipient.get_display_name() }}</strong>
+            · {{ occasions.get(card.occasion, card.occasion) }}
+            {% if card.send_date %} · Send {{ card.send_date.strftime('%B %-d, %Y') }}{% endif %}
+        </div>
+    </div>
+    {% set is_creator = current_user.person and card.created_by_id == current_user.person.id %}
+    {% if current_user.active_is_admin or is_creator %}
+    <form method="POST" action="{{ url_for('main.delete_card', card_id=card.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-secondary" style="color:var(--tomato);"
+                data-confirm="Delete this card?">
+            <i data-lucide="trash-2" style="width:14px;height:14px;"></i>
+        </button>
+    </form>
+    {% endif %}
+</div>
+
+{# Sign / edit signature #}
+{% if current_user.person %}
+<div class="card" style="margin-bottom:20px;border:2px solid var(--vine);">
+    <h3 style="margin-bottom:12px;">{% if my_signature %}Your message{% else %}Sign this card{% endif %}</h3>
+    <form method="POST" action="{{ url_for('main.sign_card', card_id=card.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <textarea name="message" rows="3" placeholder="Write a message for {{ card.recipient.get_display_name() }}…"
+                  style="width:100%;margin-bottom:10px;">{{ my_signature.message if my_signature else '' }}</textarea>
+        <button type="submit" class="btn btn-primary">
+            {% if my_signature %}<i data-lucide="edit-2"></i> Update message{% else %}<i data-lucide="pen-line"></i> Sign card{% endif %}
+        </button>
+    </form>
+</div>
+{% endif %}
+
+{# All signatures #}
+{% if card.signatures %}
+<div class="card">
+    <h3 style="margin-bottom:16px;">{{ card.signatures | length }} message{{ 's' if card.signatures | length != 1 }}</h3>
+    <div style="display:flex;flex-direction:column;gap:0;">
+        {% for sig in card.signatures %}
+        <div style="padding:14px 0;{% if not loop.last %}border-bottom:1px solid var(--hairline);{% endif %}">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <div class="av av-sm" style="background:var(--vine);flex-shrink:0;">{{ sig.person.name[:2].upper() }}</div>
+                <div>
+                    <span style="font-weight:600;font-size:14px;">{{ sig.person.get_display_name() }}</span>
+                    <span style="font-size:12px;color:var(--slate);margin-left:6px;">{{ sig.created_at.strftime('%b %-d') }}</span>
+                </div>
+            </div>
+            <p style="font-size:14px;line-height:1.6;white-space:pre-wrap;color:var(--ink-soft);margin:0 0 0 36px;">{{ sig.message }}</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% else %}
+<div class="card" style="text-align:center;padding:32px 20px;">
+    <div style="color:var(--slate);font-size:14px;">No signatures yet — be the first to sign!</div>
+</div>
+{% endif %}
+
+</div>
+{% endblock %}

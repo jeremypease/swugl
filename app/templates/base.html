@@ -72,6 +72,12 @@
             <a href="/announcements" {% if request.path.startswith('/announcements') %}class="active"{% endif %}>
                 <i data-lucide="megaphone"></i> Announcements
             </a>
+            <a href="/cards" {% if request.path.startswith('/cards') %}class="active"{% endif %}>
+                <i data-lucide="gift"></i> Cards
+            </a>
+            <a href="/polls" {% if request.path.startswith('/polls') %}class="active"{% endif %}>
+                <i data-lucide="bar-chart-2"></i> Polls
+            </a>
             <a href="/notifications" {% if request.path == '/notifications' %}class="active"{% endif %} style="position:relative;">
                 <i data-lucide="bell"></i> Notifications
                 {% if unread_notification_count %}

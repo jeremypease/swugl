@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}{{ poll.question }} — {{ current_user.active_family.name }}{% endblock %}
+{% block content %}
+<div class="canvas-inner" style="max-width:640px;">
+
+<div class="page-head" style="margin-bottom:20px;">
+    <div>
+        <div class="eyebrow"><a href="{{ url_for('main.polls') }}" style="color:inherit;text-decoration:none;">← Polls</a></div>
+        <h1 style="font-size:22px;">{{ poll.question }}</h1>
+        <div style="font-size:12px;color:var(--slate);margin-top:4px;display:flex;gap:10px;flex-wrap:wrap;">
+            {% if poll.created_by %}<span>{{ poll.created_by.get_display_name() }}</span>{% endif %}
+            <span>{{ poll.total_voters }} voter{{ 's' if poll.total_voters != 1 }}</span>
+            {% if poll.is_closed %}<span style="color:var(--tomato);font-weight:600;">Closed</span>
+            {% elif poll.closes_at %}<span>Closes {{ poll.closes_at.strftime('%B %-d, %Y') }}</span>{% endif %}
+        </div>
+    </div>
+    {% set is_creator = current_user.person and poll.created_by_id == current_user.person.id %}
+    {% if current_user.active_is_admin or is_creator %}
+    <form method="POST" action="{{ url_for('main.delete_poll', poll_id=poll.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-secondary" style="color:var(--tomato);"
+                data-confirm="Delete this poll?">
+            <i data-lucide="trash-2" style="width:14px;height:14px;"></i>
+        </button>
+    </form>
+    {% endif %}
+</div>
+
+{% set max_votes = poll.options | map(attribute='vote_count') | max if poll.options else 0 %}
+
+<div class="card" style="margin-bottom:20px;">
+    {% if not poll.is_closed and current_user.person %}
+    <form method="POST" action="{{ url_for('main.vote_poll', poll_id=poll.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;">
+            {% for option in poll.options %}
+            {% set pct = ((option.vote_count / poll.total_voters * 100) | int) if poll.total_voters else 0 %}
+            <label style="cursor:pointer;display:block;">
+                <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid {% if option.id in my_votes %}var(--vine){% else %}var(--hairline-strong){% endif %};border-radius:var(--r-m);background:{% if option.id in my_votes %}var(--leaf-mist){% else %}var(--paper){% endif %};">
+                    <input type="checkbox" name="options" value="{{ option.id }}"
+                           {% if option.id in my_votes %}checked{% endif %}
+                           style="accent-color:var(--vine);width:16px;height:16px;flex-shrink:0;">
+                    <div style="flex:1;">
+                        <div style="font-weight:{% if option.vote_count == max_votes and max_votes > 0 %}700{% else %}500{% endif %};">{{ option.label }}</div>
+                        <div style="margin-top:4px;height:4px;border-radius:2px;background:var(--hairline-strong);overflow:hidden;">
+                            <div style="height:100%;width:{{ pct }}%;background:var(--vine);border-radius:2px;"></div>
+                        </div>
+                    </div>
+                    <span style="font-size:13px;color:var(--slate);white-space:nowrap;flex-shrink:0;">{{ option.vote_count }} vote{{ 's' if option.vote_count != 1 }}</span>
+                </div>
+            </label>
+            {% endfor %}
+        </div>
+        <button type="submit" class="btn btn-primary">Save my vote</button>
+        <p style="font-size:12px;color:var(--slate);margin-top:8px;">You can select multiple options and change your vote any time before the poll closes.</p>
+    </form>
+    {% else %}
+    {# Read-only results view #}
+    <div style="display:flex;flex-direction:column;gap:10px;">
+        {% for option in poll.options %}
+        {% set pct = ((option.vote_count / poll.total_voters * 100) | int) if poll.total_voters else 0 %}
+        <div style="padding:10px 12px;border:1.5px solid var(--hairline-strong);border-radius:var(--r-m);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <span style="font-weight:{% if option.vote_count == max_votes and max_votes > 0 %}700{% else %}500{% endif %};">{{ option.label }}</span>
+                <span style="font-size:13px;color:var(--slate);">{{ option.vote_count }} vote{{ 's' if option.vote_count != 1 }} · {{ pct }}%</span>
+            </div>
+            <div style="height:6px;border-radius:3px;background:var(--hairline-strong);overflow:hidden;">
+                <div style="height:100%;width:{{ pct }}%;background:var(--vine);border-radius:3px;"></div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% if poll.is_closed %}
+    <p style="font-size:13px;color:var(--slate);margin-top:12px;">This poll is closed.</p>
+    {% elif not current_user.person %}
+    <p style="font-size:13px;color:var(--slate);margin-top:12px;">Link your family profile to vote.</p>
+    {% endif %}
+    {% endif %}
+</div>
+
+</div>
+{% endblock %}

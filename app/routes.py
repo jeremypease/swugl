@@ -36,6 +36,7 @@ def _ensure_membership(user):
 import uuid
 import zipfile
 import io
+import csv
 
 main = Blueprint('main', __name__)
 
@@ -183,6 +184,38 @@ def members():
                     bday = p.birthday.replace(year=today.year + 1, day=28)
             bday_days[p.id] = (bday - today).days
     return render_template('members.html', people=people, family=current_user.active_family, bday_days=bday_days)
+
+
+@main.route('/members/address-export')
+@login_required
+def address_export():
+    if not current_user.active_is_admin:
+        abort(403)
+    people = Person.query.filter_by(
+        family_id=current_user.active_family_id, in_directory=True
+    ).order_by(Person.name).all()
+    fmt = request.args.get('format', 'print')
+    if fmt == 'csv':
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(['Name', 'Email', 'Phone', 'Address'])
+        for p in people:
+            if p.address or p.email or p.phone:
+                writer.writerow([
+                    p.get_display_name(),
+                    p.email or '',
+                    p.phone or '',
+                    p.address or '',
+                ])
+        buf.seek(0)
+        return send_file(
+            io.BytesIO(buf.getvalue().encode()),
+            mimetype='text/csv',
+            as_attachment=True,
+            download_name=f'{current_user.active_family.name} - Address List.csv',
+        )
+    return render_template('address_export.html', people=people, family=current_user.active_family)
+
 
 @main.route('/.well-known/apple-developer-domain-association.txt')
 def apple_domain_association():
@@ -863,6 +896,229 @@ def delete_album(album_id):
     db.session.commit()
     flash('Album deleted.', 'info')
     return redirect(url_for('main.albums'))
+
+# ── Polls ─────────────────────────────────────────────────────────────────────
+
+@main.route('/polls')
+@login_required
+def polls():
+    from .models import Poll
+    all_polls = Poll.query.filter_by(family_id=current_user.active_family_id)\
+        .order_by(Poll.created_at.desc()).all()
+    return render_template('polls.html', polls=all_polls)
+
+
+@main.route('/polls/new', methods=['POST'])
+@login_required
+def create_poll():
+    from .models import Poll, PollOption
+    question = request.form.get('question', '').strip()
+    closes_at_str = request.form.get('closes_at', '').strip()
+    options = [o.strip() for o in request.form.getlist('options') if o.strip()]
+    if not question or len(options) < 2:
+        flash('A poll needs a question and at least 2 options.', 'error')
+        return redirect(url_for('main.polls'))
+    closes_at = None
+    if closes_at_str:
+        try:
+            from datetime import date as dt_date
+            closes_at = dt_date.fromisoformat(closes_at_str)
+        except ValueError:
+            pass
+    poll = Poll(
+        family_id=current_user.active_family_id,
+        created_by_id=current_user.person.id if current_user.person else None,
+        question=question,
+        closes_at=closes_at,
+    )
+    db.session.add(poll)
+    db.session.flush()
+    for label in options:
+        db.session.add(PollOption(poll_id=poll.id, label=label))
+    db.session.commit()
+    return redirect(url_for('main.poll_detail', poll_id=poll.id))
+
+
+@main.route('/polls/<int:poll_id>')
+@login_required
+def poll_detail(poll_id):
+    from .models import Poll, PollVote
+    poll = db.session.get(Poll, poll_id)
+    if not poll or poll.family_id != current_user.active_family_id:
+        abort(404)
+    my_votes = set()
+    if current_user.person:
+        my_votes = {v.option_id for v in PollVote.query.filter_by(
+            poll_id=poll_id, person_id=current_user.person.id
+        ).all()}
+    return render_template('poll_detail.html', poll=poll, my_votes=my_votes)
+
+
+@main.route('/polls/<int:poll_id>/vote', methods=['POST'])
+@login_required
+def vote_poll(poll_id):
+    from .models import Poll, PollVote
+    poll = db.session.get(Poll, poll_id)
+    if not poll or poll.family_id != current_user.active_family_id or poll.is_closed:
+        abort(404)
+    if not current_user.person:
+        flash('Link your family profile to vote.', 'error')
+        return redirect(url_for('main.poll_detail', poll_id=poll_id))
+    option_ids = [int(x) for x in request.form.getlist('options') if x.isdigit()]
+    valid_ids = {o.id for o in poll.options}
+    # Remove all existing votes then re-add selected
+    PollVote.query.filter_by(poll_id=poll_id, person_id=current_user.person.id).delete()
+    for oid in option_ids:
+        if oid in valid_ids:
+            db.session.add(PollVote(poll_id=poll_id, option_id=oid,
+                                    person_id=current_user.person.id))
+    db.session.commit()
+    return redirect(url_for('main.poll_detail', poll_id=poll_id))
+
+
+@main.route('/polls/<int:poll_id>/delete', methods=['POST'])
+@login_required
+def delete_poll(poll_id):
+    from .models import Poll
+    poll = db.session.get(Poll, poll_id)
+    if not poll or poll.family_id != current_user.active_family_id:
+        abort(404)
+    is_creator = current_user.person and poll.created_by_id == current_user.person.id
+    if not current_user.active_is_admin and not is_creator:
+        abort(403)
+    db.session.delete(poll)
+    db.session.commit()
+    flash('Poll deleted.', 'info')
+    return redirect(url_for('main.polls'))
+
+
+# ── Greeting Cards ────────────────────────────────────────────────────────────
+
+CARD_OCCASIONS = [
+    ('birthday', 'Birthday'),
+    ('anniversary', 'Anniversary'),
+    ('milestone', 'Milestone'),
+    ('custom', 'Other'),
+]
+
+@main.route('/cards')
+@login_required
+def cards():
+    from .models import GreetingCard
+    all_cards = GreetingCard.query.filter_by(family_id=current_user.active_family_id)\
+        .order_by(GreetingCard.created_at.desc()).all()
+    people = Person.query.filter_by(
+        family_id=current_user.active_family_id, in_directory=True
+    ).order_by(Person.name).all()
+    my_person_id = current_user.person.id if current_user.person else None
+    # Cards the current user is the recipient of should be filtered out from their view
+    visible = [c for c in all_cards if c.recipient_id != my_person_id]
+    return render_template('cards.html', cards=visible, people=people,
+                           occasions=CARD_OCCASIONS)
+
+
+@main.route('/cards/new', methods=['POST'])
+@login_required
+def create_card():
+    from .models import GreetingCard
+    recipient_id = request.form.get('recipient_id', type=int)
+    occasion = request.form.get('occasion', 'custom')
+    title = request.form.get('title', '').strip()
+    send_date_str = request.form.get('send_date', '').strip()
+    if not recipient_id or not title:
+        flash('Please fill in all required fields.', 'error')
+        return redirect(url_for('main.cards'))
+    recipient = db.session.get(Person, recipient_id)
+    if not recipient or recipient.family_id != current_user.active_family_id:
+        abort(404)
+    send_date = None
+    if send_date_str:
+        try:
+            from datetime import date as dt_date
+            send_date = dt_date.fromisoformat(send_date_str)
+        except ValueError:
+            pass
+    card = GreetingCard(
+        family_id=current_user.active_family_id,
+        recipient_id=recipient_id,
+        created_by_id=current_user.person.id if current_user.person else None,
+        occasion=occasion,
+        title=title,
+        send_date=send_date,
+    )
+    db.session.add(card)
+    db.session.commit()
+    flash(f'Card created! Invite the family to sign it.', 'success')
+    return redirect(url_for('main.card_detail', card_id=card.id))
+
+
+@main.route('/cards/<int:card_id>')
+@login_required
+def card_detail(card_id):
+    from .models import GreetingCard, CardSignature
+    card = db.session.get(GreetingCard, card_id)
+    if not card or card.family_id != current_user.active_family_id:
+        abort(404)
+    # Block recipient from viewing their own card
+    if current_user.person and card.recipient_id == current_user.person.id:
+        flash('This card is for you — no peeking! 🎉', 'info')
+        return redirect(url_for('main.cards'))
+    my_signature = None
+    if current_user.person:
+        my_signature = CardSignature.query.filter_by(
+            card_id=card_id, person_id=current_user.person.id
+        ).first()
+    return render_template('card_detail.html', card=card, my_signature=my_signature,
+                           occasions=dict(CARD_OCCASIONS))
+
+
+@main.route('/cards/<int:card_id>/sign', methods=['POST'])
+@login_required
+def sign_card(card_id):
+    from .models import GreetingCard, CardSignature
+    card = db.session.get(GreetingCard, card_id)
+    if not card or card.family_id != current_user.active_family_id:
+        abort(404)
+    if not current_user.person:
+        flash('Link your family profile to sign cards.', 'error')
+        return redirect(url_for('main.card_detail', card_id=card_id))
+    if card.recipient_id == current_user.person.id:
+        abort(403)
+    message = request.form.get('message', '').strip()
+    if not message:
+        flash('Please write a message.', 'error')
+        return redirect(url_for('main.card_detail', card_id=card_id))
+    existing = CardSignature.query.filter_by(
+        card_id=card_id, person_id=current_user.person.id
+    ).first()
+    if existing:
+        existing.message = message
+    else:
+        db.session.add(CardSignature(
+            card_id=card_id, person_id=current_user.person.id, message=message
+        ))
+    db.session.commit()
+    flash('Your message has been added to the card!', 'success')
+    return redirect(url_for('main.card_detail', card_id=card_id))
+
+
+@main.route('/cards/<int:card_id>/delete', methods=['POST'])
+@login_required
+def delete_card(card_id):
+    from .models import GreetingCard
+    card = db.session.get(GreetingCard, card_id)
+    if not card or card.family_id != current_user.active_family_id:
+        abort(404)
+    is_creator = current_user.person and card.created_by_id == current_user.person.id
+    if not current_user.active_is_admin and not is_creator:
+        abort(403)
+    db.session.delete(card)
+    db.session.commit()
+    flash('Card deleted.', 'info')
+    return redirect(url_for('main.cards'))
+
+
+# ── Announcements ──────────────────────────────────────────────────────────────
 
 @main.route('/announcements')
 @login_required

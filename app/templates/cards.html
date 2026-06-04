@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Cards — {{ current_user.active_family.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+    <div>
+        <div class="eyebrow">{{ current_user.active_family.name }}</div>
+        <h1>Cards</h1>
+    </div>
+    <button class="btn btn-primary" data-open-modal="new-card-modal">
+        <i data-lucide="gift"></i> New card
+    </button>
+</div>
+
+{% if cards %}
+<div style="display:flex;flex-direction:column;gap:12px;max-width:680px;">
+    {% for card in cards %}
+    <a href="{{ url_for('main.card_detail', card_id=card.id) }}" style="text-decoration:none;color:inherit;">
+        <div class="card">
+            <div style="display:flex;align-items:flex-start;gap:12px;">
+                <div style="font-size:28px;flex-shrink:0;">
+                    {% if card.occasion == 'birthday' %}🎂
+                    {% elif card.occasion == 'anniversary' %}💍
+                    {% elif card.occasion == 'milestone' %}🏆
+                    {% else %}💌{% endif %}
+                </div>
+                <div style="flex:1;">
+                    <div style="font-weight:600;font-size:15px;margin-bottom:2px;">{{ card.title }}</div>
+                    <div style="font-size:12px;color:var(--slate);display:flex;gap:10px;flex-wrap:wrap;">
+                        <span>For {{ card.recipient.get_display_name() }}</span>
+                        <span>{{ card.signatures | length }} signature{{ 's' if card.signatures | length != 1 }}</span>
+                        {% if card.send_date %}<span>Send {{ card.send_date.strftime('%b %-d') }}</span>{% endif %}
+                    </div>
+                </div>
+                <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--slate);flex-shrink:0;margin-top:2px;"></i>
+            </div>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div style="max-width:440px;text-align:center;padding:64px 24px;">
+    <div style="font-size:48px;margin-bottom:16px;">💌</div>
+    <div style="font-weight:600;font-size:16px;margin-bottom:6px;">No cards yet</div>
+    <div style="color:var(--slate);font-size:14px;">Create a card for a birthday, anniversary, or any occasion — then invite the family to sign it.</div>
+</div>
+{% endif %}
+
+{# New card modal #}
+<div id="new-card-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;align-items:center;justify-content:center;padding:20px;">
+    <div class="card" style="width:100%;max-width:480px;max-height:90vh;overflow-y:auto;">
+        <div class="card-header">
+            <h3>New Card</h3>
+            <button class="btn btn-ghost btn-sm" data-close-modal="new-card-modal">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <form method="POST" action="{{ url_for('main.create_card') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="field">
+                <label>For</label>
+                <select name="recipient_id" required style="width:100%;">
+                    <option value="">Select a family member…</option>
+                    {% for p in people %}
+                    <option value="{{ p.id }}">{{ p.get_display_name() }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="field">
+                <label>Occasion</label>
+                <select name="occasion" style="width:100%;">
+                    {% for val, label in occasions %}
+                    <option value="{{ val }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="field">
+                <label>Title</label>
+                <input type="text" name="title" placeholder="Happy Birthday, Dad!" required style="width:100%;">
+            </div>
+            <div class="field">
+                <label>Send date <span style="color:var(--slate);font-size:12px;">(optional — reminder only)</span></label>
+                <input type="date" name="send_date" style="width:100%;">
+            </div>
+            <div style="display:flex;gap:10px;">
+                <button type="submit" class="btn btn-primary">Create card</button>
+                <button type="button" class="btn btn-secondary" data-close-modal="new-card-modal">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

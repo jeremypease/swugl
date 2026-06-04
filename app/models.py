@@ -599,6 +599,94 @@ class Announcement(db.Model):
                                 cascade='all, delete-orphan')
 
 
+class Poll(db.Model):
+    __tablename__ = 'polls'
+
+    id = db.Column(db.Integer, primary_key=True)
+    family_id = db.Column(db.Integer, db.ForeignKey('families.id'), nullable=False, index=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=True)
+    question = db.Column(db.String(250), nullable=False)
+    closes_at = db.Column(db.Date, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    created_by = db.relationship('Person')
+    options = db.relationship('PollOption', backref='poll', cascade='all, delete-orphan',
+                              order_by='PollOption.id')
+
+    @property
+    def is_closed(self):
+        return bool(self.closes_at and self.closes_at < date.today())
+
+    @property
+    def total_voters(self):
+        return db.session.query(PollVote.person_id).filter_by(poll_id=self.id).distinct().count()
+
+
+class PollOption(db.Model):
+    __tablename__ = 'poll_options'
+
+    id = db.Column(db.Integer, primary_key=True)
+    poll_id = db.Column(db.Integer, db.ForeignKey('polls.id'), nullable=False, index=True)
+    label = db.Column(db.String(150), nullable=False)
+
+    votes = db.relationship('PollVote', backref='option', cascade='all, delete-orphan')
+
+    @property
+    def vote_count(self):
+        return len(self.votes)
+
+
+class PollVote(db.Model):
+    __tablename__ = 'poll_votes'
+
+    id = db.Column(db.Integer, primary_key=True)
+    poll_id = db.Column(db.Integer, db.ForeignKey('polls.id'), nullable=False, index=True)
+    option_id = db.Column(db.Integer, db.ForeignKey('poll_options.id'), nullable=False)
+    person_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=False)
+
+    __table_args__ = (
+        db.UniqueConstraint('option_id', 'person_id', name='uq_poll_vote'),
+    )
+
+    person = db.relationship('Person')
+
+
+class GreetingCard(db.Model):
+    __tablename__ = 'greeting_cards'
+
+    id = db.Column(db.Integer, primary_key=True)
+    family_id = db.Column(db.Integer, db.ForeignKey('families.id'), nullable=False, index=True)
+    recipient_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=False)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=True)
+    occasion = db.Column(db.String(50), nullable=False)  # birthday, anniversary, milestone, custom
+    title = db.Column(db.String(150), nullable=False)
+    send_date = db.Column(db.Date, nullable=True)
+    sent_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    recipient = db.relationship('Person', foreign_keys=[recipient_id])
+    created_by = db.relationship('Person', foreign_keys=[created_by_id])
+    signatures = db.relationship('CardSignature', backref='card',
+                                 cascade='all, delete-orphan',
+                                 order_by='CardSignature.created_at')
+
+
+class CardSignature(db.Model):
+    __tablename__ = 'card_signatures'
+
+    id = db.Column(db.Integer, primary_key=True)
+    card_id = db.Column(db.Integer, db.ForeignKey('greeting_cards.id'), nullable=False, index=True)
+    person_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint('card_id', 'person_id', name='uq_card_signature'),
+    )
+
+    person = db.relationship('Person')
+
+
 class AnnouncementReaction(db.Model):
     __tablename__ = 'announcement_reactions'
 
