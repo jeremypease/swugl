@@ -1,7 +1,7 @@
 """add carpool, checklists, and event survey tables
 
 Revision ID: c3d4e5f6a7b8
-Revises: b2c3d4e5f6a7
+Revises: f6a7b8c9d0e1
 Create Date: 2026-06-03 00:00:00.000000
 
 """
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 revision = 'c3d4e5f6a7b8'
-down_revision = 'b2c3d4e5f6a7'
+down_revision = 'f6a7b8c9d0e1'
 branch_labels = None
 depends_on = None
 

@@ -1,15 +1,16 @@
 """add announcement_reactions table
 
-Revision ID: a1b2c3d4e5f6
+Revision ID: e5f6a7b8c9d0
 Revises: f95db89b1c87
 Create Date: 2026-06-03 00:00:00.000000
+
 
 """
 from alembic import op
 import sqlalchemy as sa
 
 
-revision = 'a1b2c3d4e5f6'
+revision = 'e5f6a7b8c9d0'
 down_revision = 'f95db89b1c87'
 branch_labels = None
 depends_on = None
