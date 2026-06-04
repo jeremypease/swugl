@@ -595,6 +595,23 @@ class Announcement(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     author = db.relationship('Person')
+    reactions = db.relationship('AnnouncementReaction', backref='announcement',
+                                cascade='all, delete-orphan')
+
+
+class AnnouncementReaction(db.Model):
+    __tablename__ = 'announcement_reactions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    announcement_id = db.Column(db.Integer, db.ForeignKey('announcements.id'), nullable=False, index=True)
+    person_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=False)
+    emoji = db.Column(db.String(10), nullable=False)
+
+    __table_args__ = (
+        db.UniqueConstraint('announcement_id', 'person_id', 'emoji', name='uq_reaction'),
+    )
+
+    person = db.relationship('Person')
 
 
 class Album(db.Model):

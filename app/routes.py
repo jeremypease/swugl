@@ -242,6 +242,23 @@ def home():
     home_announcements = pinned + recent
     recent_photos = Photo.query.filter_by(family_id=current_user.active_family_id)\
         .order_by(Photo.created_at.desc()).limit(6).all()
+    from sqlalchemy import extract
+    on_this_day = Photo.query.filter_by(family_id=current_user.active_family_id).filter(
+        db.or_(
+            db.and_(
+                Photo.taken_date.isnot(None),
+                extract('month', Photo.taken_date) == today.month,
+                extract('day', Photo.taken_date) == today.day,
+                extract('year', Photo.taken_date) < today.year,
+            ),
+            db.and_(
+                Photo.taken_date.is_(None),
+                extract('month', Photo.created_at) == today.month,
+                extract('day', Photo.created_at) == today.day,
+                extract('year', Photo.created_at) < today.year,
+            ),
+        )
+    ).order_by(Photo.taken_date.desc().nullslast(), Photo.created_at.desc()).limit(8).all()
     # Onboarding checklist — only for admins of new pods (families with account_id)
     onboarding = None
     if current_user.active_is_admin and current_user.family and current_user.active_family.account_id:
@@ -261,6 +278,7 @@ def home():
                            profile_nudge=profile_nudge, me=me,
                            home_announcements=home_announcements,
                            recent_photos=recent_photos,
+                           on_this_day=on_this_day,
                            onboarding=onboarding,
                            now=datetime.now())
 
@@ -887,6 +905,29 @@ def pin_announcement(ann_id):
         a.pinned = not a.pinned
         db.session.commit()
     return redirect(url_for('main.announcements'))
+
+@main.route('/announcements/<int:ann_id>/react', methods=['POST'])
+@login_required
+def react_announcement(ann_id):
+    from .models import AnnouncementReaction
+    a = db.session.get(Announcement, ann_id)
+    if not a or a.family_id != current_user.active_family_id:
+        return redirect(url_for('main.announcements'))
+    emoji = request.form.get('emoji', '')[:10]
+    if not emoji or not current_user.person:
+        return redirect(url_for('main.announcements'))
+    existing = AnnouncementReaction.query.filter_by(
+        announcement_id=ann_id, person_id=current_user.person.id, emoji=emoji
+    ).first()
+    if existing:
+        db.session.delete(existing)
+    else:
+        db.session.add(AnnouncementReaction(
+            announcement_id=ann_id, person_id=current_user.person.id, emoji=emoji
+        ))
+    db.session.commit()
+    return redirect(url_for('main.announcements'))
+
 
 @main.route('/announcements/<int:ann_id>/delete', methods=['POST'])
 @login_required

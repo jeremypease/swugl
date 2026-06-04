@@ -229,6 +229,23 @@
     </div>
     {% endif %}
 
+    {# On this day #}
+    {% if on_this_day %}
+    <div class="card">
+        <div class="card-header">
+            <h3>On this day</h3>
+            <span style="font-size:12px;color:var(--slate);">{{ now.strftime('%B %-d') }} in past years</span>
+        </div>
+        <div class="photo-grid-sm">
+            {% for photo in on_this_day %}
+            <a href="/albums/{{ photo.album_id }}" title="{{ photo.caption or '' }}">
+                <img src="{{ photo_url(photo.path) }}" alt="{{ photo.caption or '' }}" loading="lazy">
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
     {# Quick links #}
     <div class="card" style="background:var(--leaf-mist);border:none;">
         <div style="display:flex;flex-direction:column;gap:6px;">

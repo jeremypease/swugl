@@ -66,6 +66,46 @@
             </div>
         </div>
         <p style="font-size:15px;line-height:1.65;white-space:pre-wrap;color:var(--ink-soft);">{{ a.body }}</p>
+
+        {# Reactions #}
+        {% set my_person_id = current_user.person.id if current_user.person else none %}
+        {% set reaction_counts = {} %}
+        {% for r in a.reactions %}
+            {% if r.emoji not in reaction_counts %}{% set _ = reaction_counts.update({r.emoji: {'count': 0, 'mine': false}}) %}{% endif %}
+            {% set _ = reaction_counts[r.emoji].update({'count': reaction_counts[r.emoji]['count'] + 1}) %}
+            {% if r.person_id == my_person_id %}{% set _ = reaction_counts[r.emoji].update({'mine': true}) %}{% endif %}
+        {% endfor %}
+        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-top:10px;padding-top:10px;border-top:1px solid var(--hairline);">
+            {% for emoji, data in reaction_counts.items() %}
+            {% if current_user.person %}
+            <form method="POST" action="/announcements/{{ a.id }}/react" style="display:contents;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="emoji" value="{{ emoji }}">
+                <button type="submit" style="background:{% if data['mine'] %}var(--leaf-mist){% else %}var(--hairline){% endif %};border:1px solid {% if data['mine'] %}var(--sprout){% else %}var(--hairline-strong){% endif %};border-radius:99px;padding:2px 8px;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;">
+                    {{ emoji }} <span style="font-size:12px;font-weight:600;">{{ data['count'] }}</span>
+                </button>
+            </form>
+            {% else %}
+            <span style="background:var(--hairline);border:1px solid var(--hairline-strong);border-radius:99px;padding:2px 8px;font-size:13px;display:inline-flex;align-items:center;gap:4px;">
+                {{ emoji }} <span style="font-size:12px;font-weight:600;">{{ data['count'] }}</span>
+            </span>
+            {% endif %}
+            {% endfor %}
+            {% if current_user.person %}
+            <div style="position:relative;display:inline-block;">
+                <button class="reaction-trigger" data-ann="{{ a.id }}" style="background:none;border:1px dashed var(--hairline-strong);border-radius:99px;padding:2px 8px;font-size:13px;cursor:pointer;color:var(--slate);">+</button>
+                <div class="reaction-picker" id="picker-{{ a.id }}" style="display:none;position:absolute;bottom:calc(100% + 4px);left:0;background:var(--paper);border:1px solid var(--hairline-strong);border-radius:var(--r-m);padding:6px 8px;display:none;flex-direction:row;gap:4px;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,.1);">
+                    {% for e in ['❤️','😂','😮','😢','👏','🎉'] %}
+                    <form method="POST" action="/announcements/{{ a.id }}/react" style="display:contents;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="emoji" value="{{ e }}">
+                        <button type="submit" style="background:none;border:none;cursor:pointer;font-size:20px;padding:2px 4px;border-radius:4px;" onmouseover="this.style.background='var(--leaf-mist)'" onmouseout="this.style.background='none'">{{ e }}</button>
+                    </form>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
     </div>
     {% endfor %}
 </div>
@@ -111,4 +151,21 @@
     </div>
 </div>
 {% endif %}
+
+{% block scripts %}
+<script nonce="{{ g.csp_nonce }}">
+document.querySelectorAll('.reaction-trigger').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var picker = document.getElementById('picker-' + btn.dataset.ann);
+        var isOpen = picker.style.display === 'flex';
+        document.querySelectorAll('.reaction-picker').forEach(function(p) { p.style.display = 'none'; });
+        picker.style.display = isOpen ? 'none' : 'flex';
+    });
+});
+document.addEventListener('click', function() {
+    document.querySelectorAll('.reaction-picker').forEach(function(p) { p.style.display = 'none'; });
+});
+</script>
+{% endblock %}
 {% endblock %}
