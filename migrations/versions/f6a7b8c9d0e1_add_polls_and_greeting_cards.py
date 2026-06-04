@@ -1,16 +1,17 @@
 """add polls and greeting cards tables
 
-Revision ID: b2c3d4e5f6a7
-Revises: a1b2c3d4e5f6
+Revision ID: f6a7b8c9d0e1
+Revises: e5f6a7b8c9d0
 Create Date: 2026-06-03 00:00:00.000000
+
 
 """
 from alembic import op
 import sqlalchemy as sa
 
 
-revision = 'b2c3d4e5f6a7'
-down_revision = 'a1b2c3d4e5f6'
+revision = 'f6a7b8c9d0e1'
+down_revision = 'e5f6a7b8c9d0'
 branch_labels = None
 depends_on = None
 
