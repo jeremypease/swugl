@@ -151,6 +151,10 @@ def create_app(test_config=None):
     app.register_blueprint(api_bp)
     init_oauth(app)
     csrf.exempt(app.view_functions['billing.webhook'])
+    # Apple Sign-In POSTs the id_token directly from Apple's servers to this
+    # callback using form_post response_mode — Apple never attaches a CSRF token.
+    # The callback is safe because it validates the cryptographic JWT signature on
+    # the id_token before doing anything, so forged POST bodies are rejected.
     csrf.exempt(app.view_functions['oauth.apple_callback'])
     csrf.exempt(api_bp)
 

@@ -53,8 +53,11 @@ _CONDITION_EMOJI = {
     'Hot': '🌡️',
 }
 
-# Simple in-process geocode cache (location string → (lat, lon) or None)
+# In-process geocode cache: location string → (timestamp, (lat, lon) | None)
+# Entries expire after 24 h; cache is capped at 500 entries to prevent unbounded growth.
 _geocode_cache: dict = {}
+_GEOCODE_TTL = 86400   # seconds
+_GEOCODE_MAX = 500
 
 
 def _c_to_f(c: float) -> int:
@@ -85,8 +88,10 @@ def _weatherkit_jwt() -> str:
 
 def _geocode(location: str):
     """Return (lat, lon) for a location string, or None on failure."""
-    if location in _geocode_cache:
-        return _geocode_cache[location]
+    now = time.time()
+    entry = _geocode_cache.get(location)
+    if entry and now - entry[0] < _GEOCODE_TTL:
+        return entry[1]
 
     try:
         resp = requests.get(
@@ -103,7 +108,13 @@ def _geocode(location: str):
     except Exception:
         result = None
 
-    _geocode_cache[location] = result
+    if len(_geocode_cache) >= _GEOCODE_MAX:
+        # Evict the oldest 10% of entries to make room
+        oldest = sorted(_geocode_cache, key=lambda k: _geocode_cache[k][0])
+        for k in oldest[:_GEOCODE_MAX // 10]:
+            del _geocode_cache[k]
+
+    _geocode_cache[location] = (now, result)
     return result
 
 

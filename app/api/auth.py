@@ -88,8 +88,12 @@ def refresh():
 @api.route('/auth/logout', methods=['POST'])
 @jwt_required(refresh=True)
 def logout():
+    from datetime import datetime
     jti = get_jwt()['jti']
     db.session.add(ApiTokenBlocklist(jti=jti))
+    # Prune expired entries: refresh tokens live 30 days, so anything older is unredeemable.
+    cutoff = datetime.utcnow() - timedelta(days=31)
+    ApiTokenBlocklist.query.filter(ApiTokenBlocklist.created_at < cutoff).delete()
     db.session.commit()
     return jsonify({'ok': True}), 200
 

@@ -12,7 +12,7 @@ from flask import current_app, url_for
 from flask.cli import with_appcontext
 
 from . import db
-from .models import Family, User, Event, EventMeal, EventMealItem, EventAssignment, EventSleepingSpot
+from .models import Family, User, Event, EventMeal, EventMealItem, EventAssignment, EventSleepingSpot, EventRSVP, NotificationPreference
 from .notifications import send_family_digest, create_notification
 from .email import (
     send_nudge_day3_email,
@@ -173,7 +173,6 @@ def rsvp_reminders(dry_run):
             for user in users:
                 if not user.person_id or user.person_id in responded_person_ids:
                     continue
-                from .models import NotificationPreference
                 if not NotificationPreference.is_enabled(user.id, 'rsvp_reminder'):
                     continue
                 event_url = url_for('main.event_detail', event_id=event.id, _external=True)
