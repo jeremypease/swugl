@@ -1,0 +1,113 @@
+{% if event.has_assignments %}
+<div class="card">
+    <div class="card-header">
+        <h3>Assignments</h3>
+        <div style="display:flex;gap:6px;align-items:center;">
+            {% if current_user.active_is_admin %}
+            <button class="btn btn-ghost btn-sm" data-toggle-form="assign-add-form">
+                <i data-lucide="plus"></i> Add task
+            </button>
+            <form method="POST" action="/events/{{ event.id }}/disable-section" style="display:contents;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="section" value="assignments">
+                <button type="submit" class="btn btn-ghost btn-sm" title="Hide" style="color:var(--slate-soft);padding:4px 6px;"
+                        data-confirm="Disable Assignments? Existing tasks will be preserved.">
+                    <i data-lucide="eye-off" style="width:14px;height:14px;"></i>
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if current_user.active_is_admin %}
+    <div id="assign-add-form" style="display:none;padding:12px 0;border-bottom:1px solid var(--hairline);">
+        <form method="POST" action="/events/{{ event.id }}/assignments/add">
+            {{ assign_form.hidden_tag() }}
+            <div class="field-row">
+                <div class="field">{{ assign_form.title.label }}{{ assign_form.title(placeholder="e.g. Set up tables") }}</div>
+                <div class="field" style="max-width:140px;">{{ assign_form.category.label }}{{ assign_form.category() }}</div>
+                <div class="field" style="max-width:140px;">{{ assign_form.due_date.label }}{{ assign_form.due_date(min=date_min, max=date_max) }}</div>
+            </div>
+            <div class="field">{{ assign_form.description.label }}{{ assign_form.description(placeholder="Optional details", rows=1) }}</div>
+            <button type="submit" class="btn btn-primary btn-sm">Add Task</button>
+        </form>
+    </div>
+    {% endif %}
+
+    {% if event.assignments %}
+    {% set seen_cats = [] %}
+    {% for a in event.assignments %}{% set cat = a.category or '' %}{% if cat not in seen_cats %}{% set _ = seen_cats.append(cat) %}{% endif %}{% endfor %}
+    {% set groups = {} %}
+    {% for a in event.assignments %}{% set cat = a.category or '' %}{% if cat not in groups %}{% set _ = groups.update({cat: []}) %}{% endif %}{% set _ = groups[cat].append(a) %}{% endfor %}
+
+    <div style="display:flex;flex-direction:column;">
+        {% for cat in seen_cats %}
+        {% set items = groups[cat] %}
+        {% if seen_cats | length > 1 %}
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);padding:10px 0 4px;">{{ cat if cat else 'General' }}</div>
+        {% endif %}
+        {% for a in items %}
+        <div class="relation-row" style="{% if a.is_done %}opacity:.6;{% endif %}">
+            {% if a.claimed_by_id %}
+            <form method="POST" action="/events/{{ event.id }}/assignments/{{ a.id }}/done" style="display:contents;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                {% if current_user.active_is_admin or (my_person and a.claimed_by_id == my_person.id) %}
+                <button type="submit" class="task-check {% if a.is_done %}task-done{% endif %}" title="Toggle done"></button>
+                {% else %}
+                <span class="task-check {% if a.is_done %}task-done{% endif %}" style="cursor:default;"></span>
+                {% endif %}
+            </form>
+            {% else %}
+            <span class="task-check" style="cursor:default;"></span>
+            {% endif %}
+            <div style="flex:1;">
+                <div style="font-weight:600;">{{ a.title }}</div>
+                {% if a.description %}<div style="font-size:13px;color:var(--slate);">{{ a.description }}</div>{% endif %}
+                {% if a.due_date %}<div style="font-size:12px;color:var(--slate);margin-top:2px;">Due {{ a.due_date.strftime('%b %-d') }}</div>{% endif %}
+            </div>
+            {% if a.claimed_by %}
+            <span style="font-size:13px;color:var(--slate);">{{ a.claimed_by.get_display_name() }}</span>
+            {% if current_user.active_is_admin or (my_person and a.claimed_by_id == my_person.id) %}
+            <form method="POST" action="/events/{{ event.id }}/assignments/{{ a.id }}/unclaim">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-ghost btn-sm">Unclaim</button>
+            </form>
+            {% endif %}
+            {% else %}
+            {% if my_person %}
+            <form method="POST" action="/events/{{ event.id }}/assignments/{{ a.id }}/claim">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-ghost btn-sm">Claim</button>
+            </form>
+            {% endif %}
+            {% if current_user.active_is_admin and assign_admin_forms[a.id] %}
+            <form method="POST" action="/events/{{ event.id }}/assignments/{{ a.id }}/assign" style="display:flex;gap:4px;align-items:center;">
+                {{ assign_admin_forms[a.id].hidden_tag() }}
+                {{ assign_admin_forms[a.id].person_id(style="font-size:13px;padding:3px 6px;") }}
+                <button type="submit" class="btn btn-ghost btn-sm">Assign</button>
+            </form>
+            {% endif %}
+            {% endif %}
+            {% if current_user.active_is_admin %}
+            <form method="POST" action="/events/{{ event.id }}/assignments/{{ a.id }}/delete">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);">×</button>
+            </form>
+            {% endif %}
+        </div>
+        {% endfor %}
+        {% endfor %}
+    </div>
+    {% else %}
+    <p style="color:var(--slate);font-size:14px;padding:8px 0;">No tasks added yet.{% if current_user.active_is_admin %} Click "Add task".{% endif %}</p>
+    {% endif %}
+</div>
+{% elif current_user.active_is_admin %}
+<form method="POST" action="/events/{{ event.id }}/enable-section">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="section" value="assignments">
+    <button type="submit" class="btn btn-ghost btn-sm" style="font-size:13px;color:var(--slate);padding:0;">
+        <i data-lucide="plus" style="width:13px;height:13px;"></i> Enable Assignments
+    </button>
+</form>
+{% endif %}

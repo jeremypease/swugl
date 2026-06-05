@@ -1,0 +1,137 @@
+{% if event.has_meals %}
+<div class="card">
+    <div class="card-header">
+        <h3>Meals</h3>
+        <div style="display:flex;gap:6px;align-items:center;">
+            {% if current_user.active_is_admin %}
+            <button class="btn btn-ghost btn-sm" data-toggle-form="meal-add-form">
+                <i data-lucide="plus"></i> Add meal
+            </button>
+            <form method="POST" action="/events/{{ event.id }}/disable-section" style="display:contents;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="section" value="meals">
+                <button type="submit" class="btn btn-ghost btn-sm" title="Hide" style="color:var(--slate-soft);padding:4px 6px;"
+                        data-confirm="Disable Meals? Existing meals will be preserved.">
+                    <i data-lucide="eye-off" style="width:14px;height:14px;"></i>
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if current_user.active_is_admin %}
+    <div id="meal-add-form" style="display:none;padding:12px 0;border-bottom:1px solid var(--hairline);">
+        <form method="POST" action="/events/{{ event.id }}/meals/add">
+            {{ meal_form.hidden_tag() }}
+            <div class="field-row">
+                <div class="field">{{ meal_form.name.label }}{{ meal_form.name(placeholder="e.g. Saturday Dinner") }}</div>
+                <div class="field">{{ meal_form.meal_date.label }}{{ meal_form.meal_date(min=date_min, max=date_max) }}</div>
+                <div class="field">{{ meal_form.meal_time.label }}{{ meal_form.meal_time(placeholder="6:00 PM") }}</div>
+            </div>
+            <div class="field">{{ meal_form.notes.label }}<span style="color:var(--slate-soft);font-size:12px;"> (optional)</span>{{ meal_form.notes(rows=2) }}</div>
+            <button type="submit" class="btn btn-primary btn-sm">Add Meal</button>
+        </form>
+    </div>
+    {% endif %}
+
+    {% if event.meals %}
+        {% for meal in event.meals %}
+        <div style="padding:16px 0;{% if not loop.last %}border-bottom:1px solid var(--hairline);{% endif %}">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap;">
+                <strong style="font-size:15px;">{{ meal.name }}</strong>
+                {% if meal.meal_date %}<span style="font-size:13px;color:var(--slate);">{{ meal.meal_date.strftime('%B %-d') }}</span>{% endif %}
+                {% if meal.meal_time %}<span style="font-size:13px;color:var(--slate);">{{ meal.meal_time }}</span>{% endif %}
+                {% if meal.assigned_family %}
+                <span style="font-size:13px;color:var(--slate);">Host: <strong>{{ meal.assigned_family.get_couple_name() }}</strong></span>
+                {% if current_user.active_is_admin %}
+                <form method="POST" action="/events/{{ event.id }}/meals/{{ meal.id }}/unassign-family">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-ghost btn-sm">Clear</button>
+                </form>
+                {% endif %}
+                {% elif current_user.active_is_admin %}
+                <form method="POST" action="/events/{{ event.id }}/meals/{{ meal.id }}/assign-family" style="display:flex;gap:4px;align-items:center;">
+                    {{ meal_family_forms[meal.id].hidden_tag() }}
+                    <span style="font-size:13px;color:var(--slate);white-space:nowrap;">Host:</span>
+                    {{ meal_family_forms[meal.id].assigned_family_id(style="font-size:13px;padding:3px 6px;") }}
+                    <button type="submit" class="btn btn-ghost btn-sm">Set</button>
+                </form>
+                {% endif %}
+                {% if current_user.active_is_admin %}
+                <form method="POST" action="/events/{{ event.id }}/meals/{{ meal.id }}/delete" style="margin-left:auto;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);">Remove</button>
+                </form>
+                {% endif %}
+            </div>
+            {% if meal.notes %}<p style="font-size:13px;color:var(--slate);margin:0 0 10px;">{{ meal.notes }}</p>{% endif %}
+
+            {% set food_items = meal.items | selectattr('is_cleanup', 'false') | list %}
+            {% set cleanup_items = meal.items | selectattr('is_cleanup') | list %}
+            {% for group_label, group_items in [('Bring', food_items), ('Cleanup', cleanup_items)] %}
+            {% if group_items %}
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);margin-bottom:4px;">{{ group_label }}</div>
+            <table class="tbl" style="margin-bottom:12px;">
+                <tbody>
+                {% for item in group_items %}
+                <tr>
+                    <td style="font-weight:500;">{{ item.label }}{% if item.quantity %} <span style="font-weight:400;font-size:12px;color:var(--slate);">(need {{ item.quantity }})</span>{% endif %}</td>
+                    <td>{% if item.assigned_to %}<span style="font-size:13px;">{{ item.assigned_to.get_display_name() }}</span>{% else %}<span style="font-size:13px;color:var(--slate);">—</span>{% endif %}</td>
+                    <td class="col-actions" style="display:flex;gap:6px;align-items:center;">
+                        <form method="POST" action="/events/{{ event.id }}/meals/{{ meal.id }}/items/{{ item.id }}/assign" style="display:flex;gap:4px;align-items:center;">
+                            {{ item_assign_forms[item.id].hidden_tag() }}
+                            {{ item_assign_forms[item.id].person_id(style="font-size:13px;padding:3px 6px;") }}
+                            <button type="submit" class="btn btn-ghost btn-sm">Assign</button>
+                        </form>
+                        {% if current_user.active_is_admin %}
+                        {% if item.assigned_to %}
+                        <form method="POST" action="/events/{{ event.id }}/meals/{{ meal.id }}/items/{{ item.id }}/unassign">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-ghost btn-sm">Clear</button>
+                        </form>
+                        {% endif %}
+                        <form method="POST" action="/events/{{ event.id }}/meals/{{ meal.id }}/items/{{ item.id }}/delete">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);">×</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% endif %}
+            {% endfor %}
+
+            {% if my_person %}
+            <form method="POST" action="/events/{{ event.id }}/meals/{{ meal.id }}/self-signup" style="display:flex;gap:8px;align-items:center;margin-top:4px;">
+                {{ self_signup_form.hidden_tag() }}
+                {{ self_signup_form.label(placeholder="I'll bring…", style="flex:1;min-width:160px;font-size:13px;") }}
+                <button type="submit" class="btn btn-ghost btn-sm">+ Sign up</button>
+            </form>
+            {% endif %}
+
+            {% if current_user.active_is_admin %}
+            <form method="POST" action="/events/{{ event.id }}/meals/{{ meal.id }}/items/add" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px;padding-top:6px;border-top:1px dashed var(--hairline);">
+                {{ meal_item_form.hidden_tag() }}
+                {{ meal_item_form.label(placeholder="Add item (e.g. Rolls)", style="flex:1;min-width:160px;font-size:13px;") }}
+                {{ meal_item_form.quantity(placeholder="Qty", style="width:60px;font-size:13px;") }}
+                <label style="display:flex;align-items:center;gap:5px;font-size:13px;white-space:nowrap;">{{ meal_item_form.is_cleanup() }} Cleanup</label>
+                <button type="submit" class="btn btn-ghost btn-sm">+ Add</button>
+            </form>
+            {% endif %}
+        </div>
+        {% endfor %}
+    {% else %}
+    <p style="color:var(--slate);font-size:14px;padding:8px 0;">No meals added yet.{% if current_user.active_is_admin %} Click "Add meal" to get started.{% endif %}</p>
+    {% endif %}
+</div>
+{% elif current_user.active_is_admin %}
+<form method="POST" action="/events/{{ event.id }}/enable-section">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="section" value="meals">
+    <button type="submit" class="btn btn-ghost btn-sm" style="font-size:13px;color:var(--slate);padding:0;">
+        <i data-lucide="plus" style="width:13px;height:13px;"></i> Enable Meals
+    </button>
+</form>
+{% endif %}

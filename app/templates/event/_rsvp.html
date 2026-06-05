@@ -1,0 +1,134 @@
+{# ── RSVP card (right rail) ────────────────────────────────────────── #}
+<div class="card">
+    <div class="card-header">
+        <h3 style="font-size:14px;">Who's Coming?</h3>
+        <div style="font-size:12px;color:var(--slate);">
+            {% if yes_count.v %}<span style="color:var(--vine);font-weight:600;">{{ yes_count.v }} going</span>{% endif %}
+            {% if maybe_count.v %}<span style="color:var(--slate);"> · {{ maybe_count.v }} maybe</span>{% endif %}
+            {% if no_count.v %}<span style="color:var(--slate);"> · {{ no_count.v }} can't</span>{% endif %}
+        </div>
+    </div>
+
+    {# Pea pod visualization #}
+    {% if all_people %}
+    {% set pod_people = all_people[:10] %}
+    <div class="pod-wrap">
+        <svg viewBox="0 0 240 80" preserveAspectRatio="none">
+            <path d="M10 40 Q 120 -18 230 40 Q 120 98 10 40 Z"
+                  fill="var(--leaf-mist)" stroke="var(--sprout)" stroke-width="1.5"/>
+        </svg>
+        <div class="pod-peas">
+            {% for person in pod_people %}
+            {% set st = rsvp_map.get(person.id, 'none') %}
+            <div class="pod-pea" title="{{ person.get_display_name() }} — {% if st == 'yes' %}Going{% elif st == 'maybe' %}Maybe{% elif st == 'no' %}Can't go{% else %}No response{% endif %}">
+                <div class="av av-sm" style="background:var(--vine);width:28px;height:28px;font-size:9px;">{{ person.name[:2].upper() }}</div>
+                <div class="pod-dot {{ st }}"></div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    <div style="display:flex;justify-content:center;gap:12px;font-size:10px;color:var(--slate);margin-bottom:8px;">
+        <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--vine);margin-right:3px;"></span>going</span>
+        <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#e6a817;margin-right:3px;"></span>maybe</span>
+        <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--slate-soft);margin-right:3px;"></span>can't</span>
+    </div>
+    {% endif %}
+
+    {# My household RSVP controls #}
+    {% if household %}
+    <div class="ev-rail-rsvp-controls" style="border-top:1px solid var(--hairline);padding-top:12px;margin-top:4px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);margin-bottom:10px;">Your Response</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+            {% for person in household %}
+            {% set status = rsvp_map.get(person.id) %}
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <span style="font-size:13px;font-weight:{% if loop.index <= 2 %}600{% else %}400{% endif %};flex:1;min-width:90px;color:{% if loop.index > 2 %}var(--slate){% else %}inherit{% endif %};">{{ person.get_display_name() }}</span>
+                <div style="display:flex;gap:4px;">
+                    {% for val, label in [('yes','Going'),('maybe','Maybe'),('no','Can\'t')] %}
+                    <form method="POST" action="/events/{{ event.id }}/rsvp" style="display:contents;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="person_id" value="{{ person.id }}">
+                        <input type="hidden" name="status" value="{{ val }}">
+                        <button type="submit" class="btn btn-sm {{ 'btn-primary' if status == val else 'btn-secondary' }}"
+                                style="font-size:11px;padding:4px 8px;{% if status and status != val %}opacity:.45;{% endif %}">{{ label }}</button>
+                    </form>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {# Roster #}
+    {% if rsvp_groups or family_groups %}
+    <div style="border-top:1px solid var(--hairline);padding-top:12px;margin-top:10px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);margin-bottom:8px;">
+            {% if current_user.active_is_admin or current_user.active_is_delegate %}All Families{% else %}Responses{% endif %}
+        </div>
+
+        {% if current_user.active_is_admin or current_user.active_is_delegate %}
+        {% if family_groups %}
+        <div style="display:flex;flex-direction:column;gap:2px;">
+            {% for group in family_groups %}
+            <details style="border-radius:var(--r-s);" {% if not group.children %}class="no-children"{% endif %}>
+                <summary style="list-style:none;display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:var(--r-s);cursor:pointer;user-select:none;" class="rsvp-row">
+                    <div style="flex:1;font-weight:600;font-size:13px;">{{ group.label }}</div>
+                    <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
+                        {% for person, status in group.adults %}
+                        <span style="font-size:12px;">
+                            {% if status == 'yes' %}<span style="color:var(--vine);font-weight:600;">Going</span>
+                            {% elif status == 'maybe' %}<span style="color:#c87c00;">Maybe</span>
+                            {% elif status == 'no' %}<span style="color:var(--tomato);">Can't</span>
+                            {% else %}<span style="color:var(--slate-soft);">—</span>{% endif %}
+                        </span>
+                        {% if not loop.last %}<span style="color:var(--hairline);">·</span>{% endif %}
+                        {% endfor %}
+                    </div>
+                    {% if group.children %}<i data-lucide="chevron-down" style="width:12px;height:12px;color:var(--slate);flex-shrink:0;" class="details-chevron"></i>{% endif %}
+                </summary>
+                {% if group.children %}
+                <div style="padding:4px 8px 8px 20px;display:flex;flex-direction:column;gap:4px;">
+                    {% for person, status in group.children %}
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span style="font-size:12px;flex:1;color:var(--slate);">{{ person.get_display_name() }}</span>
+                        <span style="font-size:12px;">
+                            {% if status == 'yes' %}<span style="color:var(--vine);">Going</span>
+                            {% elif status == 'maybe' %}<span style="color:#c87c00;">Maybe</span>
+                            {% elif status == 'no' %}<span style="color:var(--tomato);">Can't</span>
+                            {% else %}<span style="color:var(--slate-soft);">—</span>{% endif %}
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </details>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="font-size:13px;color:var(--slate);">No family members in directory.</p>
+        {% endif %}
+
+        {% else %}
+        {% if rsvp_groups %}
+        <div style="display:flex;flex-direction:column;gap:6px;">
+            {% for group in rsvp_groups %}
+            <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">
+                <span style="font-size:13px;font-weight:600;min-width:120px;">{{ group.label }}</span>
+                <span style="font-size:12px;color:var(--slate);">
+                    {% set parts = [] %}
+                    {% if group.yes %}{% set _ = parts.append('<span style="color:var(--vine);">' ~ group.yes|join(', ') ~ '</span>') %}{% endif %}
+                    {% if group.maybe %}{% set _ = parts.append(group.maybe|join(', ') ~ ' (maybe)') %}{% endif %}
+                    {% if group.no %}{% set _ = parts.append('<span style="opacity:.5;">' ~ group.no|join(', ') ~ ' — can\'t</span>') %}{% endif %}
+                    {{ parts | join(' · ') | safe }}
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="font-size:13px;color:var(--slate);">No responses yet.</p>
+        {% endif %}
+        {% endif %}
+    </div>
+    {% endif %}
+</div>

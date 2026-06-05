@@ -28,8 +28,8 @@ def family_has_paid_access(family):
     if family.plan == 'trial':
         return family.trial_ends_at and family.trial_ends_at > datetime.utcnow()
     if family.plan == 'past_due':
-        # 7-day grace period from when subscription payment failed
-        # stripe webhook sets trial_ends_at to the failure time
+        # trial_ends_at is reused here as the grace-period start timestamp:
+        # the payment_failed webhook sets it to utcnow() and we allow 7 days.
         grace = family.trial_ends_at
         return grace and (grace + timedelta(days=7)) > datetime.utcnow()
     return False
@@ -212,7 +212,7 @@ def _send_billing_email(family, event_type):
     """Send a billing lifecycle email to the family's admin user."""
     from .models import User
     from .email import send_payment_failed_email, send_subscription_cancelled_email
-    admin = User.query.filter_by(family_id=family.id, role='admin', status='approved').first()
+    admin = User.query.filter_by(family_id=family.id, is_admin=True, status='approved').first()
     if not admin or not current_app.config.get('MAIL_ENABLED'):
         return
     billing_url = 'https://swugl.com/billing'
