@@ -636,9 +636,13 @@ def add_member():
                     similar.append(p)
             if similar:
                 link_spouse_for = request.args.get('link_spouse_for', type=int)
+                person_count = Person.query.filter_by(family_id=current_user.active_family_id).count()
+                has_paid_access = family_has_paid_access(current_user.active_family)
                 return render_template('add_member.html', form=form, parent1=parent1,
                                        parent2=parent2, next_page=next_page, similar=similar,
-                                       purpose=purpose, link_spouse_for=link_spouse_for)
+                                       purpose=purpose, link_spouse_for=link_spouse_for,
+                                       person_count=person_count, member_limit=FREE_MEMBER_LIMIT,
+                                       has_paid_access=has_paid_access)
         if not family_has_paid_access(current_user.active_family):
             person_count = Person.query.filter_by(family_id=current_user.active_family_id).count()
             if person_count >= FREE_MEMBER_LIMIT:
