@@ -113,6 +113,8 @@ Building on the existing Events feature.
 - [ ] Email/push notifications when a new event is created
 - [ ] Event templates (save a past event as a template for next year)
 - [ ] **Timezone support** — store event times with timezone; display in each member's local time for distributed families
+- [ ] **Embedded Apple Pay / Google Pay on event detail page** — instead of redirecting to Stripe-hosted Checkout, use Stripe's Payment Request Button (or Payment Element) to show a native Apple Pay / Google Pay button inline on the event page. Requires domain verification on swugl.com (`/.well-known/apple-developer-merchantid-domain-association` served via Flask static route) and switching from the hosted Checkout redirect to client-side Stripe.js. Saves the redirect round-trip; higher conversion on mobile Safari.
+- [ ] **Instant event payouts** — optional checkbox on the payout form to deliver funds within 30 minutes instead of 1–2 business days. Stripe charges an extra 1.5% (min $0.50) deducted from the admin's payout. Requires the connected account to have an eligible Visa/Mastercard debit card; check availability via Stripe's external accounts API before showing the option. Implementation: after `Transfer.create()`, call `Payout.create(method='instant', stripe_account=acct_id)` on behalf of the connected account.
 
 ### 2E — GEDCOM Import
 Many families already have their tree in Ancestry.com, MyHeritage, or FamilySearch. Re-entering every relationship manually is a hard sell. GEDCOM import removes the biggest adoption barrier for genealogy-minded families.

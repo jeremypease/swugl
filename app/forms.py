@@ -28,7 +28,7 @@ PRONOUN_CHOICES = [
 
 from flask_wtf import FlaskForm
 from flask_wtf.file import FileField, FileAllowed
-from wtforms import StringField, PasswordField, BooleanField, SubmitField, DateField, TextAreaField, SelectField, IntegerField, HiddenField
+from wtforms import StringField, PasswordField, BooleanField, SubmitField, DateField, TimeField, TextAreaField, SelectField, IntegerField, HiddenField
 from wtforms.validators import DataRequired, Email, Length, EqualTo, Regexp, Optional
 
 class LoginForm(FlaskForm):
@@ -190,11 +190,14 @@ class EventForm(FlaskForm):
     location = StringField('Location', validators=[Optional(), Length(max=200)])
     start_date = DateField('Start Date', validators=[DataRequired()])
     end_date = DateField('End Date', validators=[Optional()])
+    start_time = TimeField('Start Time', validators=[Optional()], format='%H:%M')
+    end_time = TimeField('End Time', validators=[Optional()], format='%H:%M')
     rsvp_deadline = DateField('RSVP Deadline', validators=[Optional()])
     is_annual = BooleanField('Repeats annually')
     has_meals = BooleanField('Meals')
     has_assignments = BooleanField('Assignments')
     has_sleeping = BooleanField('Sleeping Arrangements')
+    has_carpool = BooleanField('Carpool')
     cover_image = FileField('Cover Image', validators=[Optional(), FileAllowed(['jpg', 'jpeg', 'png', 'webp'], 'Images only.')])
     remove_cover = BooleanField('Remove cover image')
     submit = SubmitField('Save Event')

@@ -1,0 +1,166 @@
+{# ── EVENT PAYMENT CARD ────────────────────────────────────────────── #}
+{% if current_user.active_is_admin or payment_config %}
+<div class="card">
+    <div class="card-header">
+        <h3 style="font-size:14px;">
+            <i data-lucide="credit-card" style="width:14px;height:14px;vertical-align:-2px;"></i>
+            Collect Payment
+        </h3>
+        {% if current_user.active_is_admin and payment_config %}
+        <form method="POST" action="/events/{{ event.id }}/payment/disable" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-ghost btn-sm" style="font-size:12px;color:var(--slate);">Disable</button>
+        </form>
+        {% endif %}
+    </div>
+
+    {% if current_user.active_is_admin %}
+        {% if not payment_config %}
+        {# ── Admin setup form ───────────────────────────────────────── #}
+        <form method="POST" action="/events/{{ event.id }}/payment/setup">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div style="display:flex;flex-direction:column;gap:10px;">
+                <div>
+                    <label style="font-size:12px;color:var(--slate);display:block;margin-bottom:3px;">Amount</label>
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <span style="font-size:14px;color:var(--slate);">$</span>
+                        <input type="number" name="amount_dollars" min="0.50" step="0.01" placeholder="25.00"
+                               style="width:90px;font-size:14px;" required>
+                        <select name="charge_type" style="font-size:13px;flex:1;">
+                            <option value="per_family">per family</option>
+                            <option value="per_person">per person (RSVP)</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label style="font-size:12px;color:var(--slate);display:block;margin-bottom:3px;">Description <span style="color:var(--slate-soft);">(optional)</span></label>
+                    <input type="text" name="description" maxlength="200" placeholder="e.g. Cabin rental fee"
+                           style="width:100%;font-size:13px;">
+                </div>
+                <div>
+                    <label style="font-size:12px;color:var(--slate);display:block;margin-bottom:3px;">Deadline <span style="color:var(--slate-soft);">(optional)</span></label>
+                    <input type="date" name="deadline" style="font-size:13px;">
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm" style="width:100%;">Enable Payment Collection</button>
+            </div>
+        </form>
+
+        {% else %}
+        {# ── Admin progress view ────────────────────────────────────── #}
+        <div style="margin-bottom:10px;">
+            <div style="font-size:13px;color:var(--slate);margin-bottom:4px;">
+                {% if payment_config.charge_type == 'per_family' %}
+                    ${{ '%.2f'|format(payment_config.amount_dollars) }} per family
+                {% else %}
+                    ${{ '%.2f'|format(payment_config.amount_dollars) }} per person
+                {% endif %}
+                {% if payment_config.description %} · {{ payment_config.description }}{% endif %}
+            </div>
+            {% if payment_config.deadline %}
+            <div style="font-size:12px;color:var(--slate-soft);">Due {{ payment_config.deadline.strftime('%b %-d') }}</div>
+            {% endif %}
+        </div>
+
+        {% if payment_stats %}
+        <div style="background:var(--leaf-mist);border-radius:var(--r-s);padding:10px 12px;margin-bottom:12px;">
+            <div style="font-size:22px;font-weight:700;color:var(--vine);">${{ '%.2f'|format(payment_stats.total_cents / 100) }}</div>
+            <div style="font-size:12px;color:var(--slate);">collected from {{ payment_stats.paid_count }} household{{ 's' if payment_stats.paid_count != 1 }}</div>
+        </div>
+        {% endif %}
+
+        {# ── Payout section ─────────────────────────────────────────── #}
+        {% if payment_config.payout_transfer_id %}
+        <div style="display:flex;align-items:center;gap:6px;padding:8px 12px;background:var(--leaf-mist);border-radius:var(--r-s);color:var(--vine);font-size:13px;font-weight:600;">
+            <i data-lucide="check-circle" style="width:14px;height:14px;"></i>
+            Payout sent {{ payment_config.payout_at.strftime('%b %-d') }}
+        </div>
+        {% elif payment_stats and payment_stats.paid_count > 0 %}
+            {% set gross = payment_stats.total_cents %}
+            {% set swugl_fee = (gross * 0.02) | round | int %}
+            {% set estimated_payout = gross - swugl_fee %}
+        <div style="font-size:12px;color:var(--slate);margin-bottom:8px;padding:8px 10px;background:var(--bg-canvas);border-radius:var(--r-s);border:1px solid var(--hairline);">
+            <div style="display:flex;justify-content:space-between;margin-bottom:2px;">
+                <span>Gross collected</span><span>${{ '%.2f'|format(gross / 100) }}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:2px;color:var(--slate-soft);">
+                <span>Stripe fees (~2.9% + $0.30/txn)</span><span>deducted at payment</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;color:var(--slate-soft);">
+                <span>Swugl fee (2%)</span><span>−${{ '%.2f'|format(swugl_fee / 100) }}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-weight:600;color:var(--body);">
+                <span>You receive approx.</span><span>${{ '%.2f'|format(estimated_payout / 100) }}</span>
+            </div>
+        </div>
+            {% if payout_account and payout_account.onboarding_complete %}
+            <form method="POST" action="/events/{{ event.id }}/payment/payout">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-primary btn-sm" style="width:100%;">
+                    <i data-lucide="send" style="width:14px;height:14px;"></i>
+                    Withdraw to My Account
+                </button>
+            </form>
+            {% else %}
+            <a href="/billing" class="btn btn-secondary btn-sm" style="width:100%;text-align:center;display:block;">
+                Connect bank account to withdraw
+            </a>
+            {% endif %}
+        {% endif %}
+
+        {# Edit form (collapsed by default) #}
+        <details style="margin-top:10px;">
+            <summary style="font-size:12px;color:var(--slate);cursor:pointer;">Edit settings</summary>
+            <form method="POST" action="/events/{{ event.id }}/payment/setup" style="margin-top:10px;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <span style="font-size:14px;color:var(--slate);">$</span>
+                        <input type="number" name="amount_dollars" min="0.50" step="0.01"
+                               value="{{ '%.2f'|format(payment_config.amount_dollars) }}"
+                               style="width:90px;font-size:14px;" required>
+                        <select name="charge_type" style="font-size:13px;flex:1;">
+                            <option value="per_family" {% if payment_config.charge_type == 'per_family' %}selected{% endif %}>per family</option>
+                            <option value="per_person" {% if payment_config.charge_type == 'per_person' %}selected{% endif %}>per person</option>
+                        </select>
+                    </div>
+                    <input type="text" name="description" maxlength="200"
+                           value="{{ payment_config.description or '' }}" placeholder="Description"
+                           style="width:100%;font-size:13px;">
+                    <input type="date" name="deadline"
+                           value="{{ payment_config.deadline.strftime('%Y-%m-%d') if payment_config.deadline else '' }}"
+                           style="font-size:13px;">
+                    <button type="submit" class="btn btn-primary btn-sm">Save Changes</button>
+                </div>
+            </form>
+        </details>
+        {% endif %}
+
+    {% else %}
+        {# ── Member pay button or paid badge ───────────────────────── #}
+        <div style="font-size:13px;color:var(--slate);margin-bottom:10px;">
+            {% if payment_config.charge_type == 'per_family' %}
+                ${{ '%.2f'|format(payment_config.amount_dollars) }} per family
+            {% else %}
+                ${{ '%.2f'|format(payment_config.amount_dollars) }} per person
+            {% endif %}
+            {% if payment_config.description %}<br><span style="color:var(--slate-soft);">{{ payment_config.description }}</span>{% endif %}
+            {% if payment_config.deadline %}<br><span style="font-size:12px;">Due {{ payment_config.deadline.strftime('%b %-d') }}</span>{% endif %}
+        </div>
+
+        {% if my_payment and my_payment.status == 'paid' %}
+        <div style="display:flex;align-items:center;gap:6px;padding:8px 12px;background:var(--leaf-mist);border-radius:var(--r-s);color:var(--vine);font-size:14px;font-weight:600;">
+            <i data-lucide="check-circle" style="width:16px;height:16px;"></i>
+            Paid · ${{ '%.2f'|format(my_payment.amount_dollars) }}
+        </div>
+        {% else %}
+        <form method="POST" action="/events/{{ event.id }}/payment/checkout">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-primary btn-sm" style="width:100%;">
+                <i data-lucide="credit-card" style="width:14px;height:14px;"></i>
+                Pay Now
+            </button>
+        </form>
+        {% endif %}
+    {% endif %}
+</div>
+{% endif %}

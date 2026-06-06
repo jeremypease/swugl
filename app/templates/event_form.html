@@ -7,6 +7,11 @@
 .ac-item { padding:9px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--hairline); }
 .ac-item:last-child { border-bottom:none; }
 .ac-item:hover,.ac-item.active { background:var(--leaf-mist); }
+.ai-box { background:var(--leaf-mist);border:1.5px dashed var(--vine);border-radius:var(--r-m);padding:16px;margin-bottom:20px; }
+.ai-box label { font-weight:600;font-size:14px;display:flex;align-items:center;gap:6px;margin-bottom:8px; }
+.room-row { display:flex;gap:8px;align-items:center;margin-bottom:6px; }
+.room-row input[type=text] { flex:1; }
+.room-row input[type=number] { width:72px; }
 </style>
 {% endblock %}
 
@@ -22,115 +27,183 @@
 </div>
 
 <div style="max-width:580px;">
-    <div class="card">
-        <form method="POST" enctype="multipart/form-data">
-            {{ form.hidden_tag() }}
 
-            <div class="field-row">
-                <div class="field" style="flex:2;">
-                    {{ form.name.label }}
-                    {{ form.name() }}
-                    {% for error in form.name.errors %}<span class="msg">{{ error }}</span>{% endfor %}
-                </div>
-                <div class="field" style="flex:1;">
-                    {{ form.kind.label }}
-                    {{ form.kind() }}
-                </div>
-            </div>
-
-            <div class="field-row">
-                <div class="field">
-                    {{ form.start_date.label }}
-                    {{ form.start_date(id="start-date-input") }}
-                    {% for error in form.start_date.errors %}<span class="msg">{{ error }}</span>{% endfor %}
-                </div>
-                <div class="field">
-                    {{ form.end_date.label }}
-                    {{ form.end_date(id="end-date-input") }}
-                </div>
-                <div class="field" style="flex:0 0 auto;min-width:80px;">
-                    <label>&nbsp;</label>
-                    <div id="duration-display" style="font-size:13px;color:var(--slate);padding-top:10px;white-space:nowrap;"></div>
-                </div>
-            </div>
-
-            <div class="field-row">
-                <div class="field">
-                    {{ form.rsvp_deadline.label }}
-                    {{ form.rsvp_deadline() }}
-                </div>
-                <div class="field" style="flex:1;display:flex;align-items:flex-end;padding-bottom:2px;">
-                    <label class="checkbox-row" style="margin:0;">
-                        {{ form.is_annual() }}
-                        <span style="font-size:14px;"><strong>Annual</strong> <span style="color:var(--slate);font-size:12px;">Repeats yearly</span></span>
-                    </label>
-                </div>
-            </div>
-
-            <div class="field" style="position:relative;">
-                {{ form.location.label }}
-                {{ form.location(placeholder="e.g. Pease Family Cabin, Midway UT", autocomplete="off", id="location-input") }}
-                <div id="location-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1.5px solid var(--vine);border-top:none;border-radius:0 0 var(--r-m) var(--r-m);z-index:200;max-height:220px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.08);"></div>
-            </div>
-
-            <div class="field">
-                {{ form.description.label }}
-                {{ form.description(rows=3) }}
-            </div>
-
-            <div class="field">
-                <label>Sections</label>
-                <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
-                    <label class="checkbox-row">
-                        {{ form.has_meals() }}
-                        <span>
-                            <strong>Meals</strong>
-                            <span style="color:var(--text-muted);font-size:13px;margin-left:6px;">Sign-up sheet for who's bringing what</span>
-                        </span>
-                    </label>
-                    <label class="checkbox-row">
-                        {{ form.has_assignments() }}
-                        <span>
-                            <strong>Assignments</strong>
-                            <span style="color:var(--text-muted);font-size:13px;margin-left:6px;">Task list members can claim</span>
-                        </span>
-                    </label>
-                    <label class="checkbox-row">
-                        {{ form.has_sleeping() }}
-                        <span>
-                            <strong>Sleeping Arrangements</strong>
-                            <span style="color:var(--text-muted);font-size:13px;margin-left:6px;">Rooms and spots assigned by admin</span>
-                        </span>
-                    </label>
-                </div>
-            </div>
-
-            <div class="field">
-                {{ form.cover_image.label }}
-                {% if event and event.cover_image_path %}
-                <div style="margin-bottom:8px;">
-                    <img src="{{ photo_url(event.cover_image_path) }}" style="height:80px;border-radius:var(--r-s);object-fit:cover;">
-                </div>
-                <label class="checkbox-row" style="margin-bottom:6px;">
-                    {{ form.remove_cover() }} <span style="font-size:13px;">Remove current cover image</span>
-                </label>
-                {% endif %}
-                {{ form.cover_image() }}
-            </div>
-
-            <div style="display:flex;gap:10px;margin-top:8px;">
-                <button type="submit" class="btn btn-primary">
-                    <i data-lucide="check"></i> {% if event %}Save Changes{% else %}Create Event{% endif %}
-                </button>
-                <a href="{{ '/events/' ~ event.id if event else '/events' }}" class="btn btn-secondary">Cancel</a>
-            </div>
-        </form>
+{# ── AI Quick-Fill (new events only) ───────────────────────────────── #}
+{% if not event %}
+<div class="ai-box">
+    <label>
+        <i data-lucide="sparkles" style="width:16px;height:16px;color:var(--vine);"></i>
+        Describe your event (optional)
+    </label>
+    <textarea id="ai-description" rows="2" placeholder="e.g. 4-day cabin trip June 20–23 for 18 people, sleeping in 5 rooms, meals each night" style="width:100%;font-size:14px;margin-bottom:8px;"></textarea>
+    <div style="display:flex;align-items:center;gap:10px;">
+        <button type="button" id="ai-parse-btn" class="btn btn-primary btn-sm">
+            <i data-lucide="sparkles" style="width:14px;height:14px;"></i> Fill form with AI
+        </button>
+        <span id="ai-status" style="font-size:13px;color:var(--slate);display:none;">Thinking…</span>
     </div>
+</div>
+{% endif %}
+
+<div class="card">
+    <form method="POST" enctype="multipart/form-data" id="event-form">
+        {{ form.hidden_tag() }}
+
+        {# Name + Type #}
+        <div class="field-row">
+            <div class="field" style="flex:2;">
+                {{ form.name.label }}
+                {{ form.name(id="f-name") }}
+                {% for error in form.name.errors %}<span class="msg">{{ error }}</span>{% endfor %}
+            </div>
+            <div class="field" style="flex:1;">
+                {{ form.kind.label }}
+                {{ form.kind(id="f-kind") }}
+            </div>
+        </div>
+
+        {# Dates + duration #}
+        <div class="field-row">
+            <div class="field">
+                {{ form.start_date.label }}
+                {{ form.start_date(id="start-date-input") }}
+                {% for error in form.start_date.errors %}<span class="msg">{{ error }}</span>{% endfor %}
+            </div>
+            <div class="field">
+                {{ form.end_date.label }}
+                {{ form.end_date(id="end-date-input") }}
+            </div>
+            <div class="field" style="flex:0 0 auto;min-width:70px;">
+                <label>&nbsp;</label>
+                <div id="duration-display" style="font-size:13px;color:var(--slate);padding-top:10px;white-space:nowrap;"></div>
+            </div>
+        </div>
+
+        {# Times #}
+        <div class="field-row">
+            <div class="field">
+                {{ form.start_time.label }}
+                {{ form.start_time(id="f-start-time", placeholder="optional") }}
+            </div>
+            <div class="field">
+                {{ form.end_time.label }}
+                {{ form.end_time(id="f-end-time", placeholder="optional") }}
+            </div>
+            <div class="field" style="flex:0 0 auto;min-width:70px;">
+                <label>&nbsp;</label>
+                <div id="time-duration-display" style="font-size:13px;color:var(--slate);padding-top:10px;white-space:nowrap;"></div>
+            </div>
+        </div>
+
+        {# RSVP deadline + annual #}
+        <div class="field-row">
+            <div class="field">
+                {{ form.rsvp_deadline.label }}
+                {{ form.rsvp_deadline() }}
+            </div>
+            <div class="field" style="flex:1;display:flex;align-items:flex-end;padding-bottom:2px;">
+                <label class="checkbox-row" style="margin:0;">
+                    {{ form.is_annual() }}
+                    <span style="font-size:14px;"><strong>Annual</strong> <span style="color:var(--slate);font-size:12px;">Repeats yearly</span></span>
+                </label>
+            </div>
+        </div>
+
+        {# Location #}
+        <div class="field" style="position:relative;">
+            {{ form.location.label }}
+            {{ form.location(placeholder="e.g. Pease Family Cabin, Midway UT", autocomplete="off", id="location-input") }}
+            <div id="location-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1.5px solid var(--vine);border-top:none;border-radius:0 0 var(--r-m) var(--r-m);z-index:200;max-height:220px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.08);"></div>
+        </div>
+
+        {# Description #}
+        <div class="field">
+            {{ form.description.label }}
+            {{ form.description(rows=3, id="f-description") }}
+        </div>
+
+        {# Sections #}
+        <div class="field">
+            <label>Sections</label>
+            <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
+                <label class="checkbox-row">
+                    {{ form.has_meals(id="f-has-meals") }}
+                    <span><strong>Meals</strong> <span style="color:var(--text-muted);font-size:13px;margin-left:6px;">Sign-up sheet for who's bringing what</span></span>
+                </label>
+                <label class="checkbox-row">
+                    {{ form.has_assignments(id="f-has-assignments") }}
+                    <span><strong>Assignments</strong> <span style="color:var(--text-muted);font-size:13px;margin-left:6px;">Task list members can claim</span></span>
+                </label>
+                <label class="checkbox-row">
+                    {{ form.has_sleeping(id="f-has-sleeping") }}
+                    <span><strong>Sleeping Arrangements</strong> <span style="color:var(--text-muted);font-size:13px;margin-left:6px;">Rooms and spots assigned by admin</span></span>
+                </label>
+                <label class="checkbox-row">
+                    {{ form.has_carpool(id="f-has-carpool") }}
+                    <span><strong>Carpool</strong> <span style="color:var(--text-muted);font-size:13px;margin-left:6px;">Coordinate rides to the event</span></span>
+                </label>
+            </div>
+        </div>
+
+        {# Sleeping rooms (shown when has_sleeping is checked, new events only) #}
+        {% if not event %}
+        <div id="rooms-section" style="display:none;">
+            <div class="field">
+                <label style="display:flex;align-items:center;gap:6px;">
+                    <i data-lucide="bed-double" style="width:14px;height:14px;"></i>
+                    Rooms <span style="font-weight:400;font-size:12px;color:var(--slate);margin-left:4px;">— add now or later from the event page</span>
+                </label>
+                <div id="rooms-list">
+                    <div class="room-row">
+                        <input type="text" name="rooms[0][name]" placeholder="Room name (e.g. Master bedroom)">
+                        <input type="number" name="rooms[0][capacity]" placeholder="Sleeps" min="1">
+                        <button type="button" class="btn btn-ghost btn-sm remove-room" style="padding:4px 6px;color:var(--slate);">×</button>
+                    </div>
+                    <div class="room-row">
+                        <input type="text" name="rooms[1][name]" placeholder="Room name">
+                        <input type="number" name="rooms[1][capacity]" placeholder="Sleeps" min="1">
+                        <button type="button" class="btn btn-ghost btn-sm remove-room" style="padding:4px 6px;color:var(--slate);">×</button>
+                    </div>
+                    <div class="room-row">
+                        <input type="text" name="rooms[2][name]" placeholder="Room name">
+                        <input type="number" name="rooms[2][capacity]" placeholder="Sleeps" min="1">
+                        <button type="button" class="btn btn-ghost btn-sm remove-room" style="padding:4px 6px;color:var(--slate);">×</button>
+                    </div>
+                </div>
+                <button type="button" id="add-room-btn" class="btn btn-ghost btn-sm" style="margin-top:4px;">
+                    <i data-lucide="plus" style="width:13px;height:13px;"></i> Add room
+                </button>
+            </div>
+        </div>
+        {% endif %}
+
+        {# Cover image #}
+        <div class="field">
+            {{ form.cover_image.label }}
+            {% if event and event.cover_image_path %}
+            <div style="margin-bottom:8px;">
+                <img src="{{ photo_url(event.cover_image_path) }}" style="height:80px;border-radius:var(--r-s);object-fit:cover;">
+            </div>
+            <label class="checkbox-row" style="margin-bottom:6px;">
+                {{ form.remove_cover() }} <span style="font-size:13px;">Remove current cover image</span>
+            </label>
+            {% endif %}
+            {{ form.cover_image() }}
+        </div>
+
+        <div style="display:flex;gap:10px;margin-top:8px;">
+            <button type="submit" class="btn btn-primary">
+                <i data-lucide="check"></i> {% if event %}Save Changes{% else %}Create Event{% endif %}
+            </button>
+            <a href="{{ '/events/' ~ event.id if event else '/events' }}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
 </div>
 
 <script nonce="{{ g.csp_nonce }}">
 (function () {
-    // Live duration display
+    // ── Duration display ────────────────────────────────────────────
     const startEl = document.getElementById('start-date-input');
     const endEl = document.getElementById('end-date-input');
     const durEl = document.getElementById('duration-display');
@@ -145,76 +218,202 @@
     if (startEl) startEl.addEventListener('change', updateDuration);
     if (endEl) endEl.addEventListener('change', updateDuration);
     updateDuration();
-})();
 
-(function () {
-    const input = document.getElementById('location-input');
-    const dropdown = document.getElementById('location-dropdown');
-    if (!input) return;
-
-    let timer, activeIndex = -1, items = [];
-
-    function formatAddress(p) {
-        const parts = [];
-        if (p.name && p.name !== p.street) parts.push(p.name);
-        if (p.housenumber && p.street) parts.push(p.housenumber + ' ' + p.street);
-        else if (p.street) parts.push(p.street);
-        if (p.city) parts.push(p.city);
-        if (p.state) parts.push(p.state);
-        if (p.country && p.country !== 'United States') parts.push(p.country);
-        return parts.join(', ');
+    // ── Time duration display ───────────────────────────────────────
+    const stEl = document.getElementById('f-start-time');
+    const etEl = document.getElementById('f-end-time');
+    const tdEl = document.getElementById('time-duration-display');
+    function updateTimeDuration() {
+        if (!stEl || !etEl || !tdEl || !stEl.value || !etEl.value) { if(tdEl) tdEl.textContent=''; return; }
+        const [sh,sm] = stEl.value.split(':').map(Number);
+        const [eh,em] = etEl.value.split(':').map(Number);
+        const mins = (eh*60+em) - (sh*60+sm);
+        if (mins <= 0) { tdEl.textContent = ''; return; }
+        const h = Math.floor(mins/60), m = mins%60;
+        tdEl.textContent = h > 0 ? (m > 0 ? `${h}h ${m}m` : `${h}h`) : `${m}m`;
     }
+    if (stEl) stEl.addEventListener('change', updateTimeDuration);
+    if (etEl) etEl.addEventListener('change', updateTimeDuration);
+    updateTimeDuration();
 
-    function render(suggestions) {
-        dropdown.innerHTML = '';
-        items = suggestions;
-        activeIndex = -1;
-        if (!suggestions.length) { dropdown.style.display = 'none'; return; }
-        suggestions.forEach((label, i) => {
-            const el = document.createElement('div');
-            el.className = 'ac-item';
-            el.textContent = label;
-            el.addEventListener('mousedown', e => { e.preventDefault(); pick(i); });
-            dropdown.appendChild(el);
+    // ── Type smart defaults ─────────────────────────────────────────
+    const kindEl = document.getElementById('f-kind');
+    const TYPE_DEFAULTS = {
+        'Camping':    { meals:true,  sleeping:true,  assignments:true,  carpool:true  },
+        'Reunion':    { meals:true,  sleeping:false, assignments:true,  carpool:false },
+        'Holiday':    { meals:true,  sleeping:false, assignments:false, carpool:false },
+        'Birthday':   { meals:false, sleeping:false, assignments:false, carpool:false },
+        'Wedding':    { meals:false, sleeping:true,  assignments:true,  carpool:true  },
+        'Graduation': { meals:false, sleeping:false, assignments:false, carpool:false },
+    };
+    if (kindEl) {
+        kindEl.addEventListener('change', function() {
+            const d = TYPE_DEFAULTS[this.value];
+            if (!d) return;
+            const setCheck = (id, val) => { const el = document.getElementById(id); if(el) el.checked = val; };
+            setCheck('f-has-meals', d.meals);
+            setCheck('f-has-sleeping', d.sleeping);
+            setCheck('f-has-assignments', d.assignments);
+            setCheck('f-has-carpool', d.carpool);
+            updateRoomsVisibility();
         });
-        dropdown.style.display = 'block';
     }
 
-    function pick(i) {
-        input.value = items[i];
-        dropdown.style.display = 'none';
-        activeIndex = -1;
+    // ── Sleeping rooms section ──────────────────────────────────────
+    const sleepingCheck = document.getElementById('f-has-sleeping');
+    const roomsSection = document.getElementById('rooms-section');
+    let roomCount = 3;
+
+    function updateRoomsVisibility() {
+        if (!roomsSection || !sleepingCheck) return;
+        roomsSection.style.display = sleepingCheck.checked ? 'block' : 'none';
+    }
+    if (sleepingCheck) {
+        sleepingCheck.addEventListener('change', updateRoomsVisibility);
+        updateRoomsVisibility();
     }
 
-    function highlight(i) {
-        [...dropdown.children].forEach((el, j) => el.classList.toggle('active', j === i));
-    }
-
-    async function fetchSuggestions(q) {
-        try {
-            const r = await fetch('https://photon.komoot.io/api/?q=' + encodeURIComponent(q) + '&limit=6&lang=en');
-            const data = await r.json();
-            const labels = [...new Set(data.features.map(f => formatAddress(f.properties)).filter(Boolean))];
-            render(labels);
-        } catch { dropdown.style.display = 'none'; }
-    }
-
-    input.addEventListener('input', () => {
-        clearTimeout(timer);
-        const q = input.value.trim();
-        if (q.length < 3) { dropdown.style.display = 'none'; return; }
-        timer = setTimeout(() => fetchSuggestions(q), 300);
+    document.getElementById('add-room-btn')?.addEventListener('click', function() {
+        const list = document.getElementById('rooms-list');
+        const row = document.createElement('div');
+        row.className = 'room-row';
+        row.innerHTML = `<input type="text" name="rooms[${roomCount}][name]" placeholder="Room name">` +
+            `<input type="number" name="rooms[${roomCount}][capacity]" placeholder="Sleeps" min="1">` +
+            `<button type="button" class="btn btn-ghost btn-sm remove-room" style="padding:4px 6px;color:var(--slate);">×</button>`;
+        list.appendChild(row);
+        roomCount++;
+        row.querySelector('.remove-room').addEventListener('click', function() { row.remove(); });
     });
 
-    input.addEventListener('keydown', e => {
-        if (dropdown.style.display === 'none') return;
-        if (e.key === 'ArrowDown') { e.preventDefault(); activeIndex = Math.min(activeIndex + 1, items.length - 1); highlight(activeIndex); }
-        else if (e.key === 'ArrowUp') { e.preventDefault(); activeIndex = Math.max(activeIndex - 1, 0); highlight(activeIndex); }
-        else if (e.key === 'Enter' && activeIndex >= 0) { e.preventDefault(); pick(activeIndex); }
-        else if (e.key === 'Escape') { dropdown.style.display = 'none'; }
+    document.querySelectorAll('.remove-room').forEach(btn => {
+        btn.addEventListener('click', function() { this.closest('.room-row').remove(); });
     });
 
-    input.addEventListener('blur', () => setTimeout(() => { dropdown.style.display = 'none'; }, 150));
+    // ── Location autocomplete ───────────────────────────────────────
+    const locInput = document.getElementById('location-input');
+    const dropdown = document.getElementById('location-dropdown');
+    if (locInput) {
+        let timer, activeIndex = -1, items = [];
+        function formatAddress(p) {
+            const parts = [];
+            if (p.name && p.name !== p.street) parts.push(p.name);
+            if (p.housenumber && p.street) parts.push(p.housenumber + ' ' + p.street);
+            else if (p.street) parts.push(p.street);
+            if (p.city) parts.push(p.city);
+            if (p.state) parts.push(p.state);
+            if (p.country && p.country !== 'United States') parts.push(p.country);
+            return parts.join(', ');
+        }
+        function render(suggestions) {
+            dropdown.innerHTML = ''; items = suggestions; activeIndex = -1;
+            if (!suggestions.length) { dropdown.style.display = 'none'; return; }
+            suggestions.forEach((label, i) => {
+                const el = document.createElement('div');
+                el.className = 'ac-item'; el.textContent = label;
+                el.addEventListener('mousedown', e => { e.preventDefault(); locInput.value = items[i]; dropdown.style.display = 'none'; });
+                dropdown.appendChild(el);
+            });
+            dropdown.style.display = 'block';
+        }
+        function highlight(i) { [...dropdown.children].forEach((el, j) => el.classList.toggle('active', j === i)); }
+        async function fetchSuggestions(q) {
+            try {
+                const r = await fetch('https://photon.komoot.io/api/?q=' + encodeURIComponent(q) + '&limit=6&lang=en');
+                const data = await r.json();
+                const labels = [...new Set(data.features.map(f => formatAddress(f.properties)).filter(Boolean))];
+                render(labels);
+            } catch { dropdown.style.display = 'none'; }
+        }
+        locInput.addEventListener('input', () => {
+            clearTimeout(timer);
+            const q = locInput.value.trim();
+            if (q.length < 3) { dropdown.style.display = 'none'; return; }
+            timer = setTimeout(() => fetchSuggestions(q), 300);
+        });
+        locInput.addEventListener('keydown', e => {
+            if (dropdown.style.display === 'none') return;
+            if (e.key === 'ArrowDown') { e.preventDefault(); activeIndex = Math.min(activeIndex + 1, items.length - 1); highlight(activeIndex); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); activeIndex = Math.max(activeIndex - 1, 0); highlight(activeIndex); }
+            else if (e.key === 'Enter' && activeIndex >= 0) { e.preventDefault(); locInput.value = items[activeIndex]; dropdown.style.display = 'none'; }
+            else if (e.key === 'Escape') dropdown.style.display = 'none';
+        });
+        locInput.addEventListener('blur', () => setTimeout(() => { dropdown.style.display = 'none'; }, 150));
+    }
+
+    // ── AI parse ───────────────────────────────────────────────────
+    const aiBtn = document.getElementById('ai-parse-btn');
+    const aiStatus = document.getElementById('ai-status');
+    const aiTextarea = document.getElementById('ai-description');
+
+    function fillField(id, value) {
+        const el = document.getElementById(id);
+        if (el && value !== undefined && value !== null) el.value = value;
+    }
+
+    function fillRooms(rooms) {
+        if (!rooms || !rooms.length) return;
+        const list = document.getElementById('rooms-list');
+        if (!list) return;
+        list.innerHTML = '';
+        roomCount = 0;
+        rooms.forEach(r => {
+            const row = document.createElement('div');
+            row.className = 'room-row';
+            row.innerHTML = `<input type="text" name="rooms[${roomCount}][name]" value="${(r.name||'').replace(/"/g,'&quot;')}" placeholder="Room name">` +
+                `<input type="number" name="rooms[${roomCount}][capacity]" value="${r.capacity||''}" placeholder="Sleeps" min="1">` +
+                `<button type="button" class="btn btn-ghost btn-sm remove-room" style="padding:4px 6px;color:var(--slate);">×</button>`;
+            list.appendChild(row);
+            row.querySelector('.remove-room').addEventListener('click', function() { row.remove(); });
+            roomCount++;
+        });
+    }
+
+    if (aiBtn) {
+        aiBtn.addEventListener('click', async function() {
+            const desc = aiTextarea.value.trim();
+            if (!desc) return;
+            aiBtn.disabled = true;
+            aiStatus.style.display = 'inline';
+            try {
+                const resp = await fetch('/events/ai-parse', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('[name=csrf_token]').value},
+                    body: JSON.stringify({description: desc}),
+                });
+                if (!resp.ok) throw new Error('parse failed');
+                const d = await resp.json();
+
+                fillField('f-name', d.name);
+                fillField('f-kind', d.kind);
+                fillField('start-date-input', d.start_date);
+                fillField('end-date-input', d.end_date);
+                fillField('f-start-time', d.start_time);
+                fillField('f-end-time', d.end_time);
+                fillField('location-input', d.location);
+                fillField('f-description', d.description);
+
+                const setCheck = (id, val) => { const el = document.getElementById(id); if(el && val !== undefined) el.checked = !!val; };
+                setCheck('f-has-meals', d.has_meals);
+                setCheck('f-has-sleeping', d.has_sleeping);
+                setCheck('f-has-assignments', d.has_assignments);
+                setCheck('f-has-carpool', d.has_carpool);
+                updateRoomsVisibility();
+                updateDuration();
+                updateTimeDuration();
+
+                if (d.rooms && d.rooms.length) fillRooms(d.rooms);
+
+                aiStatus.textContent = '✓ Form filled — review and save';
+                aiStatus.style.color = 'var(--vine)';
+            } catch(e) {
+                aiStatus.textContent = 'Could not parse — fill in manually.';
+                aiStatus.style.color = 'var(--tomato)';
+            } finally {
+                aiBtn.disabled = false;
+                aiStatus.style.display = 'inline';
+            }
+        });
+    }
 })();
 </script>
 {% endblock %}

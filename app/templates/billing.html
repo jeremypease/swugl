@@ -118,6 +118,45 @@
 </div>
 {% endif %}
 
+{# ── Payout account (event collections) ────────────────────────────────── #}
+{% if current_user.active_is_admin %}
+<div class="card" style="margin-bottom:20px;">
+    <div class="card-header"><h3>Event Payout Account</h3></div>
+    <p style="font-size:14px;color:var(--slate);margin-bottom:16px;">
+        Connect your bank account to withdraw event payment collections directly. Swugl takes a 2% platform fee; Stripe's payment processing fee (~2.9% + $0.30/txn) is deducted at the time each member pays.
+    </p>
+    {% if payout_account and payout_account.onboarding_complete %}
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+        <span style="background:var(--leaf-mist);color:var(--vine);font-weight:600;font-size:13px;padding:4px 10px;border-radius:99px;">
+            <i data-lucide="check" style="width:12px;height:12px;vertical-align:-1px;"></i> Connected
+        </span>
+        <span style="font-size:13px;color:var(--slate);">{{ payout_account.stripe_account_id }}</span>
+    </div>
+    <form method="POST" action="/billing/connect">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-ghost btn-sm">Update bank details</button>
+    </form>
+    {% elif payout_account %}
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+        <span style="background:#fef9e7;color:#8a6800;font-weight:600;font-size:13px;padding:4px 10px;border-radius:99px;">Setup incomplete</span>
+    </div>
+    <p style="font-size:13px;color:var(--slate);margin-bottom:12px;">Finish connecting your bank account to enable withdrawals.</p>
+    <form method="POST" action="/billing/connect">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-primary">Continue Setup</button>
+    </form>
+    {% else %}
+    <form method="POST" action="/billing/connect">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-primary">
+            <i data-lucide="landmark" style="width:15px;height:15px;vertical-align:-2px;"></i>
+            Connect Bank Account
+        </button>
+    </form>
+    {% endif %}
+</div>
+{% endif %}
+
 {# ── Payment history ─────────────────────────────────────────────────────── #}
 {% if invoices %}
 <div class="card">

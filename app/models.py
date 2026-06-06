@@ -485,6 +485,10 @@ class Event(db.Model):
     has_assignments = db.Column(db.Boolean, default=False)
     has_sleeping = db.Column(db.Boolean, default=False)
     has_carpool = db.Column(db.Boolean, default=False)
+    start_time = db.Column(db.Time, nullable=True)
+    end_time = db.Column(db.Time, nullable=True)
+    lat = db.Column(db.Float, nullable=True)
+    lng = db.Column(db.Float, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     cover_image_path = db.Column(db.String(200), nullable=True)
 
@@ -495,6 +499,8 @@ class Event(db.Model):
     comments = db.relationship('EventComment', backref='event', cascade='all, delete-orphan', order_by='EventComment.created_at')
     carpool_offers = db.relationship('CarpoolOffer', backref='event', cascade='all, delete-orphan')
     survey_responses = db.relationship('EventSurveyResponse', backref='event', cascade='all, delete-orphan')
+    payment_config = db.relationship('EventPaymentConfig', uselist=False, back_populates='event', cascade='all, delete-orphan')
+    payment_records = db.relationship('EventPaymentRecord', back_populates='event', cascade='all, delete-orphan')
 
     def date_range_display(self):
         if not self.end_date or self.end_date == self.start_date:
@@ -853,3 +859,71 @@ class EventSurveyResponse(db.Model):
     )
 
     person = db.relationship('Person')
+
+
+# ── Event payment collection ───────────────────────────────────────────────────
+
+class FamilyPayoutAccount(db.Model):
+    """Stripe Express connected account for a family admin to receive event payouts."""
+    __tablename__ = 'family_payout_accounts'
+
+    id = db.Column(db.Integer, primary_key=True)
+    family_id = db.Column(db.Integer, db.ForeignKey('families.id'), nullable=False, unique=True)
+    stripe_account_id = db.Column(db.String(100), nullable=False)  # acct_xxx
+    onboarding_complete = db.Column(db.Boolean, nullable=False, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    family = db.relationship('Family', backref=db.backref('payout_account', uselist=False))
+
+
+class EventPaymentConfig(db.Model):
+    """Per-event payment settings configured by the admin."""
+    __tablename__ = 'event_payment_configs'
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.Integer, db.ForeignKey('events.id'), nullable=False, unique=True)
+    amount_cents = db.Column(db.Integer, nullable=False)  # e.g. 2500 = $25.00
+    charge_type = db.Column(db.String(20), nullable=False, default='per_family')  # 'per_family' | 'per_person'
+    description = db.Column(db.String(200), nullable=True)  # shown on Stripe Checkout page
+    deadline = db.Column(db.Date, nullable=True)
+    is_active = db.Column(db.Boolean, nullable=False, default=True, server_default='1')
+    payout_transfer_id = db.Column(db.String(200), nullable=True)  # Stripe Transfer ID once paid out
+    payout_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    event = db.relationship('Event', back_populates='payment_config')
+
+    @property
+    def amount_dollars(self):
+        return self.amount_cents / 100
+
+
+class EventPaymentRecord(db.Model):
+    """One row per payer per event — tracks Stripe session and payment status."""
+    __tablename__ = 'event_payment_records'
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.Integer, db.ForeignKey('events.id'), nullable=False, index=True)
+    payer_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    amount_cents = db.Column(db.Integer, nullable=False)
+    net_cents = db.Column(db.Integer, nullable=True)  # actual net after Stripe fees; populated by webhook
+    stripe_checkout_session_id = db.Column(db.String(200), nullable=True, unique=True, index=True)
+    stripe_payment_intent_id = db.Column(db.String(200), nullable=True, index=True)
+    status = db.Column(db.String(20), nullable=False, default='pending')  # 'pending' | 'paid' | 'refunded'
+    paid_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    event = db.relationship('Event', back_populates='payment_records')
+    payer = db.relationship('User', backref=db.backref('event_payments', lazy='dynamic'))
+
+    __table_args__ = (db.UniqueConstraint('event_id', 'payer_user_id'),)
+
+    @property
+    def amount_dollars(self):
+        return self.amount_cents / 100
+
+    @property
+    def net_dollars(self):
+        if self.net_cents is not None:
+            return self.net_cents / 100
+        return None

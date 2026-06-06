@@ -135,7 +135,11 @@ def get_event_weather(event) -> list | None:
     if start > today + timedelta(days=10) or end < today:
         return None
 
-    coords = _geocode(event.location)
+    # Use stored coordinates if available; fall back to geocoding
+    if event.lat and event.lng:
+        coords = (event.lat, event.lng)
+    else:
+        coords = _geocode(event.location)
     if not coords:
         return None
 

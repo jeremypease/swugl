@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, send_file, session, abort
 from flask_login import login_user, logout_user, login_required, current_user
-from .models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, ASSIGNMENT_CATEGORIES, EventRSVP, EventSleepingSpot, EventComment, Announcement, Album, Photo, Poll, NotificationPreference, NOTIFICATION_EVENTS, UserPodMembership, CalendarToken
+from .models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, ASSIGNMENT_CATEGORIES, EventRSVP, EventSleepingSpot, EventComment, Announcement, Album, Photo, Poll, NotificationPreference, NOTIFICATION_EVENTS, UserPodMembership, CalendarToken, EventPaymentConfig, EventPaymentRecord, FamilyPayoutAccount
 from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm, ForgotPasswordForm, ResetPasswordForm, AddPersonForm, RelativeForm, AddParentForm, FamilySettingsForm, EditPersonForm, EventForm, EventCommentForm, EventMealForm, EventMealFamilyAssignForm, EventMealItemForm, EventMealSelfSignupForm, EventMealAssignForm, EventAssignmentForm, EventAssignmentAdminAssignForm, EventSleepingSpotForm, EventSleepingAssignForm, GENDER_CHOICES_DEFAULT, GENDER_CHOICES_EXPANDED, PRONOUN_CHOICES, AnnouncementForm, AlbumForm, PhotoUploadForm, SupportForm
 from .email import send_verification_email, send_pending_notification, send_approval_notification, send_spouse_confirmation_email, send_spouse_invitation_email, send_password_reset_email, send_member_invitation_email, send_welcome_email, send_support_email, send_pod_added_email
 from datetime import date, datetime, timedelta
@@ -1972,36 +1972,127 @@ def events_list():
     return render_template('events_list.html', upcoming=upcoming, past=past)
 
 
+@main.route('/events/ai-parse', methods=['POST'])
+@login_required
+@admin_required
+def event_ai_parse():
+    """Parse a natural-language event description into structured fields using Claude."""
+    import anthropic as _anthropic
+    from flask import jsonify
+    description = (request.json or {}).get('description', '').strip()
+    if not description:
+        return jsonify({'error': 'No description provided'}), 400
+
+    api_key = current_app.config.get('ANTHROPIC_API_KEY')
+    if not api_key:
+        return jsonify({'error': 'AI not configured'}), 503
+
+    today = date.today().isoformat()
+    prompt = f"""Today is {today}. Extract structured event details from the description below.
+Return ONLY valid JSON with these exact keys (omit keys you cannot determine):
+- name (string)
+- kind (one of: Reunion, Holiday, Birthday, Camping, Wedding, Graduation, Other)
+- start_date (YYYY-MM-DD)
+- end_date (YYYY-MM-DD, only if multi-day)
+- start_time (HH:MM 24h, only if mentioned)
+- end_time (HH:MM 24h, only if mentioned)
+- location (string)
+- description (string, a short summary)
+- has_meals (true/false)
+- has_sleeping (true/false)
+- has_assignments (true/false)
+- has_carpool (true/false)
+- rooms (array of {{"name": string, "capacity": number}} — only if sleeping spots are described)
+
+Description: {description}"""
+
+    try:
+        client = _anthropic.Anthropic(api_key=api_key)
+        msg = client.messages.create(
+            model='claude-haiku-4-5-20251001',
+            max_tokens=512,
+            messages=[{'role': 'user', 'content': prompt}],
+        )
+        import json as _json
+        text = msg.content[0].text.strip()
+        # Strip markdown code fences if present
+        if text.startswith('```'):
+            text = text.split('\n', 1)[1].rsplit('```', 1)[0].strip()
+        data = _json.loads(text)
+        return jsonify(data)
+    except Exception as e:
+        current_app.logger.error(f'AI event parse error: {e}')
+        return jsonify({'error': 'AI parsing failed'}), 500
+
+
+def _geocode_location(location_str):
+    """Return (lat, lng) for a location string, or (None, None)."""
+    if not location_str:
+        return None, None
+    try:
+        import requests as _req
+        resp = _req.get(
+            'https://nominatim.openstreetmap.org/search',
+            params={'q': location_str, 'format': 'json', 'limit': 1},
+            headers={'User-Agent': 'swugl-family-app/1.0'},
+            timeout=5,
+        )
+        results = resp.json()
+        if results:
+            return float(results[0]['lat']), float(results[0]['lon'])
+    except Exception:
+        pass
+    return None, None
+
+
 @main.route('/events/add', methods=['GET', 'POST'])
 @login_required
 @admin_required
 def event_add():
     form = EventForm()
     if form.validate_on_submit():
+        location = form.location.data or None
+        lat, lng = _geocode_location(location)
         event = Event(
             family_id=current_user.active_family_id,
             name=form.name.data,
             kind=form.kind.data or None,
             description=form.description.data or None,
-            location=form.location.data or None,
+            location=location,
+            lat=lat,
+            lng=lng,
             start_date=form.start_date.data,
             end_date=form.end_date.data,
+            start_time=form.start_time.data,
+            end_time=form.end_time.data,
             rsvp_deadline=form.rsvp_deadline.data,
             is_annual=form.is_annual.data,
             has_meals=form.has_meals.data,
             has_assignments=form.has_assignments.data,
             has_sleeping=form.has_sleeping.data,
+            has_carpool=form.has_carpool.data,
         )
         db.session.add(event)
         db.session.flush()
+
+        # Create sleeping spots submitted with the form
+        from .models import EventSleepingSpot
+        room_index = 0
+        while True:
+            room_name = request.form.get(f'rooms[{room_index}][name]', '').strip()
+            if not room_name:
+                break
+            try:
+                capacity = int(request.form.get(f'rooms[{room_index}][capacity]', '') or 0) or None
+            except ValueError:
+                capacity = None
+            db.session.add(EventSleepingSpot(event_id=event.id, name=room_name, capacity=capacity))
+            room_index += 1
+
         if form.cover_image.data and hasattr(form.cover_image.data, 'filename') and form.cover_image.data.filename:
-            f = form.cover_image.data
-            ext = os.path.splitext(f.filename)[1].lower()
-            upload_dir = os.path.join(current_app.root_path, 'static', 'uploads', 'events')
-            os.makedirs(upload_dir, exist_ok=True)
-            filename = f'{uuid.uuid4().hex}{ext}'
-            f.save(os.path.join(upload_dir, filename))
-            event.cover_image_path = f'uploads/events/{filename}'
+            key = upload_photo(form.cover_image.data, folder='events')
+            if key:
+                event.cover_image_path = key
         db.session.commit()
         flash(f'{event.name} has been created.', 'info')
         from .notifications import notify
@@ -2098,6 +2189,23 @@ def event_detail(event_id):
     except Exception:
         weather = None
 
+    payment_config = event.payment_config if event.payment_config and event.payment_config.is_active else None
+    my_payment = None
+    if payment_config and current_user.id:
+        my_payment = EventPaymentRecord.query.filter_by(
+            event_id=event.id, payer_user_id=current_user.id
+        ).first()
+
+    # Admin progress stats
+    payment_stats = None
+    if payment_config and current_user.active_is_admin:
+        paid_records = EventPaymentRecord.query.filter_by(event_id=event.id, status='paid').all()
+        total_amount = sum(r.amount_cents for r in paid_records)
+        payment_stats = {
+            'paid_count': len(paid_records),
+            'total_cents': total_amount,
+        }
+
     return render_template('event_detail.html',
         event=event,
         meal_form=meal_form,
@@ -2120,6 +2228,10 @@ def event_detail(event_id):
         family_groups=family_groups,
         all_people=all_people,
         weather=weather,
+        payment_config=payment_config,
+        my_payment=my_payment,
+        payment_stats=payment_stats,
+        payout_account=current_user.family.payout_account,
     )
 
 
@@ -2136,15 +2248,20 @@ def event_edit(event_id):
         event.name = form.name.data
         event.kind = form.kind.data or None
         event.description = form.description.data or None
-        event.location = form.location.data or None
+        new_location = form.location.data or None
+        if new_location != event.location:
+            event.lat, event.lng = _geocode_location(new_location)
+        event.location = new_location
         event.start_date = form.start_date.data
         event.end_date = form.end_date.data
+        event.start_time = form.start_time.data
+        event.end_time = form.end_time.data
         event.rsvp_deadline = form.rsvp_deadline.data
         event.is_annual = form.is_annual.data
         event.has_meals = form.has_meals.data
         event.has_assignments = form.has_assignments.data
         event.has_sleeping = form.has_sleeping.data
-        event.has_carpool = bool(request.form.get('has_carpool'))
+        event.has_carpool = form.has_carpool.data
         if form.remove_cover.data and event.cover_image_path:
             delete_object(event.cover_image_path)
             event.cover_image_path = None
@@ -2157,6 +2274,188 @@ def event_edit(event_id):
         flash('Event updated.', 'info')
         return redirect(url_for('main.event_detail', event_id=event.id))
     return render_template('event_form.html', form=form, event=event)
+
+
+@main.route('/events/<int:event_id>/payment/setup', methods=['POST'])
+@login_required
+@admin_required
+def event_payment_setup(event_id):
+    event = db.session.get(Event, event_id)
+    if not event or event.family_id != current_user.active_family_id:
+        flash('Event not found.', 'error')
+        return redirect(url_for('main.events_list'))
+
+    try:
+        amount_dollars = float(request.form.get('amount_dollars', 0))
+        amount_cents = int(round(amount_dollars * 100))
+    except (ValueError, TypeError):
+        flash('Invalid amount.', 'error')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+
+    if amount_cents < 50:
+        flash('Amount must be at least $0.50.', 'error')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+
+    charge_type = request.form.get('charge_type', 'per_family')
+    if charge_type not in ('per_family', 'per_person'):
+        charge_type = 'per_family'
+
+    config = event.payment_config
+    if config:
+        config.amount_cents = amount_cents
+        config.charge_type = charge_type
+        config.description = request.form.get('description', '').strip()[:200]
+        deadline_str = request.form.get('deadline', '').strip()
+        config.deadline = datetime.strptime(deadline_str, '%Y-%m-%d').date() if deadline_str else None
+        config.is_active = True
+    else:
+        deadline_str = request.form.get('deadline', '').strip()
+        deadline = datetime.strptime(deadline_str, '%Y-%m-%d').date() if deadline_str else None
+        config = EventPaymentConfig(
+            event_id=event.id,
+            amount_cents=amount_cents,
+            charge_type=charge_type,
+            description=request.form.get('description', '').strip()[:200],
+            deadline=deadline,
+        )
+        db.session.add(config)
+
+    db.session.commit()
+    flash('Payment collection enabled.', 'success')
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+@main.route('/events/<int:event_id>/payment/disable', methods=['POST'])
+@login_required
+@admin_required
+def event_payment_disable(event_id):
+    event = db.session.get(Event, event_id)
+    if not event or event.family_id != current_user.active_family_id:
+        flash('Event not found.', 'error')
+        return redirect(url_for('main.events_list'))
+    if event.payment_config:
+        event.payment_config.is_active = False
+        db.session.commit()
+    flash('Payment collection disabled.', 'info')
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+@main.route('/events/<int:event_id>/payment/checkout', methods=['POST'])
+@login_required
+def event_payment_checkout(event_id):
+    from .billing import _stripe, requires_plan
+    event = db.session.get(Event, event_id)
+    if not event or event.family_id != current_user.active_family_id:
+        flash('Event not found.', 'error')
+        return redirect(url_for('main.events_list'))
+
+    config = event.payment_config
+    if not config or not config.is_active:
+        flash('Payment is not enabled for this event.', 'error')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+
+    existing = EventPaymentRecord.query.filter_by(
+        event_id=event.id, payer_user_id=current_user.id
+    ).first()
+    if existing and existing.status == 'paid':
+        flash('You have already paid for this event.', 'info')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+
+    yes_in_household = 0
+    if config.charge_type == 'per_person':
+        household_ids = _get_household_ids(current_user)
+        yes_in_household = EventRSVP.query.filter(
+            EventRSVP.event_id == event.id,
+            EventRSVP.status == 'yes',
+            EventRSVP.person_id.in_(household_ids),
+        ).count() if household_ids else 1
+        charge_amount = config.amount_cents * max(1, yes_in_household)
+    else:
+        charge_amount = config.amount_cents
+
+    s = _stripe()
+    if not s:
+        flash('Payment processing is not configured yet.', 'error')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+
+    record = existing or EventPaymentRecord(
+        event_id=event.id,
+        payer_user_id=current_user.id,
+        amount_cents=charge_amount,
+        status='pending',
+    )
+    if not existing:
+        db.session.add(record)
+    else:
+        record.amount_cents = charge_amount
+        record.status = 'pending'
+    db.session.commit()
+
+    description = config.description or event.name
+    if config.charge_type == 'per_person' and yes_in_household > 1:
+        description = f'{description} ({yes_in_household} people × ${config.amount_dollars:.2f})'
+
+    family = current_user.family
+    kwargs = dict(
+        mode='payment',
+        line_items=[{
+            'price_data': {
+                'currency': 'usd',
+                'unit_amount': charge_amount,
+                'product_data': {'name': description},
+            },
+            'quantity': 1,
+        }],
+        success_url=url_for('main.event_payment_success', event_id=event_id, _external=True) + '?session_id={CHECKOUT_SESSION_ID}',
+        cancel_url=url_for('main.event_detail', event_id=event_id, _external=True),
+        client_reference_id=str(current_user.id),
+        metadata={
+            'payment_type': 'event',
+            'event_id': str(event.id),
+            'payer_user_id': str(current_user.id),
+            'family_id': str(family.id),
+        },
+    )
+    if family.stripe_customer_id:
+        kwargs['customer'] = family.stripe_customer_id
+    else:
+        kwargs['customer_email'] = current_user.email
+
+    try:
+        session_obj = s.checkout.Session.create(**kwargs)
+        record.stripe_checkout_session_id = session_obj.id
+        db.session.commit()
+        return redirect(session_obj.url, code=303)
+    except Exception as e:
+        flash('Could not start checkout. Please try again.', 'error')
+        current_app.logger.error(f'Stripe event checkout error: {e}')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+@main.route('/events/<int:event_id>/payment/success')
+@login_required
+def event_payment_success(event_id):
+    event = db.session.get(Event, event_id)
+    if not event or event.family_id != current_user.active_family_id:
+        return redirect(url_for('main.events_list'))
+    flash('Payment received! You\'re all set.', 'success')
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+def _get_household_ids(user):
+    """Return person IDs for user's household (self + spouse + minor children)."""
+    if not user.person:
+        return []
+    ids = [user.person.id]
+    spouse = user.person.get_active_spouse()
+    if spouse:
+        ids.append(spouse.id)
+    child_ids = {rel.child_id for rel in user.person.child_rels}
+    if spouse:
+        child_ids |= {rel.child_id for rel in spouse.child_rels}
+    all_people = Person.query.filter(Person.id.in_(child_ids)).all()
+    ids.extend(p.id for p in all_people if _in_parent_household(p))
+    return ids
 
 
 @main.route('/events/<int:event_id>/delete', methods=['POST'])
@@ -2835,6 +3134,37 @@ def event_sleeping_add_spot(event_id):
         db.session.add(spot)
         db.session.commit()
         flash(f'"{spot.name}" added.', 'info')
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+@main.route('/events/<int:event_id>/sleeping/bulk-add', methods=['POST'])
+@login_required
+@admin_required
+def event_sleeping_bulk_add(event_id):
+    """Parse a textarea of room names (one per line, optional capacity) and create spots."""
+    event = db.session.get(Event, event_id)
+    if not event or event.family_id != current_user.active_family_id:
+        flash('Event not found.', 'error')
+        return redirect(url_for('main.events_list'))
+    raw = request.form.get('bulk_rooms', '')
+    added = 0
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        # Try to parse trailing number as capacity: "Master bedroom 2" or "Bunk room (4)"
+        import re as _re
+        m = _re.match(r'^(.+?)\s*[\(\[]?(\d+)[\)\]]?\s*$', line)
+        if m:
+            name, cap = m.group(1).strip(), int(m.group(2))
+        else:
+            name, cap = line, None
+        if name:
+            db.session.add(EventSleepingSpot(event_id=event_id, name=name, capacity=cap))
+            added += 1
+    if added:
+        db.session.commit()
+        flash(f'{added} room{"s" if added != 1 else ""} added.', 'info')
     return redirect(url_for('main.event_detail', event_id=event_id))
 
 

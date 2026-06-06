@@ -29,6 +29,14 @@
             <div class="field">{{ spot_form.notes.label }}<span style="color:var(--slate-soft);font-size:12px;"> (optional)</span>{{ spot_form.notes(rows=2) }}</div>
             <button type="submit" class="btn btn-primary btn-sm">Add Spot</button>
         </form>
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--hairline);">
+            <div style="font-size:12px;font-weight:600;color:var(--slate);margin-bottom:6px;">Bulk add rooms</div>
+            <form method="POST" action="/events/{{ event.id }}/sleeping/bulk-add">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <textarea name="bulk_rooms" rows="4" placeholder="One room per line, optionally followed by capacity&#10;Master bedroom 2&#10;Bunk room 4&#10;Loft&#10;Couch" style="width:100%;font-size:13px;margin-bottom:6px;"></textarea>
+                <button type="submit" class="btn btn-secondary btn-sm">Add All Rooms</button>
+            </form>
+        </div>
     </div>
     {% endif %}
     {% if event.sleeping_spots %}
