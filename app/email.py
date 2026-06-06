@@ -335,6 +335,25 @@ def send_announcement_notification(user, announcement, url):
     )
 
 
+def send_event_comment_notification(user, commenter_name, event, comment_body, url):
+    prefs_url = url.split('/events')[0] + '/profile/notifications'
+    preview = (comment_body[:200] + '…') if len(comment_body) > 200 else comment_body
+    return send_email(
+        user.email,
+        f"{commenter_name} commented on {event.name}",
+        f"""
+        <h2>New comment on {event.name}</h2>
+        <p><strong>{commenter_name}</strong> wrote:</p>
+        <blockquote style="border-left:3px solid #3D7040;margin:0;padding:8px 16px;color:#444;">{preview}</blockquote>
+        <p><a href="{url}">View comment →</a></p>
+        <p style="font-size:12px;color:#888;">
+            You're receiving this because you have comment notifications enabled.
+            <a href="{prefs_url}">Manage preferences</a>
+        </p>
+        """
+    )
+
+
 def send_digest_email(user, family, content, dashboard_url):
     upcoming_events = content['upcoming_events']
     upcoming_birthdays = content['upcoming_birthdays']

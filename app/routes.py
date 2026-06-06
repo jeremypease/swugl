@@ -2894,7 +2894,9 @@ def event_comment_add(event_id):
         db.session.commit()
 
         from .notifications import create_notification
-        from .models import NotificationPreference, EventRSVP
+        from .models import NotificationPreference, EventRSVP, Person
+        from .email import send_event_comment_notification
+        commenter_name = current_user.person.get_display_name()
         commenter_person_id = current_user.person.id
         attendee_person_ids = {
             r.person_id for r in
@@ -2904,22 +2906,23 @@ def event_comment_add(event_id):
             ).all()
         }
         body_preview = comment.body[:100] + ('…' if len(comment.body) > 100 else '')
+        notif_title = f'{commenter_name} commented on {event.name}'
+        event_url = url_for('main.event_detail', event_id=event_id)
         for person_id in attendee_person_ids:
             if person_id == commenter_person_id:
                 continue
-            from .models import Person
             person = db.session.get(Person, person_id)
             if not person or not person.user:
                 continue
             recipient = person.user
-            if NotificationPreference.is_enabled(recipient.id, 'event_comment'):
-                create_notification(
-                    recipient,
-                    'event_comment',
-                    title=f'{current_user.person.get_display_name()} commented on {event.name}',
-                    body=body_preview,
-                    url=url_for('main.event_detail', event_id=event_id),
-                )
+            # In-app + push (create_notification checks in_app preference internally)
+            create_notification(recipient, 'event_comment',
+                                title=notif_title, body=body_preview, url=event_url)
+            # Email
+            if (current_app.config.get('MAIL_ENABLED')
+                    and NotificationPreference.is_enabled(recipient.id, 'event_comment', 'email')):
+                send_event_comment_notification(
+                    recipient, commenter_name, event, comment.body, event_url)
     return redirect(url_for('main.event_detail', event_id=event_id))
 
 
