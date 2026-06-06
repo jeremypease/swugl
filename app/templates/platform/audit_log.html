@@ -1,0 +1,101 @@
+{% extends "platform/base.html" %}
+{% block title %}Audit Log{% endblock %}
+
+{% block content %}
+<div class="pa-head">
+    <h1>Audit Log</h1>
+    <p>All platform admin actions, newest first.</p>
+</div>
+
+{# Filters #}
+<form method="get" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:24px;">
+    <div>
+        <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:4px;">Action</label>
+        <select name="action" style="font-size:13px;border:1px solid var(--hairline-strong);border-radius:var(--r-s);padding:5px 8px;">
+            <option value="">All actions</option>
+            {% for a in actions %}
+            <option value="{{ a }}" {% if a == action_filter %}selected{% endif %}>{{ a }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:4px;">Pod</label>
+        <select name="pod_id" style="font-size:13px;border:1px solid var(--hairline-strong);border-radius:var(--r-s);padding:5px 8px;">
+            <option value="">All pods</option>
+            {% for pod in pods %}
+            <option value="{{ pod.id }}" {% if pod.id == pod_filter %}selected{% endif %}>{{ pod.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+    {% if action_filter or pod_filter %}
+    <a href="{{ url_for('platform.audit_log') }}" class="btn btn-secondary btn-sm">Clear</a>
+    {% endif %}
+</form>
+
+{% if entries %}
+<div class="card" style="overflow:hidden;">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th style="width:140px;">Time (UTC)</th>
+                <th style="width:130px;">Actor</th>
+                <th style="width:160px;">Action</th>
+                <th style="width:140px;">Target</th>
+                <th>Detail</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for entry in entries %}
+        <tr>
+            <td style="font-size:12px;color:var(--text-muted);white-space:nowrap;">{{ entry.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td style="font-size:13px;">
+                {% if entry.actor %}
+                <a href="{{ url_for('platform.users', q=entry.actor.email) }}" style="color:var(--vine);">{{ entry.actor.get_full_name() }}</a>
+                {% else %}
+                <span style="color:var(--text-muted);">—</span>
+                {% endif %}
+            </td>
+            <td>
+                <code style="font-size:12px;background:var(--canvas);padding:2px 6px;border-radius:var(--r-s);">{{ entry.action }}</code>
+            </td>
+            <td style="font-size:13px;color:var(--text-muted);">
+                {% if entry.target_type and entry.target_id %}
+                    {% if entry.target_type == 'family' %}
+                    <a href="{{ url_for('platform.pod_detail', pod_id=entry.target_id) }}" style="color:var(--vine);">pod #{{ entry.target_id }}</a>
+                    {% elif entry.target_type == 'user' %}
+                    {{ entry.target_type }} #{{ entry.target_id }}
+                    {% else %}
+                    {{ entry.target_type }} #{{ entry.target_id }}
+                    {% endif %}
+                {% else %}—{% endif %}
+            </td>
+            <td style="font-size:13px;color:var(--text-muted);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ entry.detail or '' }}">
+                {{ entry.detail or '—' }}
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{# Pagination #}
+{% if pagination.pages > 1 %}
+<div style="display:flex;gap:8px;align-items:center;margin-top:16px;font-size:13px;">
+    {% if pagination.has_prev %}
+    <a href="{{ url_for('platform.audit_log', page=pagination.prev_num, action=action_filter, pod_id=pod_filter or '') }}" class="btn btn-secondary btn-sm">← Prev</a>
+    {% endif %}
+    <span style="color:var(--text-muted);">Page {{ pagination.page }} of {{ pagination.pages }} ({{ pagination.total }} entries)</span>
+    {% if pagination.has_next %}
+    <a href="{{ url_for('platform.audit_log', page=pagination.next_num, action=action_filter, pod_id=pod_filter or '') }}" class="btn btn-secondary btn-sm">Next →</a>
+    {% endif %}
+</div>
+{% endif %}
+
+{% else %}
+<div class="card" style="text-align:center;padding:40px;color:var(--text-muted);">
+    <i data-lucide="shield-check" style="width:32px;height:32px;opacity:.3;margin-bottom:10px;"></i>
+    <p>No audit log entries found.</p>
+</div>
+{% endif %}
+{% endblock %}

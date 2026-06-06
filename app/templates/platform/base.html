@@ -91,6 +91,9 @@
             <a href="{{ url_for('platform.announce') }}" {% if request.path == '/platform/announce' %}class="active"{% endif %}>
                 <i data-lucide="megaphone"></i> Announcements
             </a>
+            <a href="{{ url_for('platform.audit_log') }}" {% if request.path == '/platform/audit-log' %}class="active"{% endif %}>
+                <i data-lucide="shield-check"></i> Audit Log
+            </a>
         </nav>
         <div class="pa-exit">
             <a href="{{ url_for('main.home') }}">← Back to app</a>

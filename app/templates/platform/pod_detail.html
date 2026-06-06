@@ -133,10 +133,25 @@
 </div>
 
 <!-- Members -->
-<div class="card">
-    <div class="card-header"><strong>Members</strong></div>
+<div class="card" style="margin-bottom:24px;">
+    <div class="card-header">
+        <strong>Members</strong>
+        {# Quick promote-to-admin form #}
+        {% set approved = members | selectattr('status','eq','approved') | list %}
+        {% if approved | length > 1 %}
+        <form method="POST" action="{{ url_for('platform.pod_set_admin', pod_id=pod.id) }}" style="display:flex;gap:6px;align-items:center;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <select name="user_id" style="font-size:12px;border:1px solid var(--hairline-strong);border-radius:var(--r-s);padding:3px 6px;">
+                {% for u in approved %}
+                <option value="{{ u.id }}">{{ u.get_full_name() }}{% if u.is_admin %} ★{% endif %}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-secondary btn-sm">Make admin</button>
+        </form>
+        {% endif %}
+    </div>
     <table class="data-table">
-        <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Joined</th></tr></thead>
+        <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Joined</th><th></th></tr></thead>
         <tbody>
         {% for u in members %}
         <tr>
@@ -146,14 +161,44 @@
                 {% if u.is_admin %}Admin{% elif u.is_delegate %}Delegate{% else %}Member{% endif %}
             </td>
             <td>
-                <span style="font-size:11px;padding:2px 6px;border-radius:var(--r-pill);background:{% if u.status=='approved' %}#d1fae5{% elif u.status=='pending' %}#fef3c7{% else %}var(--hairline){% endif %};">{{ u.status }}</span>
+                <span style="font-size:11px;padding:2px 6px;border-radius:var(--r-pill);background:{% if u.status=='approved' %}#d1fae5{% elif u.status=='pending' %}#fef3c7{% elif u.status=='removed' %}#fee2e2{% else %}var(--hairline){% endif %};">{{ u.status }}</span>
             </td>
             <td style="font-size:13px;color:var(--text-muted);">
                 {% if u.approved_date %}{{ u.approved_date.strftime('%b %-d, %Y') }}{% else %}—{% endif %}
+            </td>
+            <td>
+                {% if u.status == 'pending' %}
+                <form method="POST" action="{{ url_for('platform.pod_approve_user', pod_id=pod.id, user_id=u.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-primary btn-sm" style="font-size:11px;padding:3px 8px;">Approve</button>
+                </form>
+                {% endif %}
             </td>
         </tr>
         {% endfor %}
         </tbody>
     </table>
+</div>
+
+<!-- Danger zone -->
+<div class="card" style="border:1px solid #fca5a5;">
+    <div class="card-header" style="border-bottom:1px solid #fca5a5;">
+        <strong style="color:#dc2626;">Danger Zone</strong>
+    </div>
+    <div class="card-body">
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
+            Permanently delete this pod and <strong>all</strong> of its data — members, events, photos, and billing history.
+            This cannot be undone.
+        </p>
+        <form method="POST" action="{{ url_for('platform.delete_pod', pod_id=pod.id) }}"
+              onsubmit="return confirm('This will permanently delete {{ pod.name }} and all its data. Are you absolutely sure?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <input type="text" name="confirm_name" placeholder="Type pod name to confirm"
+                       style="border:1px solid #fca5a5;border-radius:var(--r-s);font-size:13px;padding:5px 10px;width:220px;">
+                <button type="submit" class="btn btn-sm" style="background:#dc2626;color:#fff;border:none;">Delete pod</button>
+            </div>
+        </form>
+    </div>
 </div>
 {% endblock %}

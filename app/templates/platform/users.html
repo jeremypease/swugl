@@ -34,6 +34,12 @@
                     <button class="btn btn-secondary btn-sm">Resend verification</button>
                 </form>
                 {% endif %}
+                {% if user.email_verified %}
+                <form method="POST" action="{{ url_for('platform.send_password_reset', user_id=user.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-secondary btn-sm">Send password reset</button>
+                </form>
+                {% endif %}
                 <form method="POST" action="{{ url_for('platform.extend_trial', user_id=user.id) }}" style="display:flex;gap:4px;">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <select name="days" style="font-size:12px;border:1px solid var(--hairline-strong);border-radius:var(--r-s);padding:4px 6px;">

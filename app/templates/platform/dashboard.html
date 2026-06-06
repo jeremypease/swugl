@@ -44,7 +44,7 @@
         {% for pod in recent_pods %}
         <tr>
             <td><a href="{{ url_for('platform.pod_detail', pod_id=pod.id) }}" style="color:var(--vine);">{{ pod.name }}</a></td>
-            <td><span class="badge" style="background:{% if pod.plan == 'active' %}var(--sprout){% elif pod.plan == 'trial' %}var(--honey){% else %}var(--hairline-strong){% endif %};color:var(--ink);font-size:11px;padding:2px 7px;border-radius:var(--r-pill);">{{ pod.plan }}</span></td>
+            <td><span class="badge" style="background:{% if pod.plan == 'paid' %}var(--sprout){% elif pod.plan == 'trial' %}var(--honey){% elif pod.plan == 'past_due' %}#fee2e2{% else %}var(--hairline-strong){% endif %};color:var(--ink);font-size:11px;padding:2px 7px;border-radius:var(--r-pill);">{{ pod.plan }}</span></td>
             <td style="color:var(--text-muted);font-size:13px;">{{ pod.created_at.strftime('%b %-d') }}</td>
         </tr>
         {% endfor %}

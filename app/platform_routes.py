@@ -54,7 +54,7 @@ def dashboard():
     stats = {
         'total_pods':   Family.query.count(),
         'total_users':  User.query.filter_by(status='approved').count(),
-        'active_subs':  Family.query.filter(Family.plan.in_(['active', 'trial'])).count(),
+        'active_subs':  Family.query.filter(Family.plan.in_(['paid', 'trial'])).count(),
         'pods_this_week':  Family.query.filter(Family.created_at >= week_ago).count(),
         'pods_this_month': Family.query.filter(Family.created_at >= month_ago).count(),
         'users_this_week': User.query.filter(
@@ -139,7 +139,7 @@ def enter_support(pod_id):
     session['support_mode'] = True
     session['support_pod_id'] = pod_id
     _audit('enter_support', 'family', pod_id, reason)
-    flash(f'You are now viewing {pod.name} in support mode (read-only).', 'info')
+    flash(f'You are now in support mode for {pod.name}. All actions are audited.', 'info')
     return redirect(url_for('main.home'))
 
 
@@ -186,6 +186,30 @@ def resend_verification(user_id):
         send_verification_email(user, url_for('main.verify_email', token=token, _external=True))
     _audit('resend_verification', 'user', user_id)
     flash(f'Verification email sent to {user.email}.', 'info')
+    return redirect(url_for('platform.users', q=user.email))
+
+
+@platform.route('/users/<int:user_id>/send-password-reset', methods=['POST'])
+@login_required
+@platform_admin_required
+def send_password_reset(user_id):
+    import secrets
+    from .email import send_password_reset_email
+    from .routes import _hash_token
+    user = db.session.get(User, user_id)
+    if not user:
+        flash('User not found.', 'error')
+        return redirect(url_for('platform.users'))
+    token = secrets.token_urlsafe(32)
+    user.reset_token = _hash_token(token)
+    user.reset_token_expiry = datetime.utcnow() + timedelta(hours=1)
+    db.session.commit()
+    if current_app.config.get('MAIL_ENABLED'):
+        from flask import url_for as _url_for
+        reset_url = _url_for('main.reset_password', token=token, _external=True)
+        send_password_reset_email(user, reset_url)
+    _audit('send_password_reset', 'user', user_id)
+    flash(f'Password reset email sent to {user.email}.', 'info')
     return redirect(url_for('platform.users', q=user.email))
 
 
@@ -262,6 +286,162 @@ def cancel_subscription(pod_id):
     return redirect(url_for('platform.pod_detail', pod_id=pod_id))
 
 
+@platform.route('/pods/<int:pod_id>/set-admin', methods=['POST'])
+@login_required
+@platform_admin_required
+def pod_set_admin(pod_id):
+    pod = db.session.get(Family, pod_id)
+    if not pod:
+        flash('Pod not found.', 'error')
+        return redirect(url_for('platform.pods'))
+    user_id = request.form.get('user_id', type=int)
+    user = db.session.get(User, user_id)
+    if not user or user.family_id != pod_id:
+        flash('User not found in this pod.', 'error')
+        return redirect(url_for('platform.pod_detail', pod_id=pod_id))
+    user.is_admin = True
+    user.is_delegate = False
+    membership = UserPodMembership.query.filter_by(user_id=user.id, family_id=pod_id).first()
+    if membership:
+        membership.role = 'admin'
+    db.session.commit()
+    _audit('set_admin', 'user', user.id, f'pod {pod_id} ({pod.name})')
+    flash(f'{user.get_full_name()} is now an admin of {pod.name}.', 'info')
+    return redirect(url_for('platform.pod_detail', pod_id=pod_id))
+
+
+@platform.route('/pods/<int:pod_id>/approve-user/<int:user_id>', methods=['POST'])
+@login_required
+@platform_admin_required
+def pod_approve_user(pod_id, user_id):
+    pod = db.session.get(Family, pod_id)
+    user = db.session.get(User, user_id)
+    if not pod or not user or user.family_id != pod_id:
+        flash('User not found in this pod.', 'error')
+        return redirect(url_for('platform.pod_detail', pod_id=pod_id))
+    from .models import NotificationPreference
+    user.status = 'approved'
+    NotificationPreference.seed_defaults(user.id)
+    db.session.commit()
+    _audit('approve_user', 'user', user.id, f'pod {pod_id} ({pod.name})')
+    flash(f'{user.get_full_name()} approved.', 'info')
+    return redirect(url_for('platform.pod_detail', pod_id=pod_id))
+
+
+@platform.route('/pods/<int:pod_id>/delete', methods=['POST'])
+@login_required
+@platform_admin_required
+def delete_pod(pod_id):
+    pod = db.session.get(Family, pod_id)
+    if not pod:
+        flash('Pod not found.', 'error')
+        return redirect(url_for('platform.pods'))
+    confirm_name = request.form.get('confirm_name', '').strip()
+    if confirm_name != pod.name:
+        flash('Pod name did not match. Deletion cancelled.', 'error')
+        return redirect(url_for('platform.pod_detail', pod_id=pod_id))
+    pod_name = pod.name
+    _audit('delete_pod', 'family', pod_id, pod_name)
+    _hard_delete_pod(pod)
+    flash(f'Pod "{pod_name}" and all its data have been permanently deleted.', 'info')
+    return redirect(url_for('platform.pods'))
+
+
+def _hard_delete_pod(pod):
+    """Permanently delete a pod and all associated data in dependency order."""
+    from .models import (
+        Event, EventMeal, EventMealItem, EventAssignment, EventRSVP,
+        EventSleepingSpot, EventComment, CarpoolOffer, EventSurveyResponse,
+        EventPaymentConfig, EventPaymentRecord,
+        Album, Photo, PhotoTag, Announcement, AnnouncementReaction,
+        Poll, PollOption, PollVote, GreetingCard, CardSignature,
+        Checklist, ChecklistItem, FamilyPayoutAccount,
+        ParentRelationship, SpouseRelationship,
+        NotificationPreference, Notification, UserDevice,
+        OAuthAccount, UserCredential, CalendarToken,
+    )
+    fid = pod.id
+
+    user_ids   = [u.id for u in User.query.filter_by(family_id=fid).all()]
+    event_ids  = [e.id for e in Event.query.filter_by(family_id=fid).all()]
+    album_ids  = [a.id for a in Album.query.filter_by(family_id=fid).all()]
+    person_ids = [p.id for p in Person.query.filter_by(family_id=fid).all()]
+
+    if event_ids:
+        meal_ids = [m.id for m in EventMeal.query.filter(EventMeal.event_id.in_(event_ids)).all()]
+        if meal_ids:
+            EventMealItem.query.filter(EventMealItem.meal_id.in_(meal_ids)).delete(synchronize_session=False)
+        EventMeal.query.filter(EventMeal.event_id.in_(event_ids)).delete(synchronize_session=False)
+        EventAssignment.query.filter(EventAssignment.event_id.in_(event_ids)).delete(synchronize_session=False)
+        EventRSVP.query.filter(EventRSVP.event_id.in_(event_ids)).delete(synchronize_session=False)
+        EventSleepingSpot.query.filter(EventSleepingSpot.event_id.in_(event_ids)).delete(synchronize_session=False)
+        EventComment.query.filter(EventComment.event_id.in_(event_ids)).delete(synchronize_session=False)
+        CarpoolOffer.query.filter(CarpoolOffer.event_id.in_(event_ids)).update(
+            {'passenger_of_id': None}, synchronize_session=False)
+        CarpoolOffer.query.filter(CarpoolOffer.event_id.in_(event_ids)).delete(synchronize_session=False)
+        EventSurveyResponse.query.filter(EventSurveyResponse.event_id.in_(event_ids)).delete(synchronize_session=False)
+        EventPaymentRecord.query.filter(EventPaymentRecord.event_id.in_(event_ids)).delete(synchronize_session=False)
+        EventPaymentConfig.query.filter(EventPaymentConfig.event_id.in_(event_ids)).delete(synchronize_session=False)
+        Event.query.filter_by(family_id=fid).delete(synchronize_session=False)
+
+    if album_ids:
+        photo_ids = [p.id for p in Photo.query.filter(Photo.album_id.in_(album_ids)).all()]
+        if photo_ids:
+            PhotoTag.query.filter(PhotoTag.photo_id.in_(photo_ids)).delete(synchronize_session=False)
+        Photo.query.filter(Photo.album_id.in_(album_ids)).delete(synchronize_session=False)
+        Album.query.filter_by(family_id=fid).delete(synchronize_session=False)
+
+    ann_ids = [a.id for a in Announcement.query.filter_by(family_id=fid).all()]
+    if ann_ids:
+        AnnouncementReaction.query.filter(AnnouncementReaction.announcement_id.in_(ann_ids)).delete(synchronize_session=False)
+    Announcement.query.filter_by(family_id=fid).delete(synchronize_session=False)
+
+    poll_ids = [p.id for p in Poll.query.filter_by(family_id=fid).all()]
+    if poll_ids:
+        opt_ids = [o.id for o in PollOption.query.filter(PollOption.poll_id.in_(poll_ids)).all()]
+        if opt_ids:
+            PollVote.query.filter(PollVote.option_id.in_(opt_ids)).delete(synchronize_session=False)
+        PollOption.query.filter(PollOption.poll_id.in_(poll_ids)).delete(synchronize_session=False)
+    Poll.query.filter_by(family_id=fid).delete(synchronize_session=False)
+
+    card_ids = [c.id for c in GreetingCard.query.filter_by(family_id=fid).all()]
+    if card_ids:
+        CardSignature.query.filter(CardSignature.card_id.in_(card_ids)).delete(synchronize_session=False)
+    GreetingCard.query.filter_by(family_id=fid).delete(synchronize_session=False)
+
+    checklist_ids = [c.id for c in Checklist.query.filter_by(family_id=fid).all()]
+    if checklist_ids:
+        ChecklistItem.query.filter(ChecklistItem.checklist_id.in_(checklist_ids)).delete(synchronize_session=False)
+    Checklist.query.filter_by(family_id=fid).delete(synchronize_session=False)
+
+    SupportNote.query.filter_by(pod_id=fid).delete(synchronize_session=False)
+    FamilyPayoutAccount.query.filter_by(family_id=fid).delete(synchronize_session=False)
+
+    if person_ids:
+        ParentRelationship.query.filter(
+            db.or_(ParentRelationship.parent_id.in_(person_ids),
+                   ParentRelationship.child_id.in_(person_ids))
+        ).delete(synchronize_session=False)
+        SpouseRelationship.query.filter(
+            db.or_(SpouseRelationship.person1_id.in_(person_ids),
+                   SpouseRelationship.person2_id.in_(person_ids))
+        ).delete(synchronize_session=False)
+        Person.query.filter_by(family_id=fid).delete(synchronize_session=False)
+
+    if user_ids:
+        NotificationPreference.query.filter(NotificationPreference.user_id.in_(user_ids)).delete(synchronize_session=False)
+        Notification.query.filter(Notification.user_id.in_(user_ids)).delete(synchronize_session=False)
+        UserDevice.query.filter(UserDevice.user_id.in_(user_ids)).delete(synchronize_session=False)
+        OAuthAccount.query.filter(OAuthAccount.user_id.in_(user_ids)).delete(synchronize_session=False)
+        UserCredential.query.filter(UserCredential.user_id.in_(user_ids)).delete(synchronize_session=False)
+        UserPodMembership.query.filter(UserPodMembership.user_id.in_(user_ids)).delete(synchronize_session=False)
+        CalendarToken.query.filter(CalendarToken.user_id.in_(user_ids)).delete(synchronize_session=False)
+        User.query.filter_by(family_id=fid).delete(synchronize_session=False)
+
+    db.session.delete(pod)
+    db.session.commit()
+
+
 @platform.route('/pods/<int:pod_id>/notes', methods=['POST'])
 @login_required
 @platform_admin_required
@@ -279,6 +459,38 @@ def add_note(pod_id):
     _audit('add_note', 'family', pod_id, body[:100])
     db.session.commit()
     return redirect(url_for('platform.pod_detail', pod_id=pod_id))
+
+
+# ── Audit log ────────────────────────────────────────────────────────────────
+
+@platform.route('/audit-log')
+@login_required
+@platform_admin_required
+def audit_log():
+    action_filter = request.args.get('action', '').strip()
+    pod_filter = request.args.get('pod_id', type=int)
+    page = request.args.get('page', 1, type=int)
+
+    q = PlatformAuditLog.query.order_by(PlatformAuditLog.created_at.desc())
+    if action_filter:
+        q = q.filter(PlatformAuditLog.action == action_filter)
+    if pod_filter:
+        q = q.filter(
+            db.or_(
+                db.and_(PlatformAuditLog.target_type == 'family', PlatformAuditLog.target_id == pod_filter),
+                PlatformAuditLog.detail.ilike(f'%pod {pod_filter}%'),
+            )
+        )
+    pagination = q.paginate(page=page, per_page=50, error_out=False)
+    actions = [r[0] for r in db.session.query(PlatformAuditLog.action).distinct().order_by(PlatformAuditLog.action).all()]
+    pods = Family.query.order_by(Family.name).all()
+    return render_template('platform/audit_log.html',
+                           entries=pagination.items,
+                           pagination=pagination,
+                           actions=actions,
+                           pods=pods,
+                           action_filter=action_filter,
+                           pod_filter=pod_filter)
 
 
 # ── System Announcements ──────────────────────────────────────────────────────
