@@ -356,6 +356,7 @@ NOTIFICATION_EVENTS = {
     'new_member':    {'label': 'New member joins',        'default': False, 'in_app': True},
     'rsvp_reminder': {'label': 'RSVP reminder',          'default': True,  'in_app': True},
     'assignment':    {'label': 'Task or meal assignment', 'default': True,  'in_app': True},
+    'event_comment': {'label': 'New comment on event',   'default': True,  'in_app': True},
 }
 
 
@@ -423,6 +424,22 @@ class Notification(db.Model):
     @property
     def is_read(self):
         return self.read_at is not None
+
+
+class UserDevice(db.Model):
+    """Registered push-notification devices for a user (iOS / Android)."""
+    __tablename__ = 'user_devices'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    platform = db.Column(db.String(10), nullable=False)  # 'ios' | 'android'
+    token = db.Column(db.String(512), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_seen_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('devices', lazy='dynamic'))
+
+    __table_args__ = (db.UniqueConstraint('user_id', 'token', name='uq_user_device_token'),)
 
 
 class ApiTokenBlocklist(db.Model):

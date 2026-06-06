@@ -1,0 +1,68 @@
+{# ── Comments ─────────────────────────────────────────────────────────────── #}
+<div class="card">
+    <div class="card-header">
+        <h3 style="font-size:14px;">Comments</h3>
+        <span style="font-size:12px;color:var(--slate);">{{ event.comments | length }}</span>
+    </div>
+
+    {% if event.comments %}
+    <div style="margin-bottom:12px;display:flex;flex-direction:column;gap:12px;">
+        {% for comment in event.comments %}
+        {# -- relative timestamp -- #}
+        {% set age = (now - comment.created_at).total_seconds() %}
+        {% if age < 3600 %}
+            {% set ts = (age // 60) | int ~ ' min ago' if (age // 60) | int > 0 else 'just now' %}
+        {% elif age < 86400 %}
+            {% set hrs = (age // 3600) | int %}
+            {% set ts = hrs ~ ' hr ago' %}
+        {% elif age < 604800 %}
+            {% set days = (age // 86400) | int %}
+            {% set ts = days ~ ' day' ~ ('s' if days != 1) ~ ' ago' %}
+        {% else %}
+            {% if comment.created_at.year == now.year %}
+                {% set ts = comment.created_at.strftime('%b %-d') %}
+            {% else %}
+                {% set ts = comment.created_at.strftime('%b %-d, %Y') %}
+            {% endif %}
+        {% endif %}
+        <div class="comment-row" style="align-items:flex-start;">
+            <div class="av av-sm" style="background:var(--vine);flex-shrink:0;margin-top:2px;">{{ comment.person.name[:2].upper() }}</div>
+            <div class="comment-body" style="flex:1;min-width:0;">
+                <div style="font-weight:600;font-size:13px;line-height:1.3;margin-bottom:3px;">{{ comment.person.get_display_name() }}</div>
+                <div style="font-size:13px;line-height:1.5;white-space:pre-wrap;word-break:break-word;">{{ comment.body }}</div>
+                <div class="comment-time" style="margin-top:3px;">{{ ts }}</div>
+            </div>
+            {% if current_user.active_is_admin or (current_user.person and comment.person_id == current_user.person.id) %}
+            <form method="POST" action="/events/{{ event.id }}/comments/{{ comment.id }}/delete" style="flex-shrink:0;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" style="background:none;border:none;cursor:pointer;color:var(--slate-soft);font-size:14px;padding:0 2px;line-height:1;" title="Delete">×</button>
+            </form>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if my_person %}
+    <form method="POST" action="/events/{{ event.id }}/comments" style="display:flex;gap:6px;align-items:flex-end;margin-top:{% if event.comments %}0{% else %}4px{% endif %};">
+        {{ comment_form.hidden_tag() }}
+        <textarea name="body" id="ev-comment-body" rows="2" maxlength="1000"
+                  placeholder="Add a comment…"
+                  style="flex:1;font-size:13px;resize:none;overflow:hidden;padding:6px 8px;border:1px solid var(--hairline);border-radius:var(--r-s);font-family:inherit;line-height:1.45;"
+                  required></textarea>
+        <button type="submit" class="btn btn-ghost btn-sm" style="align-self:flex-end;">Post</button>
+    </form>
+    <script nonce="{{ g.csp_nonce }}">
+    (function() {
+        var ta = document.getElementById('ev-comment-body');
+        if (!ta) return;
+        ta.addEventListener('input', function() {
+            ta.style.height = 'auto';
+            ta.style.height = ta.scrollHeight + 'px';
+        });
+    })();
+    </script>
+    {% else %}
+    <p style="font-size:13px;color:var(--slate);">Link your family profile to comment.</p>
+    {% endif %}
+</div>

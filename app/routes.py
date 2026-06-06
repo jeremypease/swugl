@@ -393,6 +393,9 @@ def login():
             return redirect(url_for('main.login'))
         if not user.email_verified:
             return redirect(url_for('main.resend_verification', email=user.email))
+        if user.status == 'removed':
+            flash('This account has been removed. Contact your family admin.', 'error')
+            return redirect(url_for('main.login'))
         if user.status != 'approved':
             flash('Your account is pending approval.', 'error')
             return redirect(url_for('main.login'))
@@ -1529,6 +1532,46 @@ def set_role(user_id):
     db.session.commit()
     flash(f'{user.get_full_name()} is now a {role or "member"}.', 'info')
     return redirect(url_for('main.admin_users'))
+
+@main.route('/admin/remove/<int:user_id>', methods=['POST'])
+@login_required
+@admin_required
+def remove_user(user_id):
+    user = db.session.get(User, user_id)
+    if not user or user.family_id != current_user.active_family_id:
+        flash('User not found.', 'error')
+        return redirect(url_for('main.admin_users'))
+    if user.id == current_user.id:
+        flash('You cannot remove your own account.', 'error')
+        return redirect(url_for('main.admin_users'))
+    if user.is_admin:
+        admin_count = User.query.filter_by(
+            family_id=current_user.active_family_id,
+            is_admin=True,
+            status='approved',
+        ).count()
+        if admin_count <= 1:
+            flash('Cannot remove the only admin. Promote another member first.', 'error')
+            return redirect(url_for('main.admin_users'))
+    user.status = 'removed'
+    db.session.commit()
+    flash(f'{user.get_full_name()} has been removed.', 'info')
+    return redirect(url_for('main.admin_users'))
+
+
+@main.route('/admin/restore/<int:user_id>', methods=['POST'])
+@login_required
+@admin_required
+def restore_user(user_id):
+    user = db.session.get(User, user_id)
+    if not user or user.family_id != current_user.active_family_id:
+        flash('User not found.', 'error')
+        return redirect(url_for('main.admin_users'))
+    user.status = 'approved'
+    db.session.commit()
+    flash(f'{user.get_full_name()} has been restored.', 'info')
+    return redirect(url_for('main.admin_users'))
+
 
 @main.route('/admin/toggle-directory/<int:person_id>', methods=['POST'])
 @login_required
@@ -2849,6 +2892,34 @@ def event_comment_add(event_id):
         )
         db.session.add(comment)
         db.session.commit()
+
+        from .notifications import create_notification
+        from .models import NotificationPreference, EventRSVP
+        commenter_person_id = current_user.person.id
+        attendee_person_ids = {
+            r.person_id for r in
+            EventRSVP.query.filter(
+                EventRSVP.event_id == event_id,
+                EventRSVP.status.in_(['yes', 'maybe']),
+            ).all()
+        }
+        body_preview = comment.body[:100] + ('…' if len(comment.body) > 100 else '')
+        for person_id in attendee_person_ids:
+            if person_id == commenter_person_id:
+                continue
+            from .models import Person
+            person = db.session.get(Person, person_id)
+            if not person or not person.user:
+                continue
+            recipient = person.user
+            if NotificationPreference.is_enabled(recipient.id, 'event_comment'):
+                create_notification(
+                    recipient,
+                    'event_comment',
+                    title=f'{current_user.person.get_display_name()} commented on {event.name}',
+                    body=body_preview,
+                    url=url_for('main.event_detail', event_id=event_id),
+                )
     return redirect(url_for('main.event_detail', event_id=event_id))
 
 

@@ -175,17 +175,27 @@ def create_app(test_config=None):
         ann = SystemAnnouncement.get_current()
         dismissed = s.get('dismissed_announcements', [])
         active_ann = ann if ann and ann.id not in dismissed else None
-        unread = (
-            Notification.query
-            .filter_by(user_id=current_user.id, read_at=None)
-            .count()
-            if current_user.is_authenticated else 0
-        )
+        unread = 0
+        recent_notifications = []
+        if current_user.is_authenticated:
+            unread = (
+                Notification.query
+                .filter_by(user_id=current_user.id, read_at=None)
+                .count()
+            )
+            recent_notifications = (
+                Notification.query
+                .filter_by(user_id=current_user.id)
+                .order_by(Notification.created_at.desc())
+                .limit(8)
+                .all()
+            )
         return {
             'now': datetime.utcnow(),
             'system_announcement': active_ann,
             'support_mode': s.get('support_mode', False),
             'unread_notification_count': unread,
+            'recent_notifications': recent_notifications,
         }
 
     @app.template_filter('datetime_format')

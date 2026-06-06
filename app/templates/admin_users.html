@@ -146,22 +146,37 @@
                     {% if person.user.status == 'approved' %}<span class="badge b-active"><span class="dot"></span>Active</span>
                     {% elif person.user.status == 'pending' %}<span class="badge b-pending"><span class="dot"></span>Pending</span>
                     {% elif person.user.status == 'invited' %}<span class="badge b-invited"><span class="dot"></span>Invited</span>
+                    {% elif person.user.status == 'removed' %}<span class="badge" style="background:#fef0f0;color:var(--tomato);border:1px solid #fcd0d0;"><span class="dot" style="background:var(--tomato);"></span>Removed</span>
                     {% else %}<span class="badge"><span class="dot"></span>{{ person.user.status|capitalize }}</span>{% endif %}
                 {% else %}
                 <span style="color:var(--slate-soft);font-size:13px;">No account</span>
                 {% endif %}
             </div>
-            <div>
-                {% if person.user and person.user.status == 'approved' and person.user.id != current_user.id %}
-                <form method="POST" action="/admin/set-role/{{ person.user.id }}" style="display:flex;gap:5px;align-items:center;">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <select name="role" style="font-size:12px;padding:3px 6px;border:1px solid var(--hairline-strong);border-radius:var(--r-s);background:var(--paper);">
-                        <option value="" {% if not person.user.is_admin and not person.user.is_delegate %}selected{% endif %}>Member</option>
-                        <option value="contributor" {% if person.user.is_delegate %}selected{% endif %}>Contributor</option>
-                        <option value="admin" {% if person.user.is_admin %}selected{% endif %}>Admin</option>
-                    </select>
-                    <button type="submit" class="btn btn-ghost btn-sm">Set</button>
-                </form>
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                {% if person.user and person.user.id != current_user.id %}
+                    {% if person.user.status == 'approved' %}
+                    <form method="POST" action="/admin/set-role/{{ person.user.id }}" style="display:flex;gap:5px;align-items:center;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <select name="role" style="font-size:12px;padding:3px 6px;border:1px solid var(--hairline-strong);border-radius:var(--r-s);background:var(--paper);">
+                            <option value="" {% if not person.user.is_admin and not person.user.is_delegate %}selected{% endif %}>Member</option>
+                            <option value="contributor" {% if person.user.is_delegate %}selected{% endif %}>Contributor</option>
+                            <option value="admin" {% if person.user.is_admin %}selected{% endif %}>Admin</option>
+                        </select>
+                        <button type="submit" class="btn btn-ghost btn-sm">Set</button>
+                    </form>
+                    <form method="POST" action="/admin/remove/{{ person.user.id }}"
+                          onsubmit="return confirm('Remove {{ person.get_display_name() }}? They will lose access but their history is kept.');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);" title="Remove access">
+                            <i data-lucide="user-x" style="width:13px;height:13px;"></i>
+                        </button>
+                    </form>
+                    {% elif person.user.status == 'removed' %}
+                    <form method="POST" action="/admin/restore/{{ person.user.id }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--vine);">Restore</button>
+                    </form>
+                    {% endif %}
                 {% endif %}
             </div>
         </div>

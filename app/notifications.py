@@ -12,7 +12,7 @@ from .models import NotificationPreference, NOTIFICATION_EVENTS, User, Event, An
 
 
 def create_notification(user, event_type, title, body=None, url=None):
-    """Write an in-app Notification row if the user has in_app enabled for this type."""
+    """Write an in-app Notification row and dispatch a push if the user has it enabled."""
     meta = NOTIFICATION_EVENTS.get(event_type, {})
     if not meta.get('in_app'):
         return
@@ -27,6 +27,38 @@ def create_notification(user, event_type, title, body=None, url=None):
         url=url,
     ))
     db.session.commit()
+    send_push_notification(user, title, body=body, url=url)
+
+
+def send_push_notification(user, title, body=None, url=None):
+    """Dispatch a push notification to all registered devices for the user.
+
+    No-op until PUSH_ENABLED is set. Mobile apps register tokens via
+    POST /api/v1/push/register; this function iterates them and dispatches
+    platform-specific payloads.
+    """
+    if not current_app.config.get('PUSH_ENABLED'):
+        return
+    from .models import UserDevice
+    devices = UserDevice.query.filter_by(user_id=user.id).all()
+    for device in devices:
+        try:
+            if device.platform == 'ios':
+                _send_apns(device.token, title, body, url)
+            elif device.platform == 'android':
+                _send_fcm(device.token, title, body, url)
+        except Exception:
+            pass  # stale token — prune in a future task
+
+
+def _send_apns(token, title, body, url):
+    """Send APNs push. Configure APNS_KEY_ID, APNS_TEAM_ID, APNS_BUNDLE_ID, APNS_PRIVATE_KEY."""
+    pass  # implement when mobile app is in TestFlight
+
+
+def _send_fcm(token, title, body, url):
+    """Send FCM push. Configure FCM_SERVER_KEY."""
+    pass  # implement when Android app is in internal testing
 
 
 def notify(users, event_type, **kwargs):

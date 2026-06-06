@@ -81,11 +81,9 @@
             <a href="/checklists" {% if request.path.startswith('/checklists') %}class="active"{% endif %}>
                 <i data-lucide="list-checks"></i> Lists
             </a>
-            <a href="/notifications" {% if request.path == '/notifications' %}class="active"{% endif %} style="position:relative;">
+            <a href="/notifications" {% if request.path == '/notifications' %}class="active"{% endif %} id="notif-bell" style="position:relative;" onclick="event.preventDefault();toggleNotifPanel();">
                 <i data-lucide="bell"></i> Notifications
-                {% if unread_notification_count %}
-                <span style="position:absolute;top:6px;right:10px;background:var(--vine);color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px;line-height:1;">{{ unread_notification_count if unread_notification_count < 100 else '99+' }}</span>
-                {% endif %}
+                <span id="notif-badge" style="position:absolute;top:6px;right:10px;background:var(--vine);color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;border-radius:8px;align-items:center;justify-content:center;padding:0 4px;line-height:1;display:{% if unread_notification_count %}flex{% else %}none{% endif %};">{{ unread_notification_count if unread_notification_count < 100 else '99+' }}</span>
             </a>
             <a href="/profile" {% if request.path == '/profile' %}class="active"{% endif %}>
                 <i data-lucide="user"></i> My Profile
@@ -222,6 +220,67 @@
         </div>
     </div>
 </div>
+
+{# ── Notification panel ─────────────────────────────────────────────────── #}
+<div id="notif-backdrop" onclick="closeNotifPanel()" style="display:none;position:fixed;inset:0;z-index:299;background:rgba(0,0,0,.25);"></div>
+<div id="notif-panel" style="display:none;position:fixed;top:0;right:0;width:340px;max-width:100vw;height:100vh;background:var(--paper);box-shadow:-4px 0 28px rgba(0,0,0,.14);z-index:300;flex-direction:column;overflow:hidden;">
+
+    {# Header #}
+    <div style="padding:14px 16px;border-bottom:1px solid var(--hairline);display:flex;align-items:center;gap:8px;flex-shrink:0;">
+        <div style="flex:1;font-weight:700;font-size:15px;">Notifications</div>
+        <a href="{{ url_for('main.profile_notifications') }}" style="color:var(--slate);display:flex;" title="Notification preferences" onclick="closeNotifPanel();">
+            <i data-lucide="settings" style="width:15px;height:15px;"></i>
+        </a>
+        <button onclick="closeNotifPanel()" style="background:none;border:none;cursor:pointer;color:var(--slate);padding:2px;display:flex;" title="Close">
+            <i data-lucide="x" style="width:15px;height:15px;"></i>
+        </button>
+    </div>
+
+    {# Item list #}
+    <div style="flex:1;overflow-y:auto;">
+    {% if recent_notifications %}
+    {% for n in recent_notifications %}
+    {# icon per type #}
+    {% if n.event_type == 'new_event' %}{% set _ni = 'calendar' %}
+    {% elif n.event_type == 'announcement' %}{% set _ni = 'megaphone' %}
+    {% elif n.event_type == 'event_comment' %}{% set _ni = 'message-circle' %}
+    {% elif n.event_type == 'assignment' %}{% set _ni = 'clipboard-check' %}
+    {% elif n.event_type == 'rsvp_reminder' %}{% set _ni = 'user-check' %}
+    {% elif n.event_type == 'new_member' %}{% set _ni = 'user-plus' %}
+    {% else %}{% set _ni = 'bell' %}{% endif %}
+    <a href="{{ n.url or url_for('main.notifications') }}"
+       class="notif-item"
+       data-nid="{{ n.id }}"
+       onclick="markNotifRead({{ n.id }});"
+       style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px;border-bottom:1px solid var(--hairline);text-decoration:none;color:inherit;{% if not n.is_read %}background:var(--leaf-mist);{% endif %}">
+        <div style="width:32px;height:32px;border-radius:50%;background:{% if not n.is_read %}var(--vine){% else %}var(--bg-alt,#f5f5f5){% endif %};display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">
+            <i data-lucide="{{ _ni }}" style="width:15px;height:15px;color:{% if not n.is_read %}#fff{% else %}var(--slate){% endif %};"></i>
+        </div>
+        <div style="flex:1;min-width:0;">
+            <div class="notif-item-title" style="font-size:13px;font-weight:{% if not n.is_read %}600{% else %}400{% endif %};line-height:1.35;margin-bottom:2px;">{{ n.title }}</div>
+            {% if n.body %}<div style="font-size:12px;color:var(--slate);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ n.body }}</div>{% endif %}
+            <div style="font-size:11px;color:var(--slate-soft);margin-top:3px;">{{ n.created_at | timeago }}</div>
+        </div>
+    </a>
+    {% endfor %}
+    {% else %}
+    <div style="padding:40px 24px;text-align:center;color:var(--slate);">
+        <i data-lucide="bell-off" style="width:28px;height:28px;opacity:.3;margin-bottom:10px;display:block;margin-left:auto;margin-right:auto;"></i>
+        <div style="font-size:14px;">No notifications yet</div>
+    </div>
+    {% endif %}
+    </div>
+
+    {# Footer #}
+    <div style="padding:12px 16px;border-top:1px solid var(--hairline);display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
+        <a href="{{ url_for('main.notifications') }}" onclick="closeNotifPanel();" style="font-size:13px;color:var(--vine);font-weight:600;">See all →</a>
+        {% if recent_notifications %}
+        <form method="POST" action="{{ url_for('main.notifications_read_all') }}" id="mark-all-read-form" style="display:contents;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        </form>
+        {% endif %}
+    </div>
+</div>
 {% endif %}
 
 <script nonce="{{ g.csp_nonce }}">
@@ -265,6 +324,65 @@ document.addEventListener('click', function(e) {
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function() {});
 }
+</script>
+<script nonce="{{ g.csp_nonce }}">
+(function() {
+    var panel = document.getElementById('notif-panel');
+    var backdrop = document.getElementById('notif-backdrop');
+    if (!panel) return;
+
+    function csrfToken() {
+        var m = document.querySelector('meta[name="csrf-token"]');
+        return m ? m.content : '';
+    }
+
+    window.toggleNotifPanel = function() {
+        if (panel.style.display === 'flex') { closeNotifPanel(); } else { openNotifPanel(); }
+    };
+
+    window.openNotifPanel = function() {
+        panel.style.display = 'flex';
+        backdrop.style.display = 'block';
+        var badge = document.getElementById('notif-badge');
+        if (badge && badge.style.display !== 'none') {
+            fetch('/notifications/read-all', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'csrf_token=' + encodeURIComponent(csrfToken()),
+            });
+            badge.style.display = 'none';
+            panel.querySelectorAll('.notif-item').forEach(function(el) {
+                el.style.background = '';
+            });
+            panel.querySelectorAll('.notif-item-title').forEach(function(el) {
+                el.style.fontWeight = '400';
+            });
+            panel.querySelectorAll('.notif-item > div:first-child').forEach(function(el) {
+                el.style.background = 'var(--bg-alt,#f5f5f5)';
+                var icon = el.querySelector('i');
+                if (icon) icon.style.color = 'var(--slate)';
+            });
+        }
+    };
+
+    window.closeNotifPanel = function() {
+        panel.style.display = 'none';
+        backdrop.style.display = 'none';
+    };
+
+    window.markNotifRead = function(nid) {
+        fetch('/notifications/' + nid + '/read', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'csrf_token=' + encodeURIComponent(csrfToken()),
+        });
+        closeNotifPanel();
+    };
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && panel.style.display === 'flex') closeNotifPanel();
+    });
+})();
 </script>
 </body>
 </html>
