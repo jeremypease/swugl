@@ -58,13 +58,26 @@
 {# ── LEFT: photo card ─────────────────────────────────────────── #}
 <div class="profile-card">
     <div class="card" style="padding:20px;">
-        <div class="profile-photo">
+        <div class="profile-photo" style="{% if is_own_profile and not person.photo_path %}cursor:pointer;{% endif %}">
             {% if person.photo_path %}
             <img src="{{ photo_url(person.photo_path) }}" alt="{{ person.get_display_name() }}">
             {% else %}
-            <div class="av" style="width:80px;height:80px;font-size:28px;background:var(--vine-deep);color:var(--cream);">{{ person.name[:2].upper() }}</div>
+            <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:72px;font-weight:700;color:rgba(255,255,255,0.75);font-family:var(--font-display);letter-spacing:-2px;">
+                {{ person.get_display_name()[0].upper() }}{% if person.name.split()|length > 1 %}{{ person.name.split()[-1][0].upper() }}{% endif %}
+            </div>
             {% endif %}
         </div>
+        {% if is_own_profile %}
+        <form method="POST" action="{{ url_for('main.profile_photo') }}" enctype="multipart/form-data"
+              style="margin-top:8px;margin-bottom:4px;text-align:center;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--vine);cursor:pointer;">
+                <i data-lucide="camera" style="width:12px;height:12px;"></i>
+                {% if person.photo_path %}Change photo{% else %}Add photo{% endif %}
+                <input type="file" name="photo" accept="image/*" style="display:none;" onchange="this.form.submit()">
+            </label>
+        </form>
+        {% endif %}
 
         <div class="profile-display-name">{{ person.get_display_name() }}</div>
         {% if person.nickname and person.nickname != person.name.split()[0] %}

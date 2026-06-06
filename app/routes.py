@@ -1884,18 +1884,38 @@ def profile_edit():
         return redirect(url_for('main.home'))
     form = ProfileForm(obj=person)
     if form.validate_on_submit():
-        person.nickname = form.nickname.data
-        person.gender = form.gender.data
+        person.nickname = form.nickname.data or None
+        person.gender = form.gender.data or None
         person.birthday = form.birthday.data
         person.birthplace = format_birthplace(form.birthplace.data)
-        person.maiden_name = form.maiden_name.data
+        person.maiden_name = form.maiden_name.data or None
+        person.occupation = form.occupation.data or None
         person.phone = format_phone(form.phone.data)
-        person.notes = form.notes.data
-        person.email = current_user.email  # kept in sync with login account email
+        person.notes = form.notes.data or None
+        person.email = current_user.email
         db.session.commit()
         flash('Profile updated successfully!', 'info')
         return redirect(url_for('main.profile'))
-    return render_template('profile_edit.html', form=form)
+    return render_template('profile_edit.html', form=form, person=person)
+
+
+@main.route('/profile/photo', methods=['POST'])
+@login_required
+def profile_photo():
+    person = current_user.person
+    if not person:
+        abort(404)
+    file = request.files.get('photo')
+    if file and file.filename:
+        if person.photo_path:
+            delete_object(person.photo_path)
+        key = upload_photo(file, folder='photos')
+        if key:
+            person.photo_path = key
+            db.session.commit()
+            flash('Profile photo updated.', 'info')
+    return redirect(url_for('main.profile'))
+
 
 @main.route('/notifications')
 @login_required

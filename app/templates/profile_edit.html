@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Edit My Profile — Swugl{% endblock %}
+{% block title %}Edit My Profile — {{ current_user.active_family.name }}{% endblock %}
 
 {% block content %}
 <div class="page-head">
@@ -17,6 +17,12 @@
     <div class="card">
         <form method="POST">
             {{ form.hidden_tag() }}
+
+            <div style="margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--hairline);">
+                <div style="font-size:12px;color:var(--slate);margin-bottom:2px;">Full name</div>
+                <div style="font-size:16px;font-weight:600;">{{ person.name }}</div>
+                <div style="font-size:12px;color:var(--slate);margin-top:3px;">Managed by your family admin.</div>
+            </div>
 
             <div class="field-row">
                 <div class="field">
@@ -44,10 +50,17 @@
                 </div>
             </div>
 
-            <div class="field">
-                {{ form.birthplace.label }}
-                {{ form.birthplace(placeholder="City, State") }}
-                {% for error in form.birthplace.errors %}<span class="msg">{{ error }}</span>{% endfor %}
+            <div class="field-row">
+                <div class="field">
+                    {{ form.birthplace.label }}
+                    {{ form.birthplace(placeholder="City, State") }}
+                    {% for error in form.birthplace.errors %}<span class="msg">{{ error }}</span>{% endfor %}
+                </div>
+                <div class="field">
+                    {{ form.occupation.label }}
+                    {{ form.occupation(placeholder="e.g. Teacher, Engineer") }}
+                    {% for error in form.occupation.errors %}<span class="msg">{{ error }}</span>{% endfor %}
+                </div>
             </div>
 
             <div class="field">

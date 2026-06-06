@@ -76,17 +76,18 @@ class RegistrationForm(FlaskForm):
 
 
 class ProfileForm(FlaskForm):
-    nickname = StringField('Nickname', validators=[Length(max=50)])
+    nickname = StringField('Nickname', validators=[Optional(), Length(max=50)])
     gender = SelectField('Gender', choices=[
         ('', '-- Select --'),
         ('Male', 'Male'),
         ('Female', 'Female')
-    ], validators=[DataRequired()])
-    birthday = DateField('Birthday', validators=[DataRequired()])
-    birthplace = StringField('Birthplace', validators=[Length(max=100)])
-    maiden_name = StringField('Maiden Name', validators=[Length(max=100)])
-    phone = StringField('Phone', validators=[Length(max=20)])
-    notes = TextAreaField('Notes')
+    ], validators=[Optional()])
+    birthday = DateField('Birthday', validators=[Optional()])
+    birthplace = StringField('Birthplace', validators=[Optional(), Length(max=100)])
+    maiden_name = StringField('Maiden Name', validators=[Optional(), Length(max=100)])
+    occupation = StringField('Occupation', validators=[Optional(), Length(max=100)])
+    phone = StringField('Phone', validators=[Optional(), Length(max=20)])
+    notes = TextAreaField('Notes', validators=[Optional()])
     submit = SubmitField('Save Changes')
 
 class SpouseForm(FlaskForm):
