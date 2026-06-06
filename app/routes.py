@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, send_file, session, abort
+from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, send_file, session, abort, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from .models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, ASSIGNMENT_CATEGORIES, EventRSVP, EventSleepingSpot, SPOT_TYPES, EventComment, Announcement, Album, Photo, Poll, NotificationPreference, NOTIFICATION_EVENTS, UserPodMembership, CalendarToken, EventPaymentConfig, EventPaymentRecord, FamilyPayoutAccount
 from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm, ForgotPasswordForm, ResetPasswordForm, AddPersonForm, RelativeForm, AddParentForm, FamilySettingsForm, EditPersonForm, EventForm, EventCommentForm, EventMealForm, EventMealFamilyAssignForm, EventMealItemForm, EventMealSelfSignupForm, EventMealAssignForm, EventAssignmentForm, EventAssignmentAdminAssignForm, EventSleepingSpotForm, EventSleepingAssignForm, GENDER_CHOICES_DEFAULT, GENDER_CHOICES_EXPANDED, PRONOUN_CHOICES, AnnouncementForm, AlbumForm, PhotoUploadForm, SupportForm
@@ -1460,13 +1460,40 @@ def delete_card(card_id):
 
 # ── Announcements ──────────────────────────────────────────────────────────────
 
+def _rel_time(dt):
+    delta = datetime.utcnow() - dt
+    if delta.days == 0:
+        h = delta.seconds // 3600
+        if h == 0:
+            m = delta.seconds // 60
+            return "just now" if m == 0 else f"{m}m ago"
+        return f"{h}h ago"
+    if delta.days == 1:
+        return "yesterday"
+    if delta.days < 7:
+        return f"{delta.days} days ago"
+    return dt.strftime('%B %-d, %Y')
+
 @main.route('/announcements')
 @login_required
 def announcements():
     items = Announcement.query.filter_by(family_id=current_user.active_family_id)\
         .order_by(Announcement.pinned.desc(), Announcement.created_at.desc()).all()
+    my_person_id = current_user.person.id if current_user.person else None
+    reaction_data = {}
+    for a in items:
+        emojis = {}
+        for r in a.reactions:
+            if r.emoji not in emojis:
+                emojis[r.emoji] = {'count': 0, 'mine': False}
+            emojis[r.emoji]['count'] += 1
+            if r.person_id == my_person_id:
+                emojis[r.emoji]['mine'] = True
+        reaction_data[a.id] = emojis
+    time_labels = {a.id: _rel_time(a.created_at) for a in items}
     form = AnnouncementForm()
-    return render_template('announcements.html', announcements=items, form=form)
+    return render_template('announcements.html', announcements=items, form=form,
+                           reaction_data=reaction_data, time_labels=time_labels)
 
 @main.route('/announcements/add', methods=['POST'])
 @login_required
@@ -1506,22 +1533,28 @@ def pin_announcement(ann_id):
 @login_required
 def react_announcement(ann_id):
     from .models import AnnouncementReaction
+    wants_json = 'application/json' in request.headers.get('Accept', '')
     a = db.session.get(Announcement, ann_id)
     if not a or a.family_id != current_user.active_family_id:
-        return redirect(url_for('main.announcements'))
+        return (jsonify({'error': 'not found'}), 404) if wants_json else redirect(url_for('main.announcements'))
     emoji = request.form.get('emoji', '')[:10]
     if not emoji or not current_user.person:
-        return redirect(url_for('main.announcements'))
+        return (jsonify({'error': 'invalid'}), 400) if wants_json else redirect(url_for('main.announcements'))
     existing = AnnouncementReaction.query.filter_by(
         announcement_id=ann_id, person_id=current_user.person.id, emoji=emoji
     ).first()
     if existing:
         db.session.delete(existing)
+        mine = False
     else:
         db.session.add(AnnouncementReaction(
             announcement_id=ann_id, person_id=current_user.person.id, emoji=emoji
         ))
+        mine = True
     db.session.commit()
+    if wants_json:
+        count = AnnouncementReaction.query.filter_by(announcement_id=ann_id, emoji=emoji).count()
+        return jsonify({'emoji': emoji, 'count': count, 'mine': mine})
     return redirect(url_for('main.announcements'))
 
 
@@ -1536,6 +1569,23 @@ def delete_announcement(ann_id):
         db.session.delete(a)
         db.session.commit()
         flash('Announcement deleted.', 'info')
+    return redirect(url_for('main.announcements'))
+
+@main.route('/announcements/<int:ann_id>/edit', methods=['POST'])
+@login_required
+def edit_announcement(ann_id):
+    a = db.session.get(Announcement, ann_id)
+    if not a or a.family_id != current_user.active_family_id:
+        return redirect(url_for('main.announcements'))
+    can_edit = current_user.active_is_admin or (current_user.person and a.author_id == current_user.person.id)
+    if not can_edit:
+        return redirect(url_for('main.announcements'))
+    title = request.form.get('title', '').strip()
+    body = request.form.get('body', '').strip()
+    if title and body:
+        a.title = title
+        a.body = body
+        db.session.commit()
     return redirect(url_for('main.announcements'))
 
 @main.route('/admin/users')

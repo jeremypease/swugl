@@ -31,6 +31,7 @@
 {% if announcements %}
 <div style="display:flex;flex-direction:column;gap:12px;max-width:680px;">
     {% for a in announcements %}
+    {% set can_edit = current_user.active_is_admin or (current_user.person and a.author_id == current_user.person.id) %}
     <div class="announce-card {% if a.pinned %}pinned{% endif %}">
         <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px;">
             <div style="flex:1;">
@@ -42,10 +43,18 @@
                 <div style="font-weight:600;font-size:16px;">{{ a.title }}</div>
                 <div style="font-size:12px;color:var(--slate);margin-top:3px;display:flex;align-items:center;gap:5px;">
                     {% if a.author %}{{ av(a.author, size='xs', color='var(--vine)') }} {{ a.author.get_display_name() }} · {% endif %}
-                    {{ a.created_at.strftime('%B %-d, %Y') }}
+                    <span title="{{ a.created_at.strftime('%B %-d, %Y') }}">{{ time_labels[a.id] }}</span>
                 </div>
             </div>
             <div style="display:flex;gap:4px;flex-shrink:0;">
+                {% if can_edit %}
+                <button class="btn btn-ghost btn-sm edit-ann-btn" title="Edit"
+                        data-id="{{ a.id }}"
+                        data-title="{{ a.title|e }}"
+                        data-body="{{ a.body|e }}">
+                    <i data-lucide="pencil" style="width:13px;height:13px;"></i>
+                </button>
+                {% endif %}
                 {% if current_user.active_is_admin %}
                 <form method="POST" action="/announcements/{{ a.id }}/pin">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -54,7 +63,7 @@
                     </button>
                 </form>
                 {% endif %}
-                {% if current_user.active_is_admin or (current_user.person and a.author_id == current_user.person.id) %}
+                {% if can_edit %}
                 <form method="POST" action="/announcements/{{ a.id }}/delete">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);"
@@ -67,40 +76,31 @@
         </div>
         <p style="font-size:15px;line-height:1.65;white-space:pre-wrap;color:var(--ink-soft);">{{ a.body }}</p>
 
-        {# Reactions #}
-        {% set my_person_id = current_user.person.id if current_user.person else none %}
-        {% set reaction_counts = {} %}
-        {% for r in a.reactions %}
-            {% if r.emoji not in reaction_counts %}{% set _ = reaction_counts.update({r.emoji: {'count': 0, 'mine': false}}) %}{% endif %}
-            {% set _ = reaction_counts[r.emoji].update({'count': reaction_counts[r.emoji]['count'] + 1}) %}
-            {% if r.person_id == my_person_id %}{% set _ = reaction_counts[r.emoji].update({'mine': true}) %}{% endif %}
-        {% endfor %}
-        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-top:10px;padding-top:10px;border-top:1px solid var(--hairline);">
-            {% for emoji, data in reaction_counts.items() %}
+        {# Reactions — pre-aggregated by route #}
+        <div class="reactions-row" id="reactions-{{ a.id }}"
+             style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-top:10px;padding-top:10px;border-top:1px solid var(--hairline);">
+            {% for emoji, data in reaction_data[a.id].items() %}
             {% if current_user.person %}
-            <form method="POST" action="/announcements/{{ a.id }}/react" style="display:contents;">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <input type="hidden" name="emoji" value="{{ emoji }}">
-                <button type="submit" style="background:{% if data['mine'] %}var(--leaf-mist){% else %}var(--hairline){% endif %};border:1px solid {% if data['mine'] %}var(--sprout){% else %}var(--hairline-strong){% endif %};border-radius:99px;padding:2px 8px;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;">
-                    {{ emoji }} <span style="font-size:12px;font-weight:600;">{{ data['count'] }}</span>
-                </button>
-            </form>
+            <button class="reaction-pill" data-ann="{{ a.id }}" data-emoji="{{ emoji }}" data-csrf="{{ csrf_token() }}"
+                    style="background:{% if data.mine %}var(--leaf-mist){% else %}var(--hairline){% endif %};border:1px solid {% if data.mine %}var(--sprout){% else %}var(--hairline-strong){% endif %};border-radius:99px;padding:2px 8px;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;">
+                {{ emoji }} <span class="reaction-count" style="font-size:12px;font-weight:600;">{{ data.count }}</span>
+            </button>
             {% else %}
             <span style="background:var(--hairline);border:1px solid var(--hairline-strong);border-radius:99px;padding:2px 8px;font-size:13px;display:inline-flex;align-items:center;gap:4px;">
-                {{ emoji }} <span style="font-size:12px;font-weight:600;">{{ data['count'] }}</span>
+                {{ emoji }} <span style="font-size:12px;font-weight:600;">{{ data.count }}</span>
             </span>
             {% endif %}
             {% endfor %}
             {% if current_user.person %}
             <div style="position:relative;display:inline-block;">
-                <button class="reaction-trigger" data-ann="{{ a.id }}" style="background:none;border:1px dashed var(--hairline-strong);border-radius:99px;padding:2px 8px;font-size:13px;cursor:pointer;color:var(--slate);">+</button>
-                <div class="reaction-picker" id="picker-{{ a.id }}" style="display:none;position:absolute;bottom:calc(100% + 4px);left:0;background:var(--paper);border:1px solid var(--hairline-strong);border-radius:var(--r-m);padding:6px 8px;display:none;flex-direction:row;gap:4px;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,.1);">
+                <button class="reaction-trigger" data-ann="{{ a.id }}"
+                        style="background:none;border:1px dashed var(--hairline-strong);border-radius:99px;padding:2px 8px;font-size:13px;cursor:pointer;color:var(--slate);">+</button>
+                <div class="reaction-picker" id="picker-{{ a.id }}"
+                     style="display:none;position:absolute;top:calc(100% + 4px);left:0;background:var(--paper);border:1px solid var(--hairline-strong);border-radius:var(--r-m);padding:6px 8px;flex-direction:row;gap:4px;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,.1);">
                     {% for e in ['❤️','😂','😮','😢','👏','🎉'] %}
-                    <form method="POST" action="/announcements/{{ a.id }}/react" style="display:contents;">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <input type="hidden" name="emoji" value="{{ e }}">
-                        <button type="submit" style="background:none;border:none;cursor:pointer;font-size:20px;padding:2px 4px;border-radius:4px;" onmouseover="this.style.background='var(--leaf-mist)'" onmouseout="this.style.background='none'">{{ e }}</button>
-                    </form>
+                    <button class="reaction-picker-btn" data-ann="{{ a.id }}" data-emoji="{{ e }}" data-csrf="{{ csrf_token() }}"
+                            style="background:none;border:none;cursor:pointer;font-size:20px;padding:2px 4px;border-radius:4px;"
+                            onmouseover="this.style.background='var(--leaf-mist)'" onmouseout="this.style.background='none'">{{ e }}</button>
                     {% endfor %}
                 </div>
             </div>
@@ -152,8 +152,36 @@
 </div>
 {% endif %}
 
+{# Edit modal — single instance, populated by JS #}
+<div id="edit-ann-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;align-items:center;justify-content:center;padding:20px;">
+    <div class="card" style="width:100%;max-width:560px;max-height:90vh;overflow-y:auto;">
+        <div class="card-header">
+            <h3>Edit Announcement</h3>
+            <button class="btn btn-ghost btn-sm" data-close-modal="edit-ann-modal">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <form method="POST" id="edit-ann-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="field">
+                <label>Title</label>
+                <input type="text" name="title" id="edit-ann-title" required>
+            </div>
+            <div class="field">
+                <label>Body</label>
+                <textarea name="body" id="edit-ann-body" rows="5" required></textarea>
+            </div>
+            <div style="display:flex;gap:10px;">
+                <button type="submit" class="btn btn-primary"><i data-lucide="save"></i> Save</button>
+                <button type="button" class="btn btn-secondary" data-close-modal="edit-ann-modal">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 {% block scripts %}
 <script nonce="{{ g.csp_nonce }}">
+// ── Reaction picker toggle ───────────────────────────────────────
 document.querySelectorAll('.reaction-trigger').forEach(function(btn) {
     btn.addEventListener('click', function(e) {
         e.stopPropagation();
@@ -165,6 +193,60 @@ document.querySelectorAll('.reaction-trigger').forEach(function(btn) {
 });
 document.addEventListener('click', function() {
     document.querySelectorAll('.reaction-picker').forEach(function(p) { p.style.display = 'none'; });
+});
+
+// ── Async reaction toggle ────────────────────────────────────────
+function findPill(row, emoji) {
+    return Array.from(row.querySelectorAll('.reaction-pill')).find(function(b) { return b.dataset.emoji === emoji; });
+}
+
+function toggleReaction(annId, emoji, csrf) {
+    fetch('/announcements/' + annId + '/react', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json'},
+        body: 'csrf_token=' + encodeURIComponent(csrf) + '&emoji=' + encodeURIComponent(emoji)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        var row = document.getElementById('reactions-' + annId);
+        var trigger = row.querySelector('.reaction-trigger');
+        var existing = findPill(row, emoji);
+
+        if (data.count === 0 && existing) {
+            existing.remove();
+        } else if (existing) {
+            existing.querySelector('.reaction-count').textContent = data.count;
+            existing.style.background = data.mine ? 'var(--leaf-mist)' : 'var(--hairline)';
+            existing.style.borderColor = data.mine ? 'var(--sprout)' : 'var(--hairline-strong)';
+        } else if (data.count > 0) {
+            var btn = document.createElement('button');
+            btn.className = 'reaction-pill';
+            btn.dataset.ann = annId;
+            btn.dataset.emoji = emoji;
+            btn.dataset.csrf = csrf;
+            btn.style.cssText = 'background:var(--leaf-mist);border:1px solid var(--sprout);border-radius:99px;padding:2px 8px;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;';
+            btn.innerHTML = emoji + ' <span class="reaction-count" style="font-size:12px;font-weight:600;">' + data.count + '</span>';
+            row.insertBefore(btn, trigger ? trigger.parentElement : null);
+        }
+        document.querySelectorAll('.reaction-picker').forEach(function(p) { p.style.display = 'none'; });
+    });
+}
+
+document.addEventListener('click', function(e) {
+    var pill = e.target.closest('.reaction-pill');
+    if (pill) { toggleReaction(pill.dataset.ann, pill.dataset.emoji, pill.dataset.csrf); return; }
+    var pickerBtn = e.target.closest('.reaction-picker-btn');
+    if (pickerBtn) { toggleReaction(pickerBtn.dataset.ann, pickerBtn.dataset.emoji, pickerBtn.dataset.csrf); return; }
+});
+
+// ── Edit modal ───────────────────────────────────────────────────
+document.querySelectorAll('.edit-ann-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        document.getElementById('edit-ann-title').value = btn.dataset.title;
+        document.getElementById('edit-ann-body').value = btn.dataset.body;
+        document.getElementById('edit-ann-form').action = '/announcements/' + btn.dataset.id + '/edit';
+        document.getElementById('edit-ann-modal').style.display = 'flex';
+    });
 });
 </script>
 {% endblock %}
