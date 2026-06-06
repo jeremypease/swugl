@@ -1,6 +1,7 @@
 {% extends "base.html" %}
+{% from "_macros.html" import av %}
 
-{% block title %}Members — Admin{% endblock %}
+{% block title %}Members &amp; Invites — {{ current_user.active_family.name }}{% endblock %}
 
 {% block head %}
 <style>
@@ -67,6 +68,7 @@
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);padding:4px 10px 8px;">Pod Settings</div>
     <a href="/admin/users" class="active">Members &amp; invites</a>
     <a href="/admin/family">Family settings</a>
+    <a href="{{ url_for('billing.billing_page') }}">Billing</a>
 </div>
 
 {# ── Main content ─────────────────────────────────────────────── #}
@@ -93,7 +95,7 @@
             {% for user in pending %}
             <div class="member-row">
                 <div style="display:flex;align-items:center;gap:8px;">
-                    <div class="av av-sm" style="background:var(--honey);color:var(--ink);">{{ user.first_name[0] }}{{ user.last_name[0] }}</div>
+                    <div class="av av-sm" style="background:var(--honey);color:var(--ink);">{{ user.first_name[:1] }}{{ user.last_name[:1] }}</div>
                     <span style="font-weight:500;">{{ user.get_full_name() }}</span>
                 </div>
                 <div style="color:var(--slate);">{{ user.email }}</div>
@@ -126,7 +128,7 @@
         {% for person in people %}
         <div class="member-row">
             <div style="display:flex;align-items:center;gap:8px;">
-                <div class="av av-sm">{{ person.name[0] }}</div>
+                {{ av(person, size='sm') }}
                 <div>
                     <a href="/person/{{ person.id }}" style="font-weight:500;color:inherit;text-decoration:none;">{{ person.get_display_name() }}</a>
                     {% if person.email %}<div style="font-size:11px;color:var(--slate-soft);">{{ person.email }}</div>{% endif %}
@@ -155,14 +157,13 @@
             <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
                 {% if person.user and person.user.id != current_user.id %}
                     {% if person.user.status == 'approved' %}
-                    <form method="POST" action="/admin/set-role/{{ person.user.id }}" style="display:flex;gap:5px;align-items:center;">
+                    <form method="POST" action="/admin/set-role/{{ person.user.id }}">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <select name="role" style="font-size:12px;padding:3px 6px;border:1px solid var(--hairline-strong);border-radius:var(--r-s);background:var(--paper);">
+                        <select name="role" onchange="this.form.submit()" style="font-size:12px;padding:3px 6px;border:1px solid var(--hairline-strong);border-radius:var(--r-s);background:var(--paper);cursor:pointer;">
                             <option value="" {% if not person.user.is_admin and not person.user.is_delegate %}selected{% endif %}>Member</option>
                             <option value="contributor" {% if person.user.is_delegate %}selected{% endif %}>Contributor</option>
                             <option value="admin" {% if person.user.is_admin %}selected{% endif %}>Admin</option>
                         </select>
-                        <button type="submit" class="btn btn-ghost btn-sm">Set</button>
                     </form>
                     <form method="POST" action="/admin/remove/{{ person.user.id }}"
                           onsubmit="return confirm('Remove {{ person.get_display_name() }}? They will lose access but their history is kept.');">
@@ -205,7 +206,7 @@
                 </form>
             </div>
             <div style="display:flex;align-items:center;gap:8px;">
-                <div class="av av-sm">{{ person.name[0] }}</div>
+                {{ av(person, size='sm') }}
                 <a href="/person/{{ person.id }}" style="color:inherit;">{{ person.get_display_name() }}</a>
             </div>
             <div style="font-size:13px;color:var(--slate);">
