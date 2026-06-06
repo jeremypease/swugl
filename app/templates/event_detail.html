@@ -270,15 +270,21 @@ details[open] .details-chevron { transform: rotate(180deg); }
                 </a>
                 {% endif %}
                 {% if current_user.person %}
-                <button class="btn btn-ghost btn-sm" data-toggle-form="ev-photo-upload">
-                    <i data-lucide="upload"></i> Add photos
-                </button>
+                    {% if has_paid_access %}
+                    <button class="btn btn-ghost btn-sm" data-toggle-form="ev-photo-upload">
+                        <i data-lucide="upload"></i> Add photos
+                    </button>
+                    {% else %}
+                    <a href="{{ url_for('billing.billing_page') }}" class="btn btn-ghost btn-sm" style="color:var(--slate);" title="Upgrade to add photos">
+                        <i data-lucide="lock" style="width:13px;height:13px;"></i> Add photos
+                    </a>
+                    {% endif %}
                 {% endif %}
             </div>
         </div>
 
-        {# ── Inline upload form ────────────────────────────────────── #}
-        {% if current_user.person %}
+        {# ── Inline upload form (paid only) ───────────────────────── #}
+        {% if current_user.person and has_paid_access %}
         <div id="ev-photo-upload" style="display:none;padding:12px 0;border-bottom:1px solid var(--hairline);margin-bottom:12px;">
             <form method="POST" action="/events/{{ event.id }}/photos/upload"
                   enctype="multipart/form-data"

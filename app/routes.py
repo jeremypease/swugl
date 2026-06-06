@@ -7,6 +7,7 @@ from datetime import date, datetime, timedelta
 from functools import wraps
 from urllib.parse import urlparse
 from . import db, limiter
+from .billing import requires_plan, family_has_paid_access
 from .storage import upload_photo, delete_object, get_object_bytes
 import secrets
 import hashlib
@@ -920,6 +921,7 @@ def upload_photos(album_id):
 
 @main.route('/events/<int:event_id>/photos/upload', methods=['POST'])
 @login_required
+@requires_plan
 def event_upload_photos(event_id):
     event = db.session.get(Event, event_id)
     if not event or event.family_id != current_user.active_family_id:
@@ -2293,10 +2295,13 @@ def event_detail(event_id):
         Album.family_id == current_user.active_family_id,
     ).order_by(Photo.created_at.asc()).limit(12).all()
 
+    has_paid_access = family_has_paid_access(current_user.family)
+
     return render_template('event_detail.html',
         event=event,
         event_date_range=_edr,
         event_photos=event_photos,
+        has_paid_access=has_paid_access,
         meal_form=meal_form,
         meal_item_form=meal_item_form,
         meal_family_forms=meal_family_forms,
