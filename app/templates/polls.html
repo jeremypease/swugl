@@ -1,5 +1,25 @@
 {% extends "base.html" %}
 {% block title %}Polls — {{ current_user.active_family.name }}{% endblock %}
+
+{% block head %}
+<style>
+.poll-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 18px;
+    background: var(--paper);
+    border: 1px solid var(--hairline-strong);
+    border-radius: var(--r-m);
+    text-decoration: none;
+    color: inherit;
+    transition: box-shadow .15s, border-color .15s, transform .15s;
+}
+.poll-row:hover { border-color: var(--vine); box-shadow: 0 4px 16px rgba(0,0,0,.08); transform: translateY(-1px); }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="page-head">
     <div>
@@ -11,33 +31,68 @@
     </button>
 </div>
 
-{% if polls %}
-<div style="display:flex;flex-direction:column;gap:12px;max-width:680px;">
-    {% for poll in polls %}
-    <a href="{{ url_for('main.poll_detail', poll_id=poll.id) }}" style="text-decoration:none;color:inherit;">
-        <div class="card" style="transition:box-shadow .15s;">
-            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
-                <div style="flex:1;">
-                    <div style="font-weight:600;font-size:15px;margin-bottom:4px;">{{ poll.question }}</div>
-                    <div style="font-size:12px;color:var(--slate);display:flex;gap:10px;flex-wrap:wrap;">
-                        {% if poll.created_by %}<span>{{ poll.created_by.get_display_name() }}</span>{% endif %}
-                        <span>{{ poll.options | length }} options</span>
-                        <span>{{ poll.total_voters }} vote{{ 's' if poll.total_voters != 1 }}</span>
-                        {% if poll.is_closed %}<span style="color:var(--tomato);font-weight:600;">Closed</span>
-                        {% elif poll.closes_at %}<span>Closes {{ poll.closes_at.strftime('%b %-d') }}</span>{% endif %}
-                    </div>
-                </div>
-                <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--slate);flex-shrink:0;margin-top:2px;"></i>
+{% if active_polls %}
+<div style="display:flex;flex-direction:column;gap:10px;max-width:680px;">
+    {% for poll in active_polls %}
+    {% set voted = poll.id in my_voted_ids %}
+    {% set voters = voter_counts.get(poll.id, 0) %}
+    {% set days_left = (poll.closes_at - today).days if poll.closes_at else none %}
+    <a href="{{ url_for('main.poll_detail', poll_id=poll.id) }}" class="poll-row">
+        <div style="flex:1;min-width:0;">
+            <div style="font-weight:600;font-size:15px;margin-bottom:4px;">{{ poll.question }}</div>
+            <div style="font-size:12px;color:var(--slate);display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                {% if poll.created_by %}<span>{{ poll.created_by.get_display_name() }}</span>{% endif %}
+                <span>{{ poll.options | length }} options</span>
+                <span>{{ voters }} vote{{ 's' if voters != 1 }}</span>
+                {% if poll.closes_at %}
+                <span style="{% if days_left is not none and days_left <= 3 %}color:#b45309;font-weight:600;{% endif %}">
+                    {% if days_left == 0 %}Closes today
+                    {% elif days_left == 1 %}Closes tomorrow
+                    {% elif days_left is not none and days_left <= 3 %}Closes in {{ days_left }} days
+                    {% else %}Closes {{ poll.closes_at.strftime('%b %-d') }}
+                    {% endif %}
+                </span>
+                {% endif %}
             </div>
         </div>
+        {% if voted %}
+        <span style="font-size:11px;font-weight:600;color:#16a34a;display:flex;align-items:center;gap:3px;flex-shrink:0;margin-top:2px;">
+            <i data-lucide="check" style="width:11px;height:11px;"></i> Voted
+        </span>
+        {% else %}
+        <span style="font-size:11px;font-weight:600;color:var(--vine);flex-shrink:0;margin-top:2px;">Vote →</span>
+        {% endif %}
     </a>
     {% endfor %}
 </div>
-{% else %}
+{% elif not closed_polls %}
 <div style="max-width:440px;text-align:center;padding:64px 24px;">
     <i data-lucide="bar-chart-2" style="width:48px;height:48px;color:var(--sprout);margin-bottom:16px;"></i>
     <div style="font-weight:600;font-size:16px;margin-bottom:6px;">No polls yet</div>
     <div style="color:var(--slate);font-size:14px;">Use polls to pick event dates, decide on meals, or settle any family debate.</div>
+</div>
+{% endif %}
+
+{% if closed_polls %}
+<div style="margin-top:{% if active_polls %}36px{% else %}0{% endif %};max-width:680px;">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);margin-bottom:12px;">Closed</div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+        {% for poll in closed_polls %}
+        {% set voters = voter_counts.get(poll.id, 0) %}
+        <a href="{{ url_for('main.poll_detail', poll_id=poll.id) }}" class="poll-row" style="opacity:.65;">
+            <div style="flex:1;min-width:0;">
+                <div style="font-weight:600;font-size:15px;margin-bottom:4px;">{{ poll.question }}</div>
+                <div style="font-size:12px;color:var(--slate);display:flex;gap:8px;flex-wrap:wrap;">
+                    {% if poll.created_by %}<span>{{ poll.created_by.get_display_name() }}</span>{% endif %}
+                    <span>{{ poll.options | length }} options</span>
+                    <span>{{ voters }} vote{{ 's' if voters != 1 }}</span>
+                    {% if poll.closes_at %}<span>Closed {{ poll.closes_at.strftime('%b %-d, %Y') }}</span>{% endif %}
+                </div>
+            </div>
+            <i data-lucide="chevron-right" style="width:15px;height:15px;color:var(--hairline-strong);flex-shrink:0;margin-top:2px;"></i>
+        </a>
+        {% endfor %}
+    </div>
 </div>
 {% endif %}
 

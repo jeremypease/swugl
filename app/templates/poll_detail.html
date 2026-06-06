@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import av %}
 {% block title %}{{ poll.question }} — {{ current_user.active_family.name }}{% endblock %}
 {% block content %}
 <div class="canvas-inner" style="max-width:640px;">
@@ -30,7 +31,7 @@
 
 <div class="card" style="margin-bottom:20px;">
     {% if not poll.is_closed and current_user.person %}
-    <form method="POST" action="{{ url_for('main.vote_poll', poll_id=poll.id) }}">
+    <form method="POST" action="{{ url_for('main.vote_poll', poll_id=poll.id) }}" id="vote-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;">
             {% for option in poll.options %}
@@ -42,17 +43,20 @@
                            style="accent-color:var(--vine);width:16px;height:16px;flex-shrink:0;">
                     <div style="flex:1;">
                         <div style="font-weight:{% if option.vote_count == max_votes and max_votes > 0 %}700{% else %}500{% endif %};">{{ option.label }}</div>
-                        <div style="margin-top:4px;height:4px;border-radius:2px;background:var(--hairline-strong);overflow:hidden;">
-                            <div style="height:100%;width:{{ pct }}%;background:var(--vine);border-radius:2px;"></div>
+                        <div style="margin-top:4px;height:6px;border-radius:3px;background:var(--hairline-strong);overflow:hidden;">
+                            <div style="height:100%;width:{{ pct }}%;background:var(--vine);border-radius:3px;"></div>
                         </div>
                     </div>
-                    <span style="font-size:13px;color:var(--slate);white-space:nowrap;flex-shrink:0;">{{ option.vote_count }} vote{{ 's' if option.vote_count != 1 }}</span>
+                    <span style="font-size:13px;color:var(--slate);white-space:nowrap;flex-shrink:0;">{{ option.vote_count }}</span>
                 </div>
             </label>
             {% endfor %}
         </div>
-        <button type="submit" class="btn btn-primary">Save my vote</button>
-        <p style="font-size:12px;color:var(--slate);margin-top:8px;">You can select multiple options and change your vote any time before the poll closes.</p>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <button type="submit" class="btn btn-primary">Save my vote</button>
+            <p style="font-size:12px;color:var(--slate);margin:0;">You can select multiple options and change your vote any time before the poll closes.</p>
+        </div>
+        <p id="vote-warning" style="display:none;font-size:12px;color:var(--tomato);margin-top:8px;">Please select at least one option before saving.</p>
     </form>
     {% else %}
     {# Read-only results view #}
@@ -62,7 +66,7 @@
         <div style="padding:10px 12px;border:1.5px solid var(--hairline-strong);border-radius:var(--r-m);">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
                 <span style="font-weight:{% if option.vote_count == max_votes and max_votes > 0 %}700{% else %}500{% endif %};">{{ option.label }}</span>
-                <span style="font-size:13px;color:var(--slate);">{{ option.vote_count }} vote{{ 's' if option.vote_count != 1 }} · {{ pct }}%</span>
+                <span style="font-size:13px;color:var(--slate);">{{ option.vote_count }} · {{ pct }}%</span>
             </div>
             <div style="height:6px;border-radius:3px;background:var(--hairline-strong);overflow:hidden;">
                 <div style="height:100%;width:{{ pct }}%;background:var(--vine);border-radius:3px;"></div>
@@ -78,5 +82,50 @@
     {% endif %}
 </div>
 
+{# Who voted for what #}
+{% if poll.total_voters > 0 %}
+<div class="card">
+    <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);margin-bottom:16px;">
+        Who voted for what
+    </div>
+    <div style="display:flex;flex-direction:column;gap:16px;">
+        {% for option in poll.options %}
+        {% if option.votes %}
+        <div>
+            <div style="font-weight:600;font-size:14px;margin-bottom:8px;">{{ option.label }}</div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                {% for vote in option.votes %}
+                <div style="display:flex;align-items:center;gap:5px;font-size:13px;color:var(--slate);">
+                    {{ av(vote.person, size='xs') }} {{ vote.person.get_display_name() }}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
 </div>
+{% endif %}
+
+</div>
+
+{% block scripts %}
+<script nonce="{{ g.csp_nonce }}">
+var form = document.getElementById('vote-form');
+if (form) {
+    form.addEventListener('submit', function(e) {
+        var checked = form.querySelectorAll('input[type="checkbox"]:checked');
+        if (checked.length === 0) {
+            e.preventDefault();
+            document.getElementById('vote-warning').style.display = '';
+        }
+    });
+    form.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
+        cb.addEventListener('change', function() {
+            document.getElementById('vote-warning').style.display = 'none';
+        });
+    });
+}
+</script>
+{% endblock %}
 {% endblock %}

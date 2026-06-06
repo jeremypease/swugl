@@ -1242,10 +1242,29 @@ def checklist_delete(checklist_id):
 @main.route('/polls')
 @login_required
 def polls():
-    from .models import Poll
+    from .models import Poll, PollVote
+    from sqlalchemy import func as _func
     all_polls = Poll.query.filter_by(family_id=current_user.active_family_id)\
         .order_by(Poll.created_at.desc()).all()
-    return render_template('polls.html', polls=all_polls)
+    poll_ids = [p.id for p in all_polls]
+    voter_counts = {}
+    if poll_ids:
+        rows = db.session.query(
+            PollVote.poll_id, _func.count(_func.distinct(PollVote.person_id))
+        ).filter(PollVote.poll_id.in_(poll_ids)).group_by(PollVote.poll_id).all()
+        voter_counts = {pid: cnt for pid, cnt in rows}
+    my_voted_ids = set()
+    if current_user.person and poll_ids:
+        voted = db.session.query(PollVote.poll_id).filter(
+            PollVote.poll_id.in_(poll_ids),
+            PollVote.person_id == current_user.person.id
+        ).distinct().all()
+        my_voted_ids = {r.poll_id for r in voted}
+    active_polls = [p for p in all_polls if not p.is_closed]
+    closed_polls = [p for p in all_polls if p.is_closed]
+    return render_template('polls.html', active_polls=active_polls, closed_polls=closed_polls,
+                           voter_counts=voter_counts, my_voted_ids=my_voted_ids,
+                           today=date.today())
 
 
 @main.route('/polls/new', methods=['POST'])
