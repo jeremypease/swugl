@@ -248,7 +248,7 @@ def create_app(test_config=None):
         response.headers['Content-Security-Policy'] = (
             "default-src 'self'; "
             f"script-src 'self' https://unpkg.com 'nonce-{nonce}'; "
-            "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; "
+            "style-src 'self' https://fonts.googleapis.com https://unpkg.com 'unsafe-inline'; "
             "font-src 'self' https://fonts.gstatic.com; "
             f"img-src {img_src}; "
             "connect-src 'self' https://photon.komoot.io https://nominatim.openstreetmap.org;"

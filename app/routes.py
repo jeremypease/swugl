@@ -2051,6 +2051,9 @@ def _geocode_location(location_str):
 def event_add():
     form = EventForm()
     if form.validate_on_submit():
+        if form.end_date.data and form.start_date.data and form.end_date.data < form.start_date.data:
+            form.end_date.errors.append('End date cannot be before start date.')
+            return render_template('event_form.html', form=form, event=None)
         location = form.location.data or None
         lat, lng = _geocode_location(location)
         event = Event(
@@ -2245,6 +2248,9 @@ def event_edit(event_id):
         return redirect(url_for('main.events_list'))
     form = EventForm(obj=event)
     if form.validate_on_submit():
+        if form.end_date.data and form.start_date.data and form.end_date.data < form.start_date.data:
+            form.end_date.errors.append('End date cannot be before start date.')
+            return render_template('event_form.html', form=form, event=event)
         event.name = form.name.data
         event.kind = form.kind.data or None
         event.description = form.description.data or None

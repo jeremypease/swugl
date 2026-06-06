@@ -3,6 +3,7 @@
 {% block title %}{% if event %}Edit {{ event.name }}{% else %}New Event{% endif %} — Swugl{% endblock %}
 
 {% block head %}
+<link rel="stylesheet" href="https://unpkg.com/flatpickr/dist/flatpickr.min.css">
 <style>
 .ac-item { padding:9px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--hairline); }
 .ac-item:last-child { border-bottom:none; }
@@ -12,6 +13,8 @@
 .room-row { display:flex;gap:8px;align-items:center;margin-bottom:6px; }
 .room-row input[type=text] { flex:1; }
 .room-row input[type=number] { width:72px; }
+.flatpickr-input { background:#fff !important; }
+#date-error { font-size:13px;color:var(--tomato);display:none;margin-top:4px; }
 </style>
 {% endblock %}
 
@@ -66,32 +69,42 @@
         <div class="field-row">
             <div class="field">
                 {{ form.start_date.label }}
-                {{ form.start_date(id="start-date-input") }}
+                {{ form.start_date(id="start-date-input", autocomplete="off", placeholder="Select date") }}
                 {% for error in form.start_date.errors %}<span class="msg">{{ error }}</span>{% endfor %}
             </div>
             <div class="field">
-                {{ form.end_date.label }}
-                {{ form.end_date(id="end-date-input") }}
+                <label for="end-date-input">End Date <span style="font-weight:400;font-size:12px;color:var(--slate-soft);">(optional)</span></label>
+                {{ form.end_date(id="end-date-input", autocomplete="off", placeholder="Select date") }}
             </div>
             <div class="field" style="flex:0 0 auto;min-width:70px;">
                 <label>&nbsp;</label>
                 <div id="duration-display" style="font-size:13px;color:var(--slate);padding-top:10px;white-space:nowrap;"></div>
             </div>
         </div>
+        <div id="date-error">End date cannot be before start date.</div>
 
-        {# Times #}
-        <div class="field-row">
-            <div class="field">
-                {{ form.start_time.label }}
-                {{ form.start_time(id="f-start-time", placeholder="optional") }}
+        {# Times — label changes based on single vs multi-day #}
+        <div id="time-row">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                <label style="font-size:13px;font-weight:600;margin:0;" id="time-row-label">Times <span style="font-weight:400;color:var(--slate-soft);font-size:12px;">(optional)</span></label>
+                <label class="checkbox-row" style="margin:0;gap:6px;">
+                    <input type="checkbox" id="all-day-toggle">
+                    <span style="font-size:13px;color:var(--slate);">All day</span>
+                </label>
             </div>
-            <div class="field">
-                {{ form.end_time.label }}
-                {{ form.end_time(id="f-end-time", placeholder="optional") }}
-            </div>
-            <div class="field" style="flex:0 0 auto;min-width:70px;">
-                <label>&nbsp;</label>
-                <div id="time-duration-display" style="font-size:13px;color:var(--slate);padding-top:10px;white-space:nowrap;"></div>
+            <div id="time-fields" class="field-row">
+                <div class="field">
+                    <label id="start-time-label" for="f-start-time">Start time</label>
+                    {{ form.start_time(id="f-start-time", placeholder="—") }}
+                </div>
+                <div class="field">
+                    <label id="end-time-label" for="f-end-time">End time</label>
+                    {{ form.end_time(id="f-end-time", placeholder="—") }}
+                </div>
+                <div class="field" style="flex:0 0 auto;min-width:70px;">
+                    <label>&nbsp;</label>
+                    <div id="time-duration-display" style="font-size:13px;color:var(--slate);padding-top:10px;white-space:nowrap;"></div>
+                </div>
             </div>
         </div>
 
@@ -201,28 +214,91 @@
 </div>
 </div>
 
+<script src="https://unpkg.com/flatpickr"></script>
 <script nonce="{{ g.csp_nonce }}">
 (function () {
-    // ── Duration display ────────────────────────────────────────────
+    // ── Flatpickr date pickers ──────────────────────────────────────
     const startEl = document.getElementById('start-date-input');
-    const endEl = document.getElementById('end-date-input');
+    const endEl   = document.getElementById('end-date-input');
+    const dateError = document.getElementById('date-error');
+
+    let fpEnd;
+    const fpStart = flatpickr(startEl, {
+        dateFormat: 'Y-m-d',
+        allowInput: true,
+        onChange: function(sel, dateStr) {
+            if (fpEnd) fpEnd.set('minDate', dateStr || null);
+            updateDuration();
+            updateTimeLabels();
+            validateDates();
+        },
+    });
+    fpEnd = flatpickr(endEl, {
+        dateFormat: 'Y-m-d',
+        allowInput: true,
+        onChange: function() {
+            updateDuration();
+            updateTimeLabels();
+            validateDates();
+        },
+    });
+    // Seed minDate if start is already set (edit mode)
+    if (startEl.value) fpEnd.set('minDate', startEl.value);
+
+    function validateDates() {
+        if (!startEl.value || !endEl.value) { dateError.style.display = 'none'; return; }
+        const ok = new Date(endEl.value) >= new Date(startEl.value);
+        dateError.style.display = ok ? 'none' : 'block';
+    }
+
+    // ── Duration display ────────────────────────────────────────────
     const durEl = document.getElementById('duration-display');
     function updateDuration() {
-        if (!startEl || !endEl || !durEl) return;
         const s = startEl.value, e = endEl.value;
-        if (!s || !e) { durEl.textContent = ''; return; }
+        if (!s) { durEl.textContent = ''; return; }
+        if (!e || e === s) { durEl.textContent = '1 day'; return; }
         const diff = (new Date(e) - new Date(s)) / 86400000;
         if (diff < 0) { durEl.textContent = ''; return; }
-        durEl.textContent = diff === 0 ? '1 day' : (diff + 1) + ' days';
+        durEl.textContent = (diff + 1) + ' days';
     }
-    if (startEl) startEl.addEventListener('change', updateDuration);
-    if (endEl) endEl.addEventListener('change', updateDuration);
     updateDuration();
 
-    // ── Time duration display ───────────────────────────────────────
+    // ── All-day toggle + time labels ────────────────────────────────
+    const allDayToggle  = document.getElementById('all-day-toggle');
+    const timeFields    = document.getElementById('time-fields');
+    const startTimeLbl  = document.getElementById('start-time-label');
+    const endTimeLbl    = document.getElementById('end-time-label');
     const stEl = document.getElementById('f-start-time');
     const etEl = document.getElementById('f-end-time');
     const tdEl = document.getElementById('time-duration-display');
+
+    // Initialise all-day state: true when both times are empty
+    if (allDayToggle) {
+        allDayToggle.checked = !stEl.value && !etEl.value;
+    }
+
+    function updateTimeLabels() {
+        const isMultiDay = startEl.value && endEl.value && endEl.value > startEl.value;
+        if (startTimeLbl) startTimeLbl.textContent = isMultiDay ? 'Arrive by' : 'Start time';
+        if (endTimeLbl)   endTimeLbl.textContent   = isMultiDay ? 'Depart by' : 'End time';
+    }
+
+    function applyAllDay() {
+        if (!allDayToggle || !timeFields) return;
+        const allDay = allDayToggle.checked;
+        timeFields.style.display = allDay ? 'none' : 'flex';
+        if (allDay) {
+            if (stEl) stEl.value = '';
+            if (etEl) etEl.value = '';
+            if (tdEl) tdEl.textContent = '';
+        }
+    }
+
+    if (allDayToggle) allDayToggle.addEventListener('change', applyAllDay);
+    applyAllDay();
+    updateTimeLabels();
+
+    // ── Time duration display ───────────────────────────────────────
     function updateTimeDuration() {
         if (!stEl || !etEl || !tdEl || !stEl.value || !etEl.value) { if(tdEl) tdEl.textContent=''; return; }
         const [sh,sm] = stEl.value.split(':').map(Number);
