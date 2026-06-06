@@ -1,5 +1,24 @@
 {% extends "base.html" %}
 {% block title %}Checklists — {{ current_user.active_family.name }}{% endblock %}
+
+{% block head %}
+<style>
+.checklist-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 18px;
+    background: var(--paper);
+    border: 1px solid var(--hairline-strong);
+    border-radius: var(--r-m);
+    text-decoration: none;
+    color: inherit;
+    transition: box-shadow .15s, border-color .15s, transform .15s;
+}
+.checklist-row:hover { border-color: var(--vine); box-shadow: 0 4px 16px rgba(0,0,0,.08); transform: translateY(-1px); }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="page-head">
     <div>
@@ -11,39 +30,59 @@
     </button>
 </div>
 
-{% if checklists %}
-<div style="display:flex;flex-direction:column;gap:12px;max-width:680px;">
-    {% for cl in checklists %}
-    <a href="{{ url_for('main.checklist_detail', checklist_id=cl.id) }}" style="text-decoration:none;color:inherit;">
-        <div class="card">
-            <div style="display:flex;align-items:center;gap:12px;">
-                <div style="font-size:24px;flex-shrink:0;">
-                    {% if cl.list_type == 'packing' %}🎒{% elif cl.list_type == 'shopping' %}🛒{% else %}✅{% endif %}
-                </div>
-                <div style="flex:1;">
-                    <div style="font-weight:600;font-size:15px;margin-bottom:2px;">{{ cl.title }}</div>
-                    <div style="font-size:12px;color:var(--slate);display:flex;gap:10px;flex-wrap:wrap;">
-                        <span>{{ cl.done_count }}/{{ cl.items|length }} done</span>
-                        {% if cl.event %}<span>{{ cl.event.name }}</span>{% endif %}
-                        {% if cl.created_by %}<span>{{ cl.created_by.get_display_name() }}</span>{% endif %}
-                    </div>
-                </div>
-                {% if cl.items %}
-                <div style="width:60px;height:6px;border-radius:3px;background:var(--hairline-strong);overflow:hidden;flex-shrink:0;">
-                    <div style="height:100%;width:{{ ((cl.done_count / cl.items|length) * 100)|int }}%;background:var(--vine);border-radius:3px;"></div>
-                </div>
-                {% endif %}
-                <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--slate);flex-shrink:0;"></i>
+{% if active_lists %}
+<div style="display:flex;flex-direction:column;gap:10px;max-width:680px;">
+    {% for cl in active_lists %}
+    {% set total = cl.items|length %}
+    {% set done = cl.done_count %}
+    {% set pct = ((done / total * 100)|int) if total else 0 %}
+    <a href="{{ url_for('main.checklist_detail', checklist_id=cl.id) }}" class="checklist-row">
+        <div style="font-size:24px;flex-shrink:0;line-height:1;">
+            {% if cl.list_type == 'packing' %}🎒{% elif cl.list_type == 'shopping' %}🛒{% else %}✅{% endif %}
+        </div>
+        <div style="flex:1;min-width:0;">
+            <div style="font-weight:600;font-size:15px;margin-bottom:3px;">{{ cl.title }}</div>
+            <div style="font-size:12px;color:var(--slate);display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                <span>{{ done }}/{{ total }} done</span>
+                {% if cl.event %}<span>{{ cl.event.name }}</span>{% endif %}
+                {% if cl.created_by %}<span>{{ cl.created_by.get_display_name() }}</span>{% endif %}
             </div>
         </div>
+        {% if total %}
+        <div style="width:56px;height:6px;border-radius:3px;background:var(--hairline-strong);overflow:hidden;flex-shrink:0;">
+            <div style="height:100%;width:{{ pct }}%;background:var(--vine);border-radius:3px;"></div>
+        </div>
+        {% endif %}
+        <i data-lucide="chevron-right" style="width:15px;height:15px;color:var(--hairline-strong);flex-shrink:0;"></i>
     </a>
     {% endfor %}
 </div>
-{% else %}
+{% elif not completed_lists %}
 <div style="max-width:440px;text-align:center;padding:64px 24px;">
     <div style="font-size:48px;margin-bottom:16px;">✅</div>
     <div style="font-weight:600;font-size:16px;margin-bottom:6px;">No checklists yet</div>
     <div style="color:var(--slate);font-size:14px;">Create packing lists, shopping lists, or any shared checklist for the family.</div>
+</div>
+{% endif %}
+
+{% if completed_lists %}
+<div style="margin-top:{% if active_lists %}36px{% else %}0{% endif %};max-width:680px;">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);margin-bottom:12px;">Completed</div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+        {% for cl in completed_lists %}
+        <a href="{{ url_for('main.checklist_detail', checklist_id=cl.id) }}" class="checklist-row" style="opacity:.65;">
+            <div style="font-size:22px;flex-shrink:0;line-height:1;">✅</div>
+            <div style="flex:1;min-width:0;">
+                <div style="font-weight:600;font-size:15px;margin-bottom:3px;">{{ cl.title }}</div>
+                <div style="font-size:12px;color:var(--slate);display:flex;gap:8px;flex-wrap:wrap;">
+                    <span>{{ cl.items|length }} items — all done</span>
+                    {% if cl.event %}<span>{{ cl.event.name }}</span>{% endif %}
+                </div>
+            </div>
+            <i data-lucide="chevron-right" style="width:15px;height:15px;color:var(--hairline-strong);flex-shrink:0;"></i>
+        </a>
+        {% endfor %}
+    </div>
 </div>
 {% endif %}
 

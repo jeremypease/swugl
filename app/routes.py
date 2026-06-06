@@ -1145,7 +1145,10 @@ def checklists():
         .order_by(Checklist.created_at.desc()).all()
     upcoming_events = Event.query.filter_by(family_id=current_user.active_family_id)\
         .filter(Event.start_date >= date.today()).order_by(Event.start_date).limit(10).all()
-    return render_template('checklists.html', checklists=all_lists, events=upcoming_events)
+    active_lists = [cl for cl in all_lists if not cl.items or cl.done_count < len(cl.items)]
+    completed_lists = [cl for cl in all_lists if cl.items and cl.done_count == len(cl.items)]
+    return render_template('checklists.html', active_lists=active_lists,
+                           completed_lists=completed_lists, events=upcoming_events)
 
 
 @main.route('/checklists/new', methods=['POST'])
@@ -1198,12 +1201,18 @@ def checklist_add_item(checklist_id):
 @login_required
 def checklist_toggle_item(checklist_id, item_id):
     from .models import ChecklistItem
+    wants_json = 'application/json' in request.headers.get('Accept', '')
     item = db.session.get(ChecklistItem, item_id)
     if not item or item.checklist.family_id != current_user.active_family_id:
         abort(404)
     item.is_done = not item.is_done
     item.claimed_by_id = current_user.person.id if (item.is_done and current_user.person) else None
     db.session.commit()
+    if wants_json:
+        return jsonify({
+            'is_done': item.is_done,
+            'claimed_by': item.claimed_by.get_display_name() if item.claimed_by else None,
+        })
     return redirect(url_for('main.checklist_detail', checklist_id=checklist_id))
 
 
@@ -1235,6 +1244,38 @@ def checklist_delete(checklist_id):
     db.session.commit()
     flash('Checklist deleted.', 'info')
     return redirect(url_for('main.checklists'))
+
+
+@main.route('/checklists/<int:checklist_id>/rename', methods=['POST'])
+@login_required
+def checklist_rename(checklist_id):
+    from .models import Checklist
+    cl = db.session.get(Checklist, checklist_id)
+    if not cl or cl.family_id != current_user.active_family_id:
+        abort(404)
+    is_creator = current_user.person and cl.created_by_id == current_user.person.id
+    if not current_user.active_is_admin and not is_creator:
+        abort(403)
+    title = request.form.get('title', '').strip()
+    if title:
+        cl.title = title
+        db.session.commit()
+    return redirect(url_for('main.checklist_detail', checklist_id=checklist_id))
+
+
+@main.route('/checklists/<int:checklist_id>/clear-done', methods=['POST'])
+@login_required
+def checklist_clear_done(checklist_id):
+    from .models import Checklist, ChecklistItem
+    cl = db.session.get(Checklist, checklist_id)
+    if not cl or cl.family_id != current_user.active_family_id:
+        abort(404)
+    is_creator = current_user.person and cl.created_by_id == current_user.person.id
+    if not current_user.active_is_admin and not is_creator:
+        abort(403)
+    ChecklistItem.query.filter_by(checklist_id=checklist_id, is_done=True).delete()
+    db.session.commit()
+    return redirect(url_for('main.checklist_detail', checklist_id=checklist_id))
 
 
 # ── Polls ─────────────────────────────────────────────────────────────────────

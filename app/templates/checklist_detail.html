@@ -3,44 +3,75 @@
 {% block content %}
 <div class="canvas-inner" style="max-width:640px;">
 
+{% set is_creator = current_user.person and checklist.created_by_id == current_user.person.id %}
+{% set can_manage = current_user.active_is_admin or is_creator %}
+{% set total = checklist.items|length %}
+{% set done = checklist.done_count %}
+
 <div class="page-head" style="margin-bottom:20px;">
     <div>
         <div class="eyebrow"><a href="{{ url_for('main.checklists') }}" style="color:inherit;text-decoration:none;">← Checklists</a></div>
         <h1 style="font-size:22px;">{{ checklist.title }}</h1>
         <div style="font-size:12px;color:var(--slate);margin-top:4px;display:flex;gap:10px;flex-wrap:wrap;">
-            <span>{{ checklist.done_count }}/{{ checklist.items|length }} done</span>
+            <span id="done-count">{{ done }}/{{ total }} done</span>
             {% if checklist.event %}<span>{{ checklist.event.name }}</span>{% endif %}
         </div>
     </div>
-    {% set is_creator = current_user.person and checklist.created_by_id == current_user.person.id %}
-    {% if current_user.active_is_admin or is_creator %}
-    <form method="POST" action="{{ url_for('main.checklist_delete', checklist_id=checklist.id) }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="btn btn-secondary" style="color:var(--tomato);"
-                data-confirm="Delete this checklist?">
-            <i data-lucide="trash-2" style="width:14px;height:14px;"></i>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        {% if can_manage %}
+        <button class="btn btn-ghost btn-sm" data-open-modal="rename-modal" title="Rename">
+            <i data-lucide="pencil" style="width:13px;height:13px;"></i>
         </button>
-    </form>
-    {% endif %}
+        {% if done > 0 %}
+        <form method="POST" action="{{ url_for('main.checklist_clear_done', checklist_id=checklist.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-secondary btn-sm" id="clear-done-btn"
+                    data-confirm="Remove all {{ done }} completed item{{ 's' if done != 1 }}?">
+                Clear completed
+            </button>
+        </form>
+        {% endif %}
+        <form method="POST" action="{{ url_for('main.checklist_delete', checklist_id=checklist.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-secondary btn-sm" style="color:var(--tomato);"
+                    data-confirm="Delete this checklist?">
+                <i data-lucide="trash-2" style="width:13px;height:13px;"></i>
+            </button>
+        </form>
+        {% endif %}
+    </div>
 </div>
 
 <div class="card" style="margin-bottom:16px;">
+    {% if total %}
+    <div style="height:6px;border-radius:3px;background:var(--hairline-strong);overflow:hidden;margin-bottom:16px;">
+        <div id="progress-bar" style="height:100%;width:{{ ((done/total*100)|int) if total else 0 }}%;background:var(--vine);border-radius:3px;transition:width .3s;"></div>
+    </div>
+    {% endif %}
+
     {% if checklist.items %}
     <div style="display:flex;flex-direction:column;">
         {% for item in checklist.items %}
-        <div style="display:flex;align-items:center;gap:10px;padding:10px 0;{% if not loop.last %}border-bottom:1px solid var(--hairline);{% endif %}">
-            <form method="POST" action="{{ url_for('main.checklist_toggle_item', checklist_id=checklist.id, item_id=item.id) }}" style="display:contents;">
+        <div class="item-row" id="item-{{ item.id }}"
+             style="display:flex;align-items:center;gap:10px;padding:10px 0;{% if not loop.last %}border-bottom:1px solid var(--hairline);{% endif %}">
+            <form class="toggle-form" method="POST"
+                  action="{{ url_for('main.checklist_toggle_item', checklist_id=checklist.id, item_id=item.id) }}"
+                  style="display:contents;">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="task-check {% if item.is_done %}task-done{% endif %}" title="Toggle"></button>
             </form>
-            <span style="flex:1;font-size:14px;{% if item.is_done %}text-decoration:line-through;color:var(--slate);{% endif %}">{{ item.label }}</span>
-            {% if item.claimed_by and item.is_done %}
-            <span style="font-size:12px;color:var(--slate);">{{ item.claimed_by.get_display_name() }}</span>
-            {% endif %}
-            {% if current_user.active_is_admin or (current_user.person and checklist.created_by_id == current_user.person.id) %}
+            <div style="flex:1;min-width:0;">
+                <div class="item-label" style="font-size:14px;{% if item.is_done %}text-decoration:line-through;color:var(--slate);{% endif %}">{{ item.label }}</div>
+                <div class="item-claimed" style="font-size:11px;color:var(--slate);margin-top:1px;{% if not item.is_done or not item.claimed_by %}display:none;{% endif %}">
+                    {% if item.claimed_by %}by {{ item.claimed_by.get_display_name() }}{% endif %}
+                </div>
+            </div>
+            {% if can_manage %}
             <form method="POST" action="{{ url_for('main.checklist_delete_item', checklist_id=checklist.id, item_id=item.id) }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);padding:2px 6px;">×</button>
+                <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);padding:4px 6px;">
+                    <i data-lucide="trash-2" style="width:12px;height:12px;"></i>
+                </button>
             </form>
             {% endif %}
         </div>
@@ -53,10 +84,83 @@
     <form method="POST" action="{{ url_for('main.checklist_add_item', checklist_id=checklist.id) }}"
           style="display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--hairline);">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="text" name="label" placeholder="Add an item…" style="flex:1;font-size:13px;" required>
+        <input type="text" name="label" id="add-item-input" placeholder="Add an item…" style="flex:1;font-size:13px;" required>
         <button type="submit" class="btn btn-ghost btn-sm">+ Add</button>
     </form>
 </div>
 
+{# Rename modal #}
+{% if can_manage %}
+<div id="rename-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;align-items:center;justify-content:center;padding:20px;">
+    <div class="card" style="width:100%;max-width:440px;">
+        <div class="card-header">
+            <h3>Rename Checklist</h3>
+            <button class="btn btn-ghost btn-sm" data-close-modal="rename-modal"><i data-lucide="x"></i></button>
+        </div>
+        <form method="POST" action="{{ url_for('main.checklist_rename', checklist_id=checklist.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="field">
+                <label>Title</label>
+                <input type="text" name="title" value="{{ checklist.title }}" required style="width:100%;">
+            </div>
+            <div style="display:flex;gap:10px;">
+                <button type="submit" class="btn btn-primary">Save</button>
+                <button type="button" class="btn btn-secondary" data-close-modal="rename-modal">Cancel</button>
+            </div>
+        </form>
+    </div>
 </div>
+{% endif %}
+
+</div>
+
+{% block scripts %}
+<script nonce="{{ g.csp_nonce }}">
+var totalItems = {{ total }};
+
+function updateProgress() {
+    var rows = document.querySelectorAll('.item-row');
+    var doneCount = document.querySelectorAll('.task-check.task-done').length;
+    totalItems = rows.length;
+    var pct = totalItems > 0 ? Math.round(doneCount / totalItems * 100) : 0;
+    var bar = document.getElementById('progress-bar');
+    var countEl = document.getElementById('done-count');
+    if (bar) bar.style.width = pct + '%';
+    if (countEl) countEl.textContent = doneCount + '/' + totalItems + ' done';
+}
+
+document.querySelectorAll('.toggle-form').forEach(function(form) {
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var csrf = form.querySelector('[name="csrf_token"]').value;
+        var row = form.closest('.item-row');
+        var btn = form.querySelector('.task-check');
+        var label = row.querySelector('.item-label');
+        var claimed = row.querySelector('.item-claimed');
+
+        fetch(form.action, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json'},
+            body: 'csrf_token=' + encodeURIComponent(csrf)
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            btn.classList.toggle('task-done', data.is_done);
+            label.style.textDecoration = data.is_done ? 'line-through' : '';
+            label.style.color = data.is_done ? 'var(--slate)' : '';
+            if (claimed) {
+                if (data.is_done && data.claimed_by) {
+                    claimed.textContent = 'by ' + data.claimed_by;
+                    claimed.style.display = '';
+                } else {
+                    claimed.textContent = '';
+                    claimed.style.display = 'none';
+                }
+            }
+            updateProgress();
+        });
+    });
+});
+</script>
+{% endblock %}
 {% endblock %}
