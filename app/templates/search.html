@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% from "_macros.html" import av %}
 
-{% block title %}Search — Swugl{% endblock %}
+{% block title %}Search — {{ current_user.active_family.name }}{% endblock %}
 
 {% block content %}
 <div class="page-head">
     <div>
-        <div class="eyebrow">Family</div>
+        <div class="eyebrow">{{ current_user.active_family.name }}</div>
         <h1>Search{% if q %}: "{{ q }}"{% endif %}</h1>
     </div>
 </div>
@@ -23,7 +23,7 @@
 <div class="card" style="max-width:640px;">
     <div class="card-header">
         <h3>Results</h3>
-        <span class="meta">{{ results|length }} found</span>
+        <span style="font-size:13px;color:var(--slate);">{{ results|length }} found</span>
     </div>
     {% for person in results %}
     <div class="member-row">
@@ -32,10 +32,10 @@
             <div class="name">
                 <a href="/person/{{ person.id }}">{{ person.name }}</a>
                 {% if person.nickname and person.nickname != person.name %}
-                <span class="nick">{{ person.nickname }}</span>
+                <span style="font-size:13px;color:var(--slate);">"{{ person.nickname }}"</span>
                 {% endif %}
             </div>
-            <div class="meta">
+            <div style="font-size:13px;color:var(--slate);margin-top:2px;">
                 {% if person.birthday %}b. {{ person.birthday.strftime('%B %-d, %Y') }}{% endif %}
                 {% if person.occupation %} · {{ person.occupation }}{% endif %}
             </div>

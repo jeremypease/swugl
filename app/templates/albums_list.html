@@ -66,11 +66,11 @@
     {% if current_user.active_is_admin or current_user.active_is_delegate %}
         {% if has_paid_access %}
         <button class="btn btn-primary" data-open-modal="new-album-modal">
-            <i data-lucide="plus"></i> New Album
+            <i data-lucide="plus"></i> New album
         </button>
         {% else %}
         <a href="{{ url_for('billing.billing_page') }}" class="btn btn-secondary">
-            <i data-lucide="lock" style="width:13px;height:13px;"></i> New Album
+            <i data-lucide="lock" style="width:13px;height:13px;"></i> New album
         </a>
         {% endif %}
     {% endif %}
@@ -171,7 +171,7 @@
 <div id="new-album-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;align-items:center;justify-content:center;padding:20px;">
     <div class="card" style="width:100%;max-width:480px;max-height:90vh;overflow-y:auto;">
         <div class="card-header">
-            <h3>New Album</h3>
+            <h3>New album</h3>
             <button class="btn btn-ghost btn-sm" data-close-modal="new-album-modal">
                 <i data-lucide="x"></i>
             </button>

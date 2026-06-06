@@ -3,18 +3,19 @@
 
 {% block content %}
 <div class="page-head">
-    <div class="page-head-eyebrow">Account</div>
-    <h1 class="page-head-title">Notification Preferences</h1>
+    <div>
+        <div class="eyebrow">{{ current_user.active_family.name }}</div>
+        <h1>Notification Preferences</h1>
+    </div>
 </div>
 
-<div class="content-body" style="max-width:640px;">
+<div style="max-width:640px;">
     <div class="card">
         <div class="card-header">
-            <strong>Notification channels</strong>
-            <div style="font-size:13px;color:var(--slate);margin-top:2px;">Choose how you'd like to be notified for each event type.</div>
+            <h3>Notification channels</h3>
         </div>
-        <div class="card-body">
-            <form method="POST" action="{{ url_for('main.profile_notifications') }}">
+        <p style="font-size:13px;color:var(--slate);margin-bottom:20px;">Choose how you'd like to be notified for each event type.</p>
+        <form method="POST" action="{{ url_for('main.profile_notifications') }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
                 <div style="display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:8px 20px;margin-bottom:24px;">
@@ -49,7 +50,6 @@
 
                 <button type="submit" class="btn btn-primary">Save preferences</button>
             </form>
-        </div>
     </div>
 
     <div style="margin-top:16px;display:flex;gap:16px;">

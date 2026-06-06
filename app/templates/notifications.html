@@ -4,8 +4,8 @@
 {% block content %}
 <div class="page-head">
     <div>
-        <div class="page-head-eyebrow">Account</div>
-        <h1 class="page-head-title">Notifications</h1>
+        <div class="eyebrow">{{ current_user.active_family.name }}</div>
+        <h1>Notifications</h1>
     </div>
     {% set unread = notifications | selectattr('is_read', 'equalto', false) | list %}
     {% if unread %}
@@ -37,7 +37,7 @@
     <div
     {% endif %}
        style="display:flex;align-items:flex-start;gap:14px;padding:14px 16px;border-bottom:1px solid var(--hairline);text-decoration:none;color:inherit;{% if not n.is_read %}background:var(--leaf-mist);{% endif %}">
-        <div style="width:36px;height:36px;border-radius:50%;background:{% if not n.is_read %}var(--vine){% else %}var(--bg-alt,#f0f0f0){% endif %};display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">
+        <div style="width:36px;height:36px;border-radius:50%;background:{% if not n.is_read %}var(--vine){% else %}var(--cream-warm){% endif %};display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">
             <i data-lucide="{{ _ni }}" style="width:16px;height:16px;color:{% if not n.is_read %}#fff{% else %}var(--slate){% endif %};"></i>
         </div>
         <div style="flex:1;min-width:0;">

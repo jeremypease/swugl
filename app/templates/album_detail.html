@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ album.name }} — Swugl{% endblock %}
+{% block title %}{{ album.name }} — {{ current_user.active_family.name }}{% endblock %}
 
 {% block content %}
 <div class="page-head">
@@ -17,7 +17,7 @@
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
         {% if album.photos %}
         <a href="/albums/{{ album.id }}/download" class="btn btn-secondary">
-            <i data-lucide="download"></i> Download All
+            <i data-lucide="download"></i> Download all
         </a>
         {% endif %}
         {% if current_user.active_is_admin %}
@@ -28,7 +28,7 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);"
                     data-confirm="Delete this entire album and all its photos?">
-                <i data-lucide="trash-2"></i> Delete Album
+                <i data-lucide="trash-2"></i> Delete album
             </button>
         </form>
         {% endif %}
@@ -68,11 +68,11 @@
 <!-- Upload form (contributors and admins only) -->
 {% if current_user.active_is_admin or current_user.active_is_delegate %}
 <div class="card" style="max-width:600px;margin-bottom:24px;">
-    <div class="card-header"><h3>Upload Photos</h3></div>
+    <div class="card-header"><h3>Upload photos</h3></div>
     <form method="POST" action="/albums/{{ album.id }}/upload" enctype="multipart/form-data">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="field">
-            <label>Photos <span style="color:var(--text-muted);font-weight:400;">(JPG, PNG, WEBP, GIF, HEIC)</span></label>
+            <label>Photos <span style="color:var(--slate);font-weight:400;">(JPG, PNG, WEBP, GIF, HEIC)</span></label>
             <input type="file" name="photos" multiple accept=".jpg,.jpeg,.png,.webp,.gif,.heic"
                    onchange="updateFileLabel(this)"
                    style="display:block;width:100%;padding:10px;border:2px dashed var(--hairline-strong);border-radius:var(--r-s);cursor:pointer;background:var(--leaf-mist);">

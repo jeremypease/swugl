@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
-{% block title %}Add Family Member — Swugl{% endblock %}
+{% block title %}Add Family Member — {{ current_user.active_family.name }}{% endblock %}
 
 {% block content %}
 <div class="page-head">
     <div>
-        <div class="eyebrow">Admin</div>
+        <div class="eyebrow">{{ current_user.active_family.name }}</div>
         <h1>Add Family Member</h1>
     </div>
     <a href="/admin/users" class="btn btn-secondary">

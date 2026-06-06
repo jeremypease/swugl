@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Edit {{ person.get_display_name() }} — Swugl{% endblock %}
+{% block title %}Edit {{ person.get_display_name() }} — {{ current_user.active_family.name }}{% endblock %}
 
 {% block content %}
 <div class="page-head">
@@ -8,6 +8,9 @@
         <div class="eyebrow">{{ person.get_display_name() }}</div>
         <h1>Edit Profile</h1>
     </div>
+    <a href="/person/{{ person.id }}" class="btn btn-secondary">
+        <i data-lucide="x"></i> Cancel
+    </a>
 </div>
 
 <div style="max-width: 580px;">
