@@ -95,8 +95,17 @@
 <div style="margin-bottom:20px;">
     <h1 style="margin-bottom:2px;">{{ greeting }}{% if me %}, {{ me.get_display_name().split()[0] }}{% endif %}</h1>
     <div style="font-size:14px;color:var(--slate);">
-        {% set n = (upcoming_events|length) + (upcoming_birthdays|length) %}
-        {% if n > 0 %}{{ n }} thing{{ 's' if n != 1 }} happening soon in the pod{% else %}{{ family.name }} · {{ member_count }} member{{ 's' if member_count != 1 }}{% endif %}
+        {% set ev_count = upcoming_events|length %}
+        {% set bd_count = upcoming_birthdays|length %}
+        {% if ev_count > 0 and bd_count > 0 %}
+            {{ ev_count }} upcoming event{{ 's' if ev_count != 1 }} · {{ bd_count }} birthday{{ 's' if bd_count != 1 }} this month
+        {% elif ev_count > 0 %}
+            {{ ev_count }} upcoming event{{ 's' if ev_count != 1 }}
+        {% elif bd_count > 0 %}
+            {{ bd_count }} birthday{{ 's' if bd_count != 1 }} this month
+        {% else %}
+            {{ family.name }} · {{ member_count }} member{{ 's' if member_count != 1 }}
+        {% endif %}
     </div>
 </div>
 
@@ -153,6 +162,7 @@
         <div>
             {% for event in upcoming_events %}
             {% set days_away = (event.start_date - now.date()).days %}
+            {% set my_rsvp = rsvp_map.get(event.id) %}
             <a href="/events/{{ event.id }}" class="event-row">
                 <div class="date-badge">
                     <div class="mon">{{ event.start_date.strftime('%b') }}</div>
@@ -165,9 +175,16 @@
                         {% if event.location %} · {{ event.location }}{% endif %}
                     </div>
                 </div>
-                <div style="display:flex;gap:4px;flex-shrink:0;">
-                    {% if event.has_meals %}<span class="badge b-active" style="font-size:11px;">Meals</span>{% endif %}
-                    {% if event.has_sleeping %}<span class="badge b-pending" style="font-size:11px;">Sleeping</span>{% endif %}
+                <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
+                    {% if my_rsvp == 'yes' %}
+                    <span style="font-size:11px;font-weight:600;color:#16a34a;display:flex;align-items:center;gap:3px;"><i data-lucide="check" style="width:12px;height:12px;"></i> Going</span>
+                    {% elif my_rsvp == 'maybe' %}
+                    <span style="font-size:11px;font-weight:600;color:#b45309;">Maybe</span>
+                    {% elif my_rsvp == 'no' %}
+                    <span style="font-size:11px;color:var(--slate);">Not going</span>
+                    {% elif me %}
+                    <span style="font-size:11px;font-weight:600;color:var(--vine);">RSVP →</span>
+                    {% endif %}
                 </div>
             </a>
             {% endfor %}
@@ -289,16 +306,6 @@
     </div>
     {% endif %}
 
-    {# Quick links #}
-    <div class="card" style="background:var(--leaf-mist);border:none;">
-        <div style="display:flex;flex-direction:column;gap:6px;">
-            <a href="/members" class="btn btn-secondary btn-sm" style="justify-content:flex-start;"><i data-lucide="users"></i> Member directory</a>
-            <a href="/albums" class="btn btn-secondary btn-sm" style="justify-content:flex-start;"><i data-lucide="image"></i> Photo albums</a>
-            {% if me %}
-            <a href="/person/{{ me.id }}/edit" class="btn btn-secondary btn-sm" style="justify-content:flex-start;"><i data-lucide="edit-2"></i> Edit my profile</a>
-            {% endif %}
-        </div>
-    </div>
 
 </div>
 </div>

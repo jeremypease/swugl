@@ -309,18 +309,10 @@ def home():
         if incomplete:
             onboarding = steps
     # Activity feed — last 30 days across all content types
+    # Announcements are excluded here because they have their own card on the home page.
     _since = datetime.utcnow() - timedelta(days=30)
+    _since_date = _since.date()
     _activity = []
-
-    for a in Announcement.query.filter(
-        Announcement.family_id == current_user.active_family_id,
-        Announcement.created_at >= _since
-    ).order_by(Announcement.created_at.desc()).limit(8).all():
-        _activity.append({
-            'type': 'announcement', 'ts': a.created_at,
-            'actor': a.author, 'label': f'posted "{a.title}"',
-            'url': '/announcements', 'icon': 'megaphone',
-        })
 
     for e in Event.query.filter(
         Event.family_id == current_user.active_family_id,
@@ -367,8 +359,28 @@ def home():
             'label': f'added a poll: "{_poll.question}"', 'url': '/polls', 'icon': 'bar-chart-2',
         })
 
+    for _u in User.query.filter(
+        User.family_id == current_user.active_family_id,
+        User.status == 'approved',
+        User.approved_date >= _since_date,
+    ).order_by(User.approved_date.desc()).limit(10).all():
+        if _u.person:
+            _ts = datetime(_u.approved_date.year, _u.approved_date.month, _u.approved_date.day, 12, 0)
+            _activity.append({
+                'type': 'member', 'ts': _ts, 'actor': None,
+                'label': f'{_u.person.get_display_name()} joined the pod',
+                'url': f'/person/{_u.person_id}', 'icon': 'user-plus',
+            })
+
     _activity.sort(key=lambda x: x['ts'], reverse=True)
     activity_feed = _activity[:15]
+
+    # RSVP status map for upcoming events (current user's person)
+    rsvp_map = {}
+    if me:
+        for _ev in upcoming_events:
+            _rsvp = EventRSVP.query.filter_by(event_id=_ev.id, person_id=me.id).first()
+            rsvp_map[_ev.id] = _rsvp.status if _rsvp else None
 
     return render_template('home.html', member_count=member_count, family=current_user.active_family,
                            upcoming_birthdays=upcoming_birthdays, upcoming_events=upcoming_events,
@@ -378,6 +390,7 @@ def home():
                            on_this_day=on_this_day,
                            onboarding=onboarding,
                            activity_feed=activity_feed,
+                           rsvp_map=rsvp_map,
                            now=datetime.now())
 
 @main.route('/login', methods=['GET', 'POST'])
