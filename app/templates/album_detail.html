@@ -21,6 +21,9 @@
         </a>
         {% endif %}
         {% if current_user.active_is_admin %}
+        <button class="btn btn-secondary btn-sm" data-open-modal="edit-album-modal">
+            <i data-lucide="edit-2"></i> Edit
+        </button>
         <form method="POST" action="/albums/{{ album.id }}/delete">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);"
@@ -32,7 +35,38 @@
     </div>
 </div>
 
-<!-- Upload form -->
+{% if current_user.active_is_admin %}
+<div id="edit-album-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;align-items:center;justify-content:center;padding:20px;">
+    <div class="card" style="width:100%;max-width:440px;">
+        <div class="card-header">
+            <h3>Edit Album</h3>
+            <button class="btn btn-ghost btn-sm" data-close-modal="edit-album-modal"><i data-lucide="x"></i></button>
+        </div>
+        <form method="POST" action="/albums/{{ album.id }}/edit">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="field">
+                <label>Name</label>
+                <input type="text" name="name" value="{{ album.name }}" required style="width:100%;">
+            </div>
+            <div class="field">
+                <label>Year</label>
+                <input type="number" name="year" value="{{ album.year or '' }}" placeholder="e.g. 2025" style="width:120px;">
+            </div>
+            <div class="field">
+                <label>Description</label>
+                <textarea name="description" rows="2" style="width:100%;resize:vertical;">{{ album.description or '' }}</textarea>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:4px;">
+                <button type="submit" class="btn btn-primary">Save</button>
+                <button type="button" class="btn btn-secondary" data-close-modal="edit-album-modal">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<!-- Upload form (contributors and admins only) -->
+{% if current_user.active_is_admin or current_user.active_is_delegate %}
 <div class="card" style="max-width:600px;margin-bottom:24px;">
     <div class="card-header"><h3>Upload Photos</h3></div>
     <form method="POST" action="/albums/{{ album.id }}/upload" enctype="multipart/form-data">
@@ -53,6 +87,7 @@
         </button>
     </form>
 </div>
+{% endif %}
 
 <!-- Photo grid -->
 {% if album.photos %}
@@ -107,7 +142,18 @@
     <img id="lb-img" src="" style="max-width:90vw;max-height:80vh;object-fit:contain;border-radius:4px;">
 
     <!-- Caption + uploader -->
-    <div id="lb-meta" style="text-align:center;margin-top:12px;color:rgba(255,255,255,0.8);font-size:13px;max-width:600px;"></div>
+    <div style="margin-top:12px;text-align:center;max-width:600px;display:flex;align-items:center;justify-content:center;gap:6px;">
+        <div id="lb-meta" style="color:rgba(255,255,255,0.8);font-size:13px;"></div>
+        <button id="lb-edit-caption-btn" onclick="startCaptionEdit()" style="display:none;background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;padding:2px;" title="Edit caption">
+            <i data-lucide="edit-2" style="width:13px;height:13px;"></i>
+        </button>
+    </div>
+    <div id="lb-caption-edit" style="display:none;margin-top:6px;">
+        <input id="lb-caption-input" type="text" maxlength="300" placeholder="Add a caption…"
+               style="font-size:13px;padding:4px 10px;border-radius:4px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.15);color:#fff;width:280px;">
+        <button onclick="saveCaption()" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:12px;margin-left:4px;">Save</button>
+        <button onclick="cancelCaptionEdit()" style="background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:12px;margin-left:2px;">Cancel</button>
+    </div>
 
     <!-- Tags -->
     <div id="lb-tags" style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:8px;max-width:600px;min-height:24px;"></div>
@@ -143,6 +189,8 @@ const photos = [
         uploader: {{ (photo.uploaded_by.get_display_name() if photo.uploaded_by else None) | tojson }},
         downloadUrl: "{{ photo_url(photo.path) }}",
         deleteUrl: "/albums/{{ album.id }}/photos/{{ photo.id }}/delete",
+        captionUrl: "/photos/{{ photo.id }}/caption",
+        canEditCaption: {{ ('true' if (current_user.active_is_admin or (current_user.person and photo.uploaded_by_id == current_user.person.id)) else 'false') }},
         tagUrl: "/photos/{{ photo.id }}/tag",
         tags: [{% for tag in photo.tags %}{id:{{ tag.id }},name:{{ tag.person.get_display_name()|tojson }},personId:{{ tag.person_id }},removeUrl:"/photos/{{ photo.id }}/tags/{{ tag.id }}/remove"}{% if not loop.last %},{% endif %}{% endfor %}],
     },
@@ -169,10 +217,13 @@ function showPhoto() {
     document.getElementById('lb-counter').textContent = (current + 1) + ' / ' + photos.length;
     document.getElementById('lb-download').href = p.downloadUrl;
     document.getElementById('lb-download').download = p.src.split('/').pop();
+    cancelCaptionEdit();
     const meta = [];
     if (p.caption) meta.push(p.caption);
     if (p.uploader) meta.push('Uploaded by ' + p.uploader);
     document.getElementById('lb-meta').textContent = meta.join(' · ');
+    const editBtn = document.getElementById('lb-edit-caption-btn');
+    if (editBtn) editBtn.style.display = p.canEditCaption ? 'inline-flex' : 'none';
     const deleteForm = document.getElementById('lb-delete-form');
     if (deleteForm) deleteForm.action = p.deleteUrl;
 
@@ -242,6 +293,38 @@ function updateFileLabel(input) {
     const label = document.getElementById('file-label');
     if (input.files.length === 0) { label.textContent = ''; return; }
     label.textContent = input.files.length + ' file' + (input.files.length !== 1 ? 's' : '') + ' selected';
+}
+
+function startCaptionEdit() {
+    const p = photos[current];
+    document.getElementById('lb-caption-input').value = p.caption || '';
+    document.getElementById('lb-caption-edit').style.display = 'block';
+    document.getElementById('lb-edit-caption-btn').style.display = 'none';
+    document.getElementById('lb-caption-input').focus();
+}
+
+function cancelCaptionEdit() {
+    document.getElementById('lb-caption-edit').style.display = 'none';
+}
+
+function saveCaption() {
+    const p = photos[current];
+    const input = document.getElementById('lb-caption-input');
+    const newCaption = input.value.trim();
+    const csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    fetch(p.captionUrl, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrf},
+        body: 'caption=' + encodeURIComponent(newCaption) + '&csrf_token=' + encodeURIComponent(csrf),
+    }).then(r => r.json()).then(data => {
+        p.caption = data.caption;
+        cancelCaptionEdit();
+        const meta = [];
+        if (p.caption) meta.push(p.caption);
+        if (p.uploader) meta.push('Uploaded by ' + p.uploader);
+        document.getElementById('lb-meta').textContent = meta.join(' · ');
+        document.getElementById('lb-edit-caption-btn').style.display = 'inline-flex';
+    });
 }
 </script>
 {% else %}

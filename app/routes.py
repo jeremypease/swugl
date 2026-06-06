@@ -922,6 +922,7 @@ def album_detail(album_id):
 
 @main.route('/albums/<int:album_id>/upload', methods=['POST'])
 @login_required
+@contributor_or_admin_required
 def upload_photos(album_id):
     album = db.session.get(Album, album_id)
     if not album or album.family_id != current_user.active_family_id:
@@ -1075,6 +1076,40 @@ def person_photos(person_id):
         .order_by(Photo.created_at.desc()).all()
     photos = [t.photo for t in tags]
     return render_template('person_photos.html', person=person, photos=photos)
+
+
+@main.route('/albums/<int:album_id>/edit', methods=['POST'])
+@login_required
+@admin_required
+def edit_album(album_id):
+    album = db.session.get(Album, album_id)
+    if not album or album.family_id != current_user.active_family_id:
+        return redirect(url_for('main.albums'))
+    name = request.form.get('name', '').strip()
+    if name:
+        album.name = name
+    album.description = request.form.get('description', '').strip() or None
+    year_str = request.form.get('year', '').strip()
+    album.year = int(year_str) if year_str.isdigit() else None
+    db.session.commit()
+    flash('Album updated.', 'info')
+    return redirect(url_for('main.album_detail', album_id=album_id))
+
+
+@main.route('/photos/<int:photo_id>/caption', methods=['POST'])
+@login_required
+def photo_caption(photo_id):
+    photo = db.session.get(Photo, photo_id)
+    if not photo or photo.family_id != current_user.active_family_id:
+        abort(404)
+    can_edit = current_user.active_is_admin or (
+        current_user.person and photo.uploaded_by_id == current_user.person.id)
+    if not can_edit:
+        abort(403)
+    caption = request.form.get('caption', '').strip() or None
+    photo.caption = caption
+    db.session.commit()
+    return jsonify({'caption': caption or ''})
 
 
 @main.route('/albums/<int:album_id>/delete', methods=['POST'])

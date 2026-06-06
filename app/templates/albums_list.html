@@ -79,7 +79,7 @@
 {% if albums %}
 
 {# ── Pinned / event albums ────────────────────────────────────── #}
-{% set event_albums = albums | selectattr('event') | list %}
+{% set event_albums = albums | selectattr('event') | sort(attribute='event.start_date', reverse=True) | list %}
 {% set other_albums = albums | rejectattr('event') | list %}
 
 {% if event_albums %}
@@ -90,7 +90,7 @@
         <a href="/albums/{{ album.id }}" class="album-tile">
             <div class="album-tile-cover">
                 {% if album.cover %}
-                <img src="{{ url_for('static', filename=album.cover.path) }}" loading="lazy">
+                <img src="{{ photo_url(album.cover.path) }}" loading="lazy">
                 {% else %}
                 <div class="empty-icon"><i data-lucide="image" style="width:32px;height:32px;opacity:.25;"></i></div>
                 {% endif %}
@@ -131,7 +131,7 @@
         <a href="/albums/{{ album.id }}" class="album-tile">
             <div class="album-tile-cover">
                 {% if album.cover %}
-                <img src="{{ url_for('static', filename=album.cover.path) }}" loading="lazy">
+                <img src="{{ photo_url(album.cover.path) }}" loading="lazy">
                 {% else %}
                 <div class="empty-icon"><i data-lucide="image" style="width:32px;height:32px;opacity:.25;"></i></div>
                 {% endif %}
@@ -143,13 +143,6 @@
             </div>
         </a>
         {% endfor %}
-        {% if current_user.active_is_admin or current_user.active_is_delegate %}
-            {% if has_paid_access %}
-            <div class="album-tile-new" style="border-radius:var(--r-m);" data-open-modal="new-album-modal">
-                <i data-lucide="plus" style="width:20px;height:20px;margin-right:6px;"></i> New album
-            </div>
-            {% endif %}
-        {% endif %}
     </div>
 </div>
 {% endfor %}
