@@ -41,10 +41,8 @@
 
     <!-- Row 2: toggle filters -->
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-        <div class="filter-group">
+        <div class="filter-group" id="gender-filter-group">
             <button class="filter-btn active" data-filter="gender" data-value="">All</button>
-            <button class="filter-btn" data-filter="gender" data-value="Male">Male</button>
-            <button class="filter-btn" data-filter="gender" data-value="Female">Female</button>
         </div>
         <div class="filter-group">
             <button class="filter-btn active" data-filter="status" data-value="">All</button>
@@ -58,6 +56,9 @@
         </div>
         <button class="filter-btn" id="upcoming-btn">
             🎂 Upcoming birthdays
+        </button>
+        <button class="filter-btn" id="clear-filters-btn" style="display:none;color:var(--vine);border-color:var(--vine);">
+            Clear filters
         </button>
     </div>
 
@@ -79,7 +80,10 @@
        data-deceased="{{ 'true' if person.deathday else 'false' }}"
        data-bday-days="{{ bday_days.get(person.id, -1) }}"
        data-has-photo="{{ 'true' if person.photo_path else 'false' }}"
-       style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:20px 12px;background:var(--paper);border:1px solid var(--hairline-strong);border-radius:var(--r-m);text-decoration:none;color:inherit;transition:box-shadow 0.15s,border-color 0.15s;">
+       style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:20px 12px;background:var(--paper);border:1px solid var(--hairline-strong);border-radius:var(--r-m);text-decoration:none;color:inherit;transition:box-shadow 0.15s,border-color 0.15s;position:relative;">
+        {% if current_user.active_is_admin and person.id in user_person_ids %}
+        <span title="Has an account" style="position:absolute;top:8px;right:8px;width:8px;height:8px;border-radius:50%;background:#16a34a;"></span>
+        {% endif %}
         {{ av(person, size='lg') }}
         <div style="text-align:center;">
             <div style="font-weight:600;font-size:14px;line-height:1.3;">{{ person.get_display_name() }}</div>
@@ -94,7 +98,7 @@
             {% if person.deathday %}
             <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">† {{ person.deathday.strftime('%Y') }}</div>
             {% endif %}
-            {% if bday_days.get(person.id, -1) >= 0 and bday_days.get(person.id) <= 90 %}
+            {% if bday_days.get(person.id, -1) >= 0 and bday_days.get(person.id) <= 30 %}
             <div style="font-size:11px;color:var(--berry);margin-top:3px;">
                 🎂 {% if bday_days[person.id] == 0 %}Today!{% elif bday_days[person.id] == 1 %}Tomorrow{% else %}in {{ bday_days[person.id] }} days{% endif %}
             </div>
@@ -133,7 +137,23 @@ const cards = Array.from(document.querySelectorAll('.member-card'));
 let activeFilters = { gender: '', status: '', photo: '', upcoming: false };
 let activeInitial = '';
 
-// Build initial buttons from available last-name initials
+// ── Build gender filter from actual data ────────────────────────
+(function buildGenderFilter() {
+    const seen = new Set();
+    cards.forEach(c => { if (c.dataset.gender) seen.add(c.dataset.gender); });
+    if (seen.size === 0) return;
+    const group = document.getElementById('gender-filter-group');
+    Array.from(seen).sort().forEach(g => {
+        const btn = document.createElement('button');
+        btn.className = 'filter-btn';
+        btn.dataset.filter = 'gender';
+        btn.dataset.value = g;
+        btn.textContent = g;
+        group.appendChild(btn);
+    });
+})();
+
+// ── Build last-name initial buttons ─────────────────────────────
 (function buildInitials() {
     const seen = new Set();
     cards.forEach(c => seen.add(c.dataset.lastInitial));
@@ -161,7 +181,7 @@ function setInitial(letter, btn) {
     applyFilters();
 }
 
-// Toggle filter buttons within a group
+// ── Toggle filter buttons within a group ────────────────────────
 document.querySelectorAll('.filter-btn[data-filter]').forEach(btn => {
     btn.addEventListener('click', () => {
         const group = btn.dataset.filter;
@@ -172,12 +192,28 @@ document.querySelectorAll('.filter-btn[data-filter]').forEach(btn => {
     });
 });
 
-function toggleUpcoming(btn) {
+// ── Birthday toggle ─────────────────────────────────────────────
+document.getElementById('upcoming-btn').addEventListener('click', function() {
     activeFilters.upcoming = !activeFilters.upcoming;
-    btn.classList.toggle('active', activeFilters.upcoming);
+    this.classList.toggle('active', activeFilters.upcoming);
+    this.textContent = activeFilters.upcoming ? '🎂 Upcoming birthdays ↑' : '🎂 Upcoming birthdays';
     applyFilters();
-}
-document.getElementById('upcoming-btn').addEventListener('click', function() { toggleUpcoming(this); });
+});
+
+// ── Clear all filters ───────────────────────────────────────────
+document.getElementById('clear-filters-btn').addEventListener('click', function() {
+    activeFilters = { gender: '', status: '', photo: '', upcoming: false };
+    activeInitial = '';
+    document.getElementById('member-search').value = '';
+    document.getElementById('sort-select').value = 'az';
+    document.querySelectorAll('.filter-btn[data-filter]').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.value === '');
+    });
+    document.getElementById('upcoming-btn').classList.remove('active');
+    document.getElementById('upcoming-btn').textContent = '🎂 Upcoming birthdays';
+    document.querySelectorAll('.initial-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
+    applyFilters();
+});
 
 function applyFilters() {
     const q = document.getElementById('member-search').value.toLowerCase().trim();
@@ -192,7 +228,7 @@ function applyFilters() {
         if (activeFilters.photo && card.dataset.hasPhoto !== activeFilters.photo) return false;
         if (activeFilters.upcoming) {
             const d = parseInt(card.dataset.bdayDays);
-            if (d < 0 || d > 90) return false;
+            if (d < 0 || d > 30) return false;
         }
         return true;
     });
@@ -223,6 +259,11 @@ function applyFilters() {
     document.getElementById('result-count').textContent =
         count + ' member' + (count !== 1 ? 's' : '');
     document.getElementById('no-results').style.display = count === 0 ? '' : 'none';
+
+    // Show/hide clear button
+    const anyActive = q || activeInitial || activeFilters.gender ||
+        activeFilters.status || activeFilters.photo || activeFilters.upcoming;
+    document.getElementById('clear-filters-btn').style.display = anyActive ? '' : 'none';
 }
 </script>
 {% endblock %}

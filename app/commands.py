@@ -12,7 +12,11 @@ from flask import current_app, url_for
 from flask.cli import with_appcontext
 
 from . import db
-from .models import Family, User, Event, EventMeal, EventMealItem, EventAssignment, EventSleepingSpot, EventRSVP, NotificationPreference
+from .models import (Family, User, Event, EventMeal, EventMealItem, EventAssignment,
+                     EventSleepingSpot, EventRSVP, NotificationPreference,
+                     Person, SpouseRelationship, ParentRelationship,
+                     PollVote, CardSignature, AnnouncementReaction,
+                     PhotoTag, CarpoolOffer, EventSurveyResponse)
 from .notifications import send_family_digest, create_notification
 from .email import (
     send_nudge_day3_email,
@@ -310,3 +314,208 @@ def annual_events(dry_run):
 
     if not dry_run:
         click.echo(f'annual-events done: {cloned} event(s) cloned.')
+
+
+@click.command('merge-persons')
+@click.option('--keep', 'keep_id', required=True, type=int, help='Person ID to keep.')
+@click.option('--remove', 'remove_id', required=True, type=int, help='Person ID to delete after merge.')
+@click.option('--dry-run', is_flag=True, help='Print what would change without committing.')
+@with_appcontext
+def merge_persons(keep_id, remove_id, dry_run):
+    """Merge two duplicate Person records. All relationships transfer to --keep; --remove is deleted."""
+    keep = db.session.get(Person, keep_id)
+    remove = db.session.get(Person, remove_id)
+
+    if not keep:
+        click.echo(f'ERROR: Person {keep_id} not found.', err=True)
+        return
+    if not remove:
+        click.echo(f'ERROR: Person {remove_id} not found.', err=True)
+        return
+    if keep.family_id != remove.family_id:
+        click.echo('ERROR: Both persons must belong to the same family.', err=True)
+        return
+
+    prefix = '[DRY RUN] ' if dry_run else ''
+    click.echo(f'KEEP  : #{keep.id} — {keep.name} (family: {keep.family.name})')
+    click.echo(f'REMOVE: #{remove.id} — {remove.name}')
+    if remove.user:
+        click.echo(f'  ⚠ REMOVE person has a linked User account ({remove.user.email}) — it will be relinked to KEEP.')
+
+    # ── Spouse relationships ─────────────────────────────────────────────────
+    for sr in SpouseRelationship.query.filter(
+            (SpouseRelationship.person1_id == remove.id) |
+            (SpouseRelationship.person2_id == remove.id)).all():
+        other_id = sr.person2_id if sr.person1_id == remove.id else sr.person1_id
+        already = SpouseRelationship.query.filter(
+            ((SpouseRelationship.person1_id == keep.id) & (SpouseRelationship.person2_id == other_id)) |
+            ((SpouseRelationship.person1_id == other_id) & (SpouseRelationship.person2_id == keep.id))
+        ).first()
+        if already:
+            click.echo(f'{prefix}Delete duplicate spouse rel #{sr.id} (already exists on keep)')
+            if not dry_run:
+                db.session.delete(sr)
+        else:
+            click.echo(f'{prefix}Transfer spouse rel #{sr.id} → keep')
+            if not dry_run:
+                if sr.person1_id == remove.id:
+                    sr.person1_id = keep.id
+                else:
+                    sr.person2_id = keep.id
+
+    # ── Parent relationships ─────────────────────────────────────────────────
+    for pr in ParentRelationship.query.filter(
+            (ParentRelationship.parent_id == remove.id) |
+            (ParentRelationship.child_id == remove.id)).all():
+        if pr.parent_id == remove.id:
+            already = ParentRelationship.query.filter_by(parent_id=keep.id, child_id=pr.child_id).first()
+            if already:
+                click.echo(f'{prefix}Delete duplicate parent rel #{pr.id}')
+                if not dry_run:
+                    db.session.delete(pr)
+            else:
+                click.echo(f'{prefix}Transfer parent rel #{pr.id} (parent) → keep')
+                if not dry_run:
+                    pr.parent_id = keep.id
+        else:
+            already = ParentRelationship.query.filter_by(parent_id=pr.parent_id, child_id=keep.id).first()
+            if already:
+                click.echo(f'{prefix}Delete duplicate child rel #{pr.id}')
+                if not dry_run:
+                    db.session.delete(pr)
+            else:
+                click.echo(f'{prefix}Transfer child rel #{pr.id} (child) → keep')
+                if not dry_run:
+                    pr.child_id = keep.id
+
+    # ── User account ─────────────────────────────────────────────────────────
+    if remove.user:
+        click.echo(f'{prefix}Relink User #{remove.user.id} ({remove.user.email}) → keep')
+        if not dry_run:
+            remove.user.person_id = keep.id
+
+    # ── EventRSVP ────────────────────────────────────────────────────────────
+    for rsvp in EventRSVP.query.filter_by(person_id=remove.id).all():
+        already = EventRSVP.query.filter_by(event_id=rsvp.event_id, person_id=keep.id).first()
+        if already:
+            click.echo(f'{prefix}Delete duplicate RSVP #{rsvp.id} (event {rsvp.event_id})')
+            if not dry_run:
+                db.session.delete(rsvp)
+        else:
+            click.echo(f'{prefix}Transfer RSVP #{rsvp.id} (event {rsvp.event_id}) → keep')
+            if not dry_run:
+                rsvp.person_id = keep.id
+
+    # ── EventAssignment (claimed_by_id) ──────────────────────────────────────
+    count = EventAssignment.query.filter_by(claimed_by_id=remove.id).count()
+    if count:
+        click.echo(f'{prefix}Transfer {count} assignment(s) → keep')
+        if not dry_run:
+            EventAssignment.query.filter_by(claimed_by_id=remove.id).update({'claimed_by_id': keep.id})
+
+    # ── event_sleeping_assignments (many-to-many) ────────────────────────────
+    rows = db.session.execute(
+        db.text('SELECT spot_id FROM event_sleeping_assignments WHERE person_id = :pid'),
+        {'pid': remove.id}
+    ).fetchall()
+    for (spot_id,) in rows:
+        exists = db.session.execute(
+            db.text('SELECT 1 FROM event_sleeping_assignments WHERE spot_id=:sid AND person_id=:pid'),
+            {'sid': spot_id, 'pid': keep.id}
+        ).fetchone()
+        if exists:
+            click.echo(f'{prefix}Delete duplicate sleeping assignment spot {spot_id}')
+            if not dry_run:
+                db.session.execute(
+                    db.text('DELETE FROM event_sleeping_assignments WHERE spot_id=:sid AND person_id=:pid'),
+                    {'sid': spot_id, 'pid': remove.id}
+                )
+        else:
+            click.echo(f'{prefix}Transfer sleeping assignment spot {spot_id} → keep')
+            if not dry_run:
+                db.session.execute(
+                    db.text('UPDATE event_sleeping_assignments SET person_id=:keep WHERE spot_id=:sid AND person_id=:rem'),
+                    {'keep': keep.id, 'sid': spot_id, 'rem': remove.id}
+                )
+
+    # ── PollVote ─────────────────────────────────────────────────────────────
+    for vote in PollVote.query.filter_by(person_id=remove.id).all():
+        already = PollVote.query.filter_by(option_id=vote.option_id, person_id=keep.id).first()
+        if already:
+            click.echo(f'{prefix}Delete duplicate poll vote #{vote.id}')
+            if not dry_run:
+                db.session.delete(vote)
+        else:
+            click.echo(f'{prefix}Transfer poll vote #{vote.id} → keep')
+            if not dry_run:
+                vote.person_id = keep.id
+
+    # ── CardSignature ────────────────────────────────────────────────────────
+    for sig in CardSignature.query.filter_by(person_id=remove.id).all():
+        already = CardSignature.query.filter_by(card_id=sig.card_id, person_id=keep.id).first()
+        if already:
+            click.echo(f'{prefix}Delete duplicate card signature #{sig.id}')
+            if not dry_run:
+                db.session.delete(sig)
+        else:
+            click.echo(f'{prefix}Transfer card signature #{sig.id} → keep')
+            if not dry_run:
+                sig.person_id = keep.id
+
+    # ── AnnouncementReaction ─────────────────────────────────────────────────
+    for rxn in AnnouncementReaction.query.filter_by(person_id=remove.id).all():
+        already = AnnouncementReaction.query.filter_by(
+            announcement_id=rxn.announcement_id, person_id=keep.id, emoji=rxn.emoji).first()
+        if already:
+            click.echo(f'{prefix}Delete duplicate reaction #{rxn.id}')
+            if not dry_run:
+                db.session.delete(rxn)
+        else:
+            click.echo(f'{prefix}Transfer reaction #{rxn.id} → keep')
+            if not dry_run:
+                rxn.person_id = keep.id
+
+    # ── PhotoTag ─────────────────────────────────────────────────────────────
+    for tag in PhotoTag.query.filter_by(person_id=remove.id).all():
+        already = PhotoTag.query.filter_by(photo_id=tag.photo_id, person_id=keep.id).first()
+        if already:
+            click.echo(f'{prefix}Delete duplicate photo tag #{tag.id}')
+            if not dry_run:
+                db.session.delete(tag)
+        else:
+            click.echo(f'{prefix}Transfer photo tag #{tag.id} → keep')
+            if not dry_run:
+                tag.person_id = keep.id
+
+    # ── CarpoolOffer ─────────────────────────────────────────────────────────
+    for offer in CarpoolOffer.query.filter_by(person_id=remove.id).all():
+        already = CarpoolOffer.query.filter_by(event_id=offer.event_id, person_id=keep.id).first()
+        if already:
+            click.echo(f'{prefix}Delete duplicate carpool offer #{offer.id}')
+            if not dry_run:
+                db.session.delete(offer)
+        else:
+            click.echo(f'{prefix}Transfer carpool offer #{offer.id} → keep')
+            if not dry_run:
+                offer.person_id = keep.id
+
+    # ── EventSurveyResponse ──────────────────────────────────────────────────
+    for resp in EventSurveyResponse.query.filter_by(person_id=remove.id).all():
+        already = EventSurveyResponse.query.filter_by(event_id=resp.event_id, person_id=keep.id).first()
+        if already:
+            click.echo(f'{prefix}Delete duplicate survey response #{resp.id}')
+            if not dry_run:
+                db.session.delete(resp)
+        else:
+            click.echo(f'{prefix}Transfer survey response #{resp.id} → keep')
+            if not dry_run:
+                resp.person_id = keep.id
+
+    # ── Delete the duplicate ─────────────────────────────────────────────────
+    click.echo(f'{prefix}Delete Person #{remove.id} ({remove.name})')
+    if not dry_run:
+        db.session.delete(remove)
+        db.session.commit()
+        click.echo('Done.')
+    else:
+        click.echo('[DRY RUN] No changes committed.')

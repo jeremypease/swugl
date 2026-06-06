@@ -185,7 +185,16 @@ def members():
                 except ValueError:
                     bday = p.birthday.replace(year=today.year + 1, day=28)
             bday_days[p.id] = (bday - today).days
-    return render_template('members.html', people=people, family=current_user.active_family, bday_days=bday_days)
+    # Person IDs that have an active user account — shown as indicator for admins
+    user_person_ids = set()
+    if current_user.active_is_admin:
+        user_person_ids = {
+            u.person_id for u in User.query.filter_by(
+                family_id=current_user.active_family_id, status='approved'
+            ).filter(User.person_id.isnot(None)).all()
+        }
+    return render_template('members.html', people=people, family=current_user.active_family,
+                           bday_days=bday_days, user_person_ids=user_person_ids)
 
 
 @main.route('/members/address-export')
