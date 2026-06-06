@@ -50,10 +50,10 @@
                 </ul>
             </details>
         </div>
-        <div class="family-meta">{{ current_user.active_is_admin and 'Admin' or 'Member' }} · Switch pod above</div>
+        <div class="family-meta">{% if current_user.active_is_admin %}Admin{% else %}Member{% endif %}</div>
         {% else %}
         <div class="family-name">{{ current_user.active_family.name }}</div>
-        <div class="family-meta">Family</div>
+        <div class="family-meta">{% if current_user.active_is_admin %}Admin{% else %}Member{% endif %}</div>
         {% endif %}
 
         <nav class="nav">
@@ -109,12 +109,14 @@
         </nav>
 
         <div class="user-chip">
-            <div class="av av-sm" style="background: var(--vine); color: var(--cream);">{{ current_user.first_name[0] }}{{ current_user.last_name[0] }}</div>
-            <div>
-                <div class="name">{{ current_user.get_full_name() }}</div>
-                <div class="role">{% if current_user.active_is_admin %}Admin{% else %}Member{% endif %}</div>
-            </div>
-            <form method="POST" action="/logout" style="margin-left: auto;">
+            <a href="/profile" style="display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit;flex:1;min-width:0;">
+                <div class="av av-sm" style="background: var(--vine); color: var(--cream);">{{ current_user.first_name[:1] }}{{ current_user.last_name[:1] }}</div>
+                <div style="min-width:0;">
+                    <div class="name">{{ current_user.get_full_name() }}</div>
+                    <div class="role">{% if current_user.active_is_admin %}Admin{% else %}Member{% endif %}</div>
+                </div>
+            </a>
+            <form method="POST" action="/logout" style="margin-left: auto;flex-shrink:0;">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="btn btn-ghost btn-sm" title="Sign out" style="padding: 6px; display:flex; align-items:center; gap:4px; font-size:12px;">
                     <i data-lucide="log-out"></i> Sign out
@@ -253,7 +255,7 @@
        data-nid="{{ n.id }}"
        onclick="markNotifRead({{ n.id }});"
        style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px;border-bottom:1px solid var(--hairline);text-decoration:none;color:inherit;{% if not n.is_read %}background:var(--leaf-mist);{% endif %}">
-        <div style="width:32px;height:32px;border-radius:50%;background:{% if not n.is_read %}var(--vine){% else %}var(--bg-alt,#f5f5f5){% endif %};display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">
+        <div style="width:32px;height:32px;border-radius:50%;background:{% if not n.is_read %}var(--vine){% else %}var(--cream-warm){% endif %};display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">
             <i data-lucide="{{ _ni }}" style="width:15px;height:15px;color:{% if not n.is_read %}#fff{% else %}var(--slate){% endif %};"></i>
         </div>
         <div style="flex:1;min-width:0;">
@@ -277,6 +279,7 @@
         {% if recent_notifications %}
         <form method="POST" action="{{ url_for('main.notifications_read_all') }}" id="mark-all-read-form" style="display:contents;">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" style="font-size:13px;color:var(--slate);background:none;border:none;cursor:pointer;padding:0;">Mark all read</button>
         </form>
         {% endif %}
     </div>
