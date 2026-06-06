@@ -3956,9 +3956,9 @@ def support():
                 message=form.message.data,
                 support_email=support_email
             )
-        flash("Your message has been sent. We'll get back to you soon.", 'info')
-        return redirect(url_for('main.support'))
-    return render_template('support.html', form=form)
+        return redirect(url_for('main.support', sent=1))
+    sent = request.args.get('sent', False)
+    return render_template('support.html', form=form, sent=sent)
 
 # ── Calendar feed ────────────────────────────────────────────────────────────────
 
