@@ -2074,15 +2074,61 @@ def spouse_end():
 @main.route('/events')
 @login_required
 def events_list():
+    from sqlalchemy import func as _func
     today = date.today()
     all_events = Event.query.filter_by(family_id=current_user.active_family_id).order_by(Event.start_date).all()
     upcoming = [e for e in all_events if e.start_date >= today]
     past = [e for e in all_events if e.start_date < today]
     past.reverse()
     has_paid_access = family_has_paid_access(current_user.active_family)
+
+    # Current user's RSVP status on each upcoming event
+    me = current_user.person
+    rsvp_map = {}
+    if me and upcoming:
+        for row in EventRSVP.query.filter(
+            EventRSVP.event_id.in_([e.id for e in upcoming]),
+            EventRSVP.person_id == me.id
+        ).all():
+            rsvp_map[row.event_id] = row.status
+
+    # Yes-RSVP headcounts for all events (single query)
+    rsvp_counts = {}
+    if all_events:
+        for eid, cnt in db.session.query(
+            EventRSVP.event_id, _func.count(EventRSVP.id)
+        ).filter(
+            EventRSVP.event_id.in_([e.id for e in all_events]),
+            EventRSVP.status == 'yes'
+        ).group_by(EventRSVP.event_id).all():
+            rsvp_counts[eid] = cnt
+
+    # Photo counts for past events (single query via album join)
+    photo_counts = {}
+    if past:
+        for eid, cnt in db.session.query(
+            Album.event_id, _func.count(Photo.id)
+        ).join(Photo, Photo.album_id == Album.id).filter(
+            Album.event_id.in_([e.id for e in past])
+        ).group_by(Album.event_id).all():
+            if eid:
+                photo_counts[eid] = cnt
+
+    # Group past events by year for display
+    past_by_year = []
+    for e in past:
+        year = e.start_date.year
+        if not past_by_year or past_by_year[-1][0] != year:
+            past_by_year.append((year, []))
+        past_by_year[-1][1].append(e)
+
     return render_template('events_list.html', upcoming=upcoming, past=past,
+                           past_by_year=past_by_year,
                            has_paid_access=has_paid_access,
-                           event_limit=FREE_EVENT_LIMIT)
+                           event_limit=FREE_EVENT_LIMIT,
+                           rsvp_map=rsvp_map, rsvp_counts=rsvp_counts,
+                           photo_counts=photo_counts,
+                           me=me, today=today)
 
 
 @main.route('/events/ai-parse', methods=['POST'])
