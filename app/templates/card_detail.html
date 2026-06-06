@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import av %}
 {% block title %}{{ card.title }} — {{ current_user.active_family.name }}{% endblock %}
 {% block content %}
 <div class="canvas-inner" style="max-width:640px;">
@@ -10,19 +11,32 @@
         <div style="font-size:13px;color:var(--slate);margin-top:4px;">
             For <strong>{{ card.recipient.get_display_name() }}</strong>
             · {{ occasions.get(card.occasion, card.occasion) }}
-            {% if card.send_date %} · Send {{ card.send_date.strftime('%B %-d, %Y') }}{% endif %}
+            {% if card.sent_at %}
+            · <span style="color:#16a34a;font-weight:600;">Sent {{ card.sent_at.strftime('%B %-d, %Y') }}</span>
+            {% elif card.send_date %}
+            · Send {{ card.send_date.strftime('%B %-d, %Y') }}
+            {% endif %}
         </div>
     </div>
-    {% set is_creator = current_user.person and card.created_by_id == current_user.person.id %}
-    {% if current_user.active_is_admin or is_creator %}
-    <form method="POST" action="{{ url_for('main.delete_card', card_id=card.id) }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="btn btn-secondary" style="color:var(--tomato);"
-                data-confirm="Delete this card?">
-            <i data-lucide="trash-2" style="width:14px;height:14px;"></i>
-        </button>
-    </form>
-    {% endif %}
+    <div style="display:flex;gap:6px;">
+        {% if (current_user.active_is_admin or is_creator) and not card.sent_at %}
+        <form method="POST" action="{{ url_for('main.mark_card_sent', card_id=card.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-secondary" title="Mark as sent">
+                <i data-lucide="send" style="width:14px;height:14px;"></i> Mark sent
+            </button>
+        </form>
+        {% endif %}
+        {% if current_user.active_is_admin or is_creator %}
+        <form method="POST" action="{{ url_for('main.delete_card', card_id=card.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-secondary" style="color:var(--tomato);"
+                    data-confirm="Delete this card?">
+                <i data-lucide="trash-2" style="width:14px;height:14px;"></i>
+            </button>
+        </form>
+        {% endif %}
+    </div>
 </div>
 
 {# Sign / edit signature #}
@@ -42,13 +56,13 @@
 
 {# All signatures #}
 {% if card.signatures %}
-<div class="card">
+<div class="card" style="margin-bottom:20px;">
     <h3 style="margin-bottom:16px;">{{ card.signatures | length }} message{{ 's' if card.signatures | length != 1 }}</h3>
     <div style="display:flex;flex-direction:column;gap:0;">
         {% for sig in card.signatures %}
         <div style="padding:14px 0;{% if not loop.last %}border-bottom:1px solid var(--hairline);{% endif %}">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-                <div class="av av-sm" style="background:var(--vine);flex-shrink:0;">{{ sig.person.name[:2].upper() }}</div>
+                {{ av(sig.person, size='sm') }}
                 <div>
                     <span style="font-weight:600;font-size:14px;">{{ sig.person.get_display_name() }}</span>
                     <span style="font-size:12px;color:var(--slate);margin-left:6px;">{{ sig.created_at.strftime('%b %-d') }}</span>
@@ -60,8 +74,28 @@
     </div>
 </div>
 {% else %}
-<div class="card" style="text-align:center;padding:32px 20px;">
+<div class="card" style="text-align:center;padding:32px 20px;margin-bottom:20px;">
     <div style="color:var(--slate);font-size:14px;">No signatures yet — be the first to sign!</div>
+</div>
+{% endif %}
+
+{# Who hasn't signed — admin / creator only #}
+{% if unsigned_members %}
+<div class="card">
+    <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);margin-bottom:12px;">
+        Haven't signed yet ({{ unsigned_members | length }})
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        {% for p in unsigned_members %}
+        <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--slate);">
+            {{ av(p, size='xs') }} {{ p.get_display_name() }}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% elif (current_user.active_is_admin or is_creator) and card.signatures %}
+<div style="font-size:13px;color:var(--slate);text-align:center;padding:16px;">
+    Everyone has signed 🎉
 </div>
 {% endif %}
 

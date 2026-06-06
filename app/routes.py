@@ -1344,17 +1344,26 @@ CARD_OCCASIONS = [
 @main.route('/cards')
 @login_required
 def cards():
-    from .models import GreetingCard
+    from .models import GreetingCard, CardSignature
     all_cards = GreetingCard.query.filter_by(family_id=current_user.active_family_id)\
         .order_by(GreetingCard.created_at.desc()).all()
     people = Person.query.filter_by(
         family_id=current_user.active_family_id, in_directory=True
     ).order_by(Person.name).all()
     my_person_id = current_user.person.id if current_user.person else None
-    # Cards the current user is the recipient of should be filtered out from their view
     visible = [c for c in all_cards if c.recipient_id != my_person_id]
-    return render_template('cards.html', cards=visible, people=people,
-                           occasions=CARD_OCCASIONS)
+    my_signed_ids = set()
+    if my_person_id:
+        sigs = CardSignature.query.filter(
+            CardSignature.card_id.in_([c.id for c in visible]),
+            CardSignature.person_id == my_person_id
+        ).all()
+        my_signed_ids = {s.card_id for s in sigs}
+    active_cards = [c for c in visible if not c.sent_at]
+    sent_cards = [c for c in visible if c.sent_at]
+    return render_template('cards.html', active_cards=active_cards, sent_cards=sent_cards,
+                           people=people, occasions=CARD_OCCASIONS,
+                           my_signed_ids=my_signed_ids, today=date.today())
 
 
 @main.route('/cards/new', methods=['POST'])
@@ -1408,8 +1417,19 @@ def card_detail(card_id):
         my_signature = CardSignature.query.filter_by(
             card_id=card_id, person_id=current_user.person.id
         ).first()
+    is_creator = current_user.person and card.created_by_id == current_user.person.id
+    unsigned_members = []
+    if current_user.active_is_admin or is_creator:
+        signed_ids = {s.person_id for s in card.signatures}
+        all_members = Person.query.filter_by(
+            family_id=current_user.active_family_id, in_directory=True
+        ).order_by(Person.name).all()
+        unsigned_members = [p for p in all_members
+                            if p.id not in signed_ids and p.id != card.recipient_id]
     return render_template('card_detail.html', card=card, my_signature=my_signature,
-                           occasions=dict(CARD_OCCASIONS))
+                           occasions=dict(CARD_OCCASIONS),
+                           unsigned_members=unsigned_members,
+                           is_creator=is_creator)
 
 
 @main.route('/cards/<int:card_id>/sign', methods=['POST'])
@@ -1456,6 +1476,22 @@ def delete_card(card_id):
     db.session.commit()
     flash('Card deleted.', 'info')
     return redirect(url_for('main.cards'))
+
+
+@main.route('/cards/<int:card_id>/mark-sent', methods=['POST'])
+@login_required
+def mark_card_sent(card_id):
+    from .models import GreetingCard
+    card = db.session.get(GreetingCard, card_id)
+    if not card or card.family_id != current_user.active_family_id:
+        abort(404)
+    is_creator = current_user.person and card.created_by_id == current_user.person.id
+    if not current_user.active_is_admin and not is_creator:
+        abort(403)
+    card.sent_at = datetime.utcnow()
+    db.session.commit()
+    flash('Card marked as sent.', 'info')
+    return redirect(url_for('main.card_detail', card_id=card_id))
 
 
 # ── Announcements ──────────────────────────────────────────────────────────────
