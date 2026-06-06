@@ -17,6 +17,12 @@
     {% if current_user.active_is_admin %}
         {% if not payment_config %}
         {# ── Admin setup form ───────────────────────────────────────── #}
+        {% if not has_paid_access %}
+        <p style="font-size:13px;color:var(--slate);margin-bottom:8px;">Collect fees from attendees via Stripe.</p>
+        <a href="{{ url_for('billing.billing_page') }}" class="btn btn-secondary btn-sm" style="width:100%;text-align:center;display:block;">
+            <i data-lucide="lock" style="width:13px;height:13px;"></i> Upgrade to enable payment collection
+        </a>
+        {% else %}
         <form method="POST" action="/events/{{ event.id }}/payment/setup" id="payment-setup-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div style="display:flex;flex-direction:column;gap:10px;">
@@ -50,6 +56,7 @@
                 <button type="submit" class="btn btn-primary btn-sm" style="width:100%;">Enable Payment Collection</button>
             </div>
         </form>
+        {% endif %}{# has_paid_access #}
 
         {% else %}
         {# ── Admin progress view ────────────────────────────────────── #}

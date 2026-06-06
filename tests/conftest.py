@@ -36,7 +36,7 @@ def _seed():
         ('Pease Family', 'admin@pease-family.com', 'Password1!'),
         ('Other Family', 'admin@other-family.com', 'Password1!'),
     ]:
-        family = Family(name=fname)
+        family = Family(name=fname, plan='paid')
         _db.session.add(family)
         _db.session.flush()
         person = Person(name='Admin', family_id=family.id)

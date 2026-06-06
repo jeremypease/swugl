@@ -64,9 +64,15 @@
         <h1>Photos</h1>
     </div>
     {% if current_user.active_is_admin or current_user.active_is_delegate %}
-    <button class="btn btn-primary" data-open-modal="new-album-modal">
-        <i data-lucide="plus"></i> New Album
-    </button>
+        {% if has_paid_access %}
+        <button class="btn btn-primary" data-open-modal="new-album-modal">
+            <i data-lucide="plus"></i> New Album
+        </button>
+        {% else %}
+        <a href="{{ url_for('billing.billing_page') }}" class="btn btn-secondary">
+            <i data-lucide="lock" style="width:13px;height:13px;"></i> New Album
+        </a>
+        {% endif %}
     {% endif %}
 </div>
 
@@ -138,9 +144,11 @@
         </a>
         {% endfor %}
         {% if current_user.active_is_admin or current_user.active_is_delegate %}
-        <div class="album-tile-new" style="border-radius:var(--r-m);" data-open-modal="new-album-modal">
-            <i data-lucide="plus" style="width:20px;height:20px;margin-right:6px;"></i> New album
-        </div>
+            {% if has_paid_access %}
+            <div class="album-tile-new" style="border-radius:var(--r-m);" data-open-modal="new-album-modal">
+                <i data-lucide="plus" style="width:20px;height:20px;margin-right:6px;"></i> New album
+            </div>
+            {% endif %}
         {% endif %}
     </div>
 </div>
@@ -153,9 +161,15 @@
     <div style="font-weight:600;font-size:16px;margin-bottom:6px;">No albums yet</div>
     <div style="color:var(--slate);font-size:14px;margin-bottom:20px;">Create an album to share photos with the family.</div>
     {% if current_user.active_is_admin or current_user.active_is_delegate %}
-    <button class="btn btn-primary" data-open-modal="new-album-modal">
-        <i data-lucide="plus"></i> Create first album
-    </button>
+        {% if has_paid_access %}
+        <button class="btn btn-primary" data-open-modal="new-album-modal">
+            <i data-lucide="plus"></i> Create first album
+        </button>
+        {% else %}
+        <a href="{{ url_for('billing.billing_page') }}" class="btn btn-secondary">
+            <i data-lucide="lock" style="width:13px;height:13px;"></i> Upgrade to create albums
+        </a>
+        {% endif %}
     {% endif %}
 </div>
 {% endif %}

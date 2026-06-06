@@ -265,9 +265,15 @@ details[open] .details-chevron { transform: rotate(180deg); }
             <h3>Photos{% if total_event_photos %} <span style="font-size:12px;font-weight:400;color:var(--slate);">{{ total_event_photos }}</span>{% endif %}</h3>
             <div style="display:flex;gap:6px;align-items:center;">
                 {% if current_user.active_is_admin %}
-                <a href="/albums" class="btn btn-ghost btn-sm" data-album-event="{{ event.id }}">
-                    <i data-lucide="folder-plus"></i> New album
-                </a>
+                    {% if has_paid_access %}
+                    <a href="/albums" class="btn btn-ghost btn-sm" data-album-event="{{ event.id }}">
+                        <i data-lucide="folder-plus"></i> New album
+                    </a>
+                    {% else %}
+                    <a href="{{ url_for('billing.billing_page') }}" class="btn btn-ghost btn-sm" style="color:var(--slate);" title="Upgrade to create albums">
+                        <i data-lucide="lock" style="width:13px;height:13px;"></i> New album
+                    </a>
+                    {% endif %}
                 {% endif %}
                 {% if current_user.person %}
                     {% if has_paid_access %}

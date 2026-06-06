@@ -854,11 +854,13 @@ def albums():
     form = AlbumForm()
     events = Event.query.filter_by(family_id=current_user.active_family_id).order_by(Event.start_date.desc()).all()
     form.event_id.choices = [(0, '-- None --')] + [(e.id, e.name) for e in events]
-    return render_template('albums_list.html', albums=all_albums, form=form)
+    return render_template('albums_list.html', albums=all_albums, form=form,
+                           has_paid_access=family_has_paid_access(current_user.family))
 
 @main.route('/albums/add', methods=['POST'])
 @login_required
 @contributor_or_admin_required
+@requires_plan
 def add_album():
     events = Event.query.filter_by(family_id=current_user.active_family_id).all()
     form = AlbumForm()
@@ -2378,6 +2380,7 @@ def event_edit(event_id):
 @main.route('/events/<int:event_id>/payment/setup', methods=['POST'])
 @login_required
 @admin_required
+@requires_plan
 def event_payment_setup(event_id):
     event = db.session.get(Event, event_id)
     if not event or event.family_id != current_user.active_family_id:
@@ -2455,7 +2458,7 @@ def event_payment_disable(event_id):
 @main.route('/events/<int:event_id>/payment/checkout', methods=['POST'])
 @login_required
 def event_payment_checkout(event_id):
-    from .billing import _stripe, requires_plan
+    from .billing import _stripe
     event = db.session.get(Event, event_id)
     if not event or event.family_id != current_user.active_family_id:
         flash('Event not found.', 'error')
