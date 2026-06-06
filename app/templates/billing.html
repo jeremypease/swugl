@@ -1,19 +1,72 @@
 {% extends "base.html" %}
+
+{% block title %}Billing — {{ current_user.active_family.name }}{% endblock %}
+
 {% block head %}
 <style>
+.billing-layout {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: 28px;
+    align-items: start;
+}
+.settings-nav {
+    position: sticky;
+    top: 66px;
+    background: var(--paper);
+    border: 1px solid var(--hairline-strong);
+    border-radius: var(--r-m);
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.settings-nav a {
+    display: block;
+    padding: 7px 10px;
+    border-radius: var(--r-s);
+    font-size: 13px;
+    text-decoration: none;
+    color: var(--slate);
+    transition: background .12s, color .12s;
+}
+.settings-nav a:hover { background: var(--leaf-mist); color: var(--ink); }
+.settings-nav a.active { background: var(--leaf-mist); color: var(--vine); font-weight: 600; }
 .pricing-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 8px; }
-@media (max-width: 680px) { .pricing-grid { grid-template-columns: 1fr; } }
+@media (max-width: 680px) {
+    .billing-layout { grid-template-columns: 1fr; }
+    .settings-nav { position: static; }
+    .pricing-grid { grid-template-columns: 1fr; }
+}
 </style>
 {% endblock %}
+
 {% block content %}
-<div class="canvas-inner" style="max-width:720px;">
+<div class="billing-layout">
+
+{# ── Settings sidebar nav (admins only) ───────────────────────── #}
+{% if current_user.active_is_admin %}
+<div class="settings-nav">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);padding:4px 10px 8px;">Pod Settings</div>
+    <a href="/admin/users">Members &amp; invites</a>
+    <a href="/admin/family">Family settings</a>
+    <a href="{{ url_for('billing.billing_page') }}" class="active">Billing</a>
+</div>
+{% else %}
+<div></div>
+{% endif %}
+
+{# ── Main content ─────────────────────────────────────────────── #}
+<div style="max-width:560px;">
 
 <div class="page-head">
-    <div style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--slate);margin-bottom:4px;">Account</div>
-    <h1 style="margin-bottom:4px;">Billing</h1>
+    <div>
+        <div class="eyebrow">{{ current_user.active_family.name }}</div>
+        <h1>Billing</h1>
+    </div>
 </div>
 
-{# ── Current plan ───────────────────────────────────────────────────────── #}
+{# ── Current plan ─────────────────────────────────────────────── #}
 <div class="card" style="margin-bottom:20px;">
     <div class="card-header"><h3>Current Plan</h3></div>
 
@@ -46,6 +99,11 @@
     {% elif family.plan == 'past_due' %}
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
             <span style="background:#fdecea;color:#b94a2c;font-weight:600;font-size:13px;padding:4px 10px;border-radius:99px;">Payment Failed</span>
+            {% if grace_days_left is not none %}
+            <span style="font-size:14px;color:{% if grace_days_left <= 2 %}var(--tomato){% else %}var(--slate){% endif %};">
+                {{ grace_days_left }} day{{ 's' if grace_days_left != 1 }} to fix
+            </span>
+            {% endif %}
         </div>
         <p style="font-size:14px;color:var(--slate);margin-bottom:16px;">Your last payment didn't go through. Update your payment method to restore full access.</p>
         {% if family.stripe_customer_id %}
@@ -63,7 +121,7 @@
     {% endif %}
 </div>
 
-{# ── Upgrade options (shown when not on paid plan) ──────────────────────── #}
+{# ── Upgrade options (shown when not on paid plan) ─────────────── #}
 {% if family.plan != 'paid' %}
 <div class="card" style="margin-bottom:20px;">
     <div class="card-header"><h3>Upgrade to Family Plan</h3></div>
@@ -118,7 +176,7 @@
 </div>
 {% endif %}
 
-{# ── Payout account (event collections) ────────────────────────────────── #}
+{# ── Payout account (event collections) ──────────────────────── #}
 {% if current_user.active_is_admin %}
 <div class="card" style="margin-bottom:20px;">
     <div class="card-header"><h3>Event Payout Account</h3></div>
@@ -130,7 +188,6 @@
         <span style="background:var(--leaf-mist);color:var(--vine);font-weight:600;font-size:13px;padding:4px 10px;border-radius:99px;">
             <i data-lucide="check" style="width:12px;height:12px;vertical-align:-1px;"></i> Connected
         </span>
-        <span style="font-size:13px;color:var(--slate);">{{ payout_account.stripe_account_id }}</span>
     </div>
     <form method="POST" action="/billing/connect">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -157,7 +214,7 @@
 </div>
 {% endif %}
 
-{# ── Payment history ─────────────────────────────────────────────────────── #}
+{# ── Payment history ───────────────────────────────────────────── #}
 {% if invoices %}
 <div class="card">
     <div class="card-header"><h3>Payment History</h3></div>
@@ -190,5 +247,6 @@
 </div>
 {% endif %}
 
+</div>
 </div>
 {% endblock %}

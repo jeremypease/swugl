@@ -245,6 +245,10 @@ def event_payout(event_id):
 def billing_page():
     family = current_user.family
     days_left = trial_days_remaining(family)
+    grace_days_left = None
+    if family.plan == 'past_due' and family.trial_ends_at:
+        delta = (family.trial_ends_at + timedelta(days=7)) - datetime.utcnow()
+        grace_days_left = max(0, delta.days)
     s = _stripe()
     invoices = []
     if s and family.stripe_customer_id:
@@ -254,7 +258,8 @@ def billing_page():
         except Exception:
             pass
     return render_template('billing.html', family=family,
-                           days_left=days_left, invoices=invoices,
+                           days_left=days_left, grace_days_left=grace_days_left,
+                           invoices=invoices,
                            monthly_price_id=current_app.config.get('STRIPE_MONTHLY_PRICE_ID'),
                            annual_price_id=current_app.config.get('STRIPE_ANNUAL_PRICE_ID'),
                            payout_account=family.payout_account)
