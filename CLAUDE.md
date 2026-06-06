@@ -2,6 +2,15 @@
 
 Private family hub SaaS. Live at swugl.com. Flask + SQLAlchemy + PostgreSQL (Railway) / SQLite (local).
 
+## Before starting new feature work
+
+Check the roadmap memory (`project_roadmap.md`) before implementing anything new. Verify:
+1. Is the feature free-tier or paid-only? Apply `@requires_plan` or a plan gate if it's paid.
+2. Does it conflict with a planned architecture decision (e.g. billing gating, access tiers)?
+3. Is it already marked ✅ done or in-progress somewhere?
+
+Flag any conflicts to the user before implementing rather than discovering them after.
+
 ## Commands
 
 ```bash

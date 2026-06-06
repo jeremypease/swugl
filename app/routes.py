@@ -918,6 +918,46 @@ def upload_photos(album_id):
         flash(f'{count} photo{"s" if count != 1 else ""} uploaded.', 'info')
     return redirect(url_for('main.album_detail', album_id=album_id))
 
+@main.route('/events/<int:event_id>/photos/upload', methods=['POST'])
+@login_required
+def event_upload_photos(event_id):
+    event = db.session.get(Event, event_id)
+    if not event or event.family_id != current_user.active_family_id:
+        return redirect(url_for('main.events_list'))
+    # Find or auto-create the primary event album
+    album = Album.query.filter_by(event_id=event_id, family_id=current_user.active_family_id).first()
+    if not album:
+        album = Album(
+            family_id=current_user.active_family_id,
+            created_by_id=current_user.person.id if current_user.person else None,
+            name=event.name,
+            event_id=event_id,
+        )
+        db.session.add(album)
+        db.session.flush()
+    files = request.files.getlist('photos')
+    count = 0
+    for file in files:
+        if file and file.filename:
+            ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else ''
+            if ext in ALLOWED_PHOTO_EXTS:
+                path = _save_photo_file(file, album.id)
+                if path:
+                    db.session.add(Photo(
+                        album_id=album.id,
+                        family_id=current_user.active_family_id,
+                        uploaded_by_id=current_user.person.id if current_user.person else None,
+                        path=path,
+                    ))
+                    count += 1
+    if count:
+        db.session.commit()
+        flash(f'{count} photo{"s" if count != 1 else ""} added.', 'info')
+    else:
+        db.session.rollback()
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
 @main.route('/albums/<int:album_id>/download')
 @login_required
 def download_album(album_id):
@@ -2248,9 +2288,15 @@ def event_detail(event_id):
         _edr.append(_cur)
         _cur += timedelta(days=1)
 
+    event_photos = Photo.query.join(Album).filter(
+        Album.event_id == event.id,
+        Album.family_id == current_user.active_family_id,
+    ).order_by(Photo.created_at.asc()).limit(12).all()
+
     return render_template('event_detail.html',
         event=event,
         event_date_range=_edr,
+        event_photos=event_photos,
         meal_form=meal_form,
         meal_item_form=meal_item_form,
         meal_family_forms=meal_family_forms,

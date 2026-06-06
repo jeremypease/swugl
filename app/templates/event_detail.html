@@ -258,40 +258,84 @@ details[open] .details-chevron { transform: rotate(180deg); }
     {% endif %}
 
     {# ── PHOTOS ──────────────────────────────────────────────────────── #}
-    {% if event.albums or current_user.active_is_admin or current_user.active_is_delegate %}
+    {% set total_event_photos = event.albums | sum(attribute='photo_count') %}
+    {% if event.albums or current_user.person %}
     <div class="card">
         <div class="card-header">
-            <h3>Photos</h3>
-            {% if current_user.active_is_admin or current_user.active_is_delegate %}
-            <a href="/albums" class="btn btn-ghost btn-sm" data-album-event="{{ event.id }}">
-                <i data-lucide="plus"></i> New Album
+            <h3>Photos{% if total_event_photos %} <span style="font-size:12px;font-weight:400;color:var(--slate);">{{ total_event_photos }}</span>{% endif %}</h3>
+            <div style="display:flex;gap:6px;align-items:center;">
+                {% if current_user.active_is_admin %}
+                <a href="/albums" class="btn btn-ghost btn-sm" data-album-event="{{ event.id }}">
+                    <i data-lucide="folder-plus"></i> New album
+                </a>
+                {% endif %}
+                {% if current_user.person %}
+                <button class="btn btn-ghost btn-sm" data-toggle-form="ev-photo-upload">
+                    <i data-lucide="upload"></i> Add photos
+                </button>
+                {% endif %}
+            </div>
+        </div>
+
+        {# ── Inline upload form ────────────────────────────────────── #}
+        {% if current_user.person %}
+        <div id="ev-photo-upload" style="display:none;padding:12px 0;border-bottom:1px solid var(--hairline);margin-bottom:12px;">
+            <form method="POST" action="/events/{{ event.id }}/photos/upload"
+                  enctype="multipart/form-data"
+                  style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="field" style="flex:1;min-width:200px;margin:0;">
+                    <label style="font-size:12px;font-weight:600;margin-bottom:3px;display:block;">Choose photos</label>
+                    <input type="file" name="photos" multiple
+                           accept=".jpg,.jpeg,.png,.webp,.gif,.heic"
+                           style="font-size:13px;">
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm">
+                    <i data-lucide="upload" style="width:13px;height:13px;"></i> Upload
+                </button>
+            </form>
+            <p style="font-size:12px;color:var(--slate-soft);margin-top:6px;">
+                Photos go into the <em>{{ event.name }}</em> album.
+                {% if event.albums | length > 1 %}
+                To upload to a specific album, <a href="/albums/{{ event.albums[0].id }}" style="color:var(--vine);">open the album</a>.
+                {% endif %}
+            </p>
+        </div>
+        {% endif %}
+
+        {# ── Photo strip ───────────────────────────────────────────── #}
+        {% if event_photos %}
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+            {% for photo in event_photos %}
+            <a href="/albums/{{ photo.album_id }}" style="display:block;flex-shrink:0;">
+                <img src="{{ photo_url(photo.path) }}"
+                     style="width:80px;height:80px;object-fit:cover;border-radius:var(--r-s);border:1px solid var(--hairline);"
+                     loading="lazy" alt="">
+            </a>
+            {% endfor %}
+            {% if total_event_photos > 12 %}
+            <a href="/albums/{{ event.albums[0].id }}"
+               style="width:80px;height:80px;border-radius:var(--r-s);border:1px solid var(--hairline);background:var(--leaf-mist);display:flex;align-items:center;justify-content:center;text-decoration:none;flex-shrink:0;">
+                <span style="font-size:12px;font-weight:600;color:var(--vine);">+{{ total_event_photos - 12 }} more</span>
             </a>
             {% endif %}
         </div>
+        {% elif not event.albums %}
+        <p style="font-size:14px;color:var(--slate);padding:4px 0 8px;">No photos yet.{% if current_user.person %} Be the first to add some!{% endif %}</p>
+        {% endif %}
+
+        {# ── Album links ───────────────────────────────────────────── #}
         {% if event.albums %}
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-top:8px;">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;padding-top:{% if event_photos %}8px;border-top:1px solid var(--hairline){% else %}0px{% endif %};">
             {% for album in event.albums %}
-            <a href="/albums/{{ album.id }}" style="text-decoration:none;color:inherit;">
-                <div style="border-radius:var(--r-s);overflow:hidden;border:1px solid var(--hairline-strong);">
-                    <div style="height:100px;background:var(--leaf-mist);overflow:hidden;">
-                        {% if album.cover %}
-                        <img src="{{ url_for('static', filename=album.cover.path) }}" style="width:100%;height:100%;object-fit:cover;" loading="lazy">
-                        {% else %}
-                        <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">
-                            <i data-lucide="image" style="width:24px;height:24px;opacity:0.3;"></i>
-                        </div>
-                        {% endif %}
-                    </div>
-                    <div style="padding:7px 10px;">
-                        <div style="font-weight:600;font-size:13px;">{{ album.name }}</div>
-                        <div style="font-size:12px;color:var(--slate);">{{ album.photo_count }} photo{{ 's' if album.photo_count != 1 else '' }}</div>
-                    </div>
-                </div>
+            <a href="/albums/{{ album.id }}"
+               style="display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:5px 10px;border-radius:var(--r-s);border:1px solid var(--hairline);text-decoration:none;color:inherit;">
+                <i data-lucide="folder" style="width:13px;height:13px;color:var(--vine);"></i>
+                {{ album.name }}
+                <span style="color:var(--slate-soft);font-size:12px;">{{ album.photo_count }}</span>
             </a>
             {% endfor %}
         </div>
-        {% else %}
-        <p style="font-size:14px;color:var(--slate);padding:8px 0;">No photo albums yet.</p>
         {% endif %}
     </div>
     {% endif %}
