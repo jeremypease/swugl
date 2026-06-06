@@ -3956,6 +3956,20 @@ def support():
                 message=form.message.data,
                 support_email=support_email
             )
+        else:
+            current_app.logger.warning(
+                'Support form submitted but RESEND_API_KEY is not set — email not sent. '
+                f'User: {current_user.email}, family: {current_user.active_family_id}'
+            )
+        from .models import Notification
+        db.session.add(Notification(
+            user_id=current_user.id,
+            event_type='support_sent',
+            title='Support message received',
+            body="We'll get back to you within one business day.",
+            url=url_for('main.support'),
+        ))
+        db.session.commit()
         return redirect(url_for('main.support', sent=1))
     sent = request.args.get('sent', False)
     return render_template('support.html', form=form, sent=sent)
