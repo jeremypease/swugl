@@ -1,17 +1,22 @@
-{# ── RSVP card (right rail) ────────────────────────────────────────── #}
+{# ── RSVP card (right rail) ────────────────────────────────────────────── #}
 <div class="card">
     <div class="card-header">
         <h3 style="font-size:14px;">Who's Coming?</h3>
-        <div style="font-size:12px;color:var(--slate);">
-            {% if yes_count.v %}<span style="color:var(--vine);font-weight:600;">{{ yes_count.v }} going</span>{% endif %}
-            {% if maybe_count.v %}<span style="color:var(--slate);"> · {{ maybe_count.v }} maybe</span>{% endif %}
-            {% if no_count.v %}<span style="color:var(--slate);"> · {{ no_count.v }} can't</span>{% endif %}
+        <div style="font-size:12px;color:var(--slate);text-align:right;line-height:1.4;">
+            {% if rsvp_stats.yes_people %}
+            <span style="color:var(--vine);font-weight:600;">{{ rsvp_stats.yes_people }} going</span>
+            {% if rsvp_stats.yes_households > 1 %}
+            <span style="color:var(--slate-soft);"> ({{ rsvp_stats.yes_households }} fam.)</span>
+            {% endif %}
+            {% endif %}
+            {% if rsvp_stats.maybe_people %}<span style="color:var(--slate);"> · {{ rsvp_stats.maybe_people }} maybe</span>{% endif %}
+            {% if rsvp_stats.no_people %}<span style="color:var(--slate);"> · {{ rsvp_stats.no_people }} can't</span>{% endif %}
         </div>
     </div>
 
-    {# Pea pod visualization #}
+    {# ── Pod visualization ─────────────────────────────────────────────── #}
     {% if all_people %}
-    {% set pod_people = all_people[:10] %}
+    {% set pod_people = all_people[:12] %}
     <div class="pod-wrap">
         <svg viewBox="0 0 240 80" preserveAspectRatio="none">
             <path d="M10 40 Q 120 -18 230 40 Q 120 98 10 40 Z"
@@ -27,6 +32,10 @@
             {% endfor %}
         </div>
     </div>
+    {% set total_dir = all_people | selectattr('in_directory') | list | length %}
+    {% if total_dir > 12 %}
+    <div style="text-align:center;font-size:11px;color:var(--slate-soft);margin-top:-4px;margin-bottom:4px;">+{{ total_dir - 12 }} more</div>
+    {% endif %}
     <div style="display:flex;justify-content:center;gap:12px;font-size:10px;color:var(--slate);margin-bottom:8px;">
         <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--vine);margin-right:3px;"></span>going</span>
         <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#e6a817;margin-right:3px;"></span>maybe</span>
@@ -34,43 +43,72 @@
     </div>
     {% endif %}
 
-    {# My household RSVP controls #}
+    {# ── RSVP deadline reminder ────────────────────────────────────────── #}
+    {% if event.rsvp_deadline %}
+    {% set days_left = (event.rsvp_deadline - now.date()).days %}
+    {% if days_left >= 0 %}
+    <div style="font-size:12px;padding:6px 10px;border-radius:var(--r-s);margin-bottom:10px;
+                background:{% if days_left <= 3 %}#fff4e0{% else %}var(--leaf-mist){% endif %};
+                color:{% if days_left <= 3 %}#8a5200{% else %}var(--vine-deep){% endif %};">
+        <i data-lucide="clock" style="width:11px;height:11px;vertical-align:-1px;"></i>
+        RSVP by {{ event.rsvp_deadline.strftime('%B %-d') }}
+        {% if days_left == 0 %} — <strong>today</strong>
+        {% elif days_left == 1 %} — <strong>tomorrow</strong>
+        {% elif days_left <= 7 %} — {{ days_left }} days left
+        {% endif %}
+    </div>
+    {% endif %}
+    {% endif %}
+
+    {# ── Your household response ───────────────────────────────────────── #}
     {% if household %}
-    <div class="ev-rail-rsvp-controls" style="border-top:1px solid var(--hairline);padding-top:12px;margin-top:4px;">
+    <div style="border-top:1px solid var(--hairline);padding-top:12px;margin-top:4px;">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);margin-bottom:10px;">Your Response</div>
         <div style="display:flex;flex-direction:column;gap:8px;">
             {% for person in household %}
             {% set status = rsvp_map.get(person.id) %}
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                <span style="font-size:13px;font-weight:{% if loop.index <= 2 %}600{% else %}400{% endif %};flex:1;min-width:90px;color:{% if loop.index > 2 %}var(--slate){% else %}inherit{% endif %};">{{ person.get_display_name() }}</span>
-                <div style="display:flex;gap:4px;">
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                <span style="font-size:13px;font-weight:{% if loop.index <= 2 %}600{% else %}400{% endif %};flex:1;min-width:80px;color:{% if loop.index > 2 %}var(--slate){% else %}inherit{% endif %};">{{ person.get_display_name() }}</span>
+                <div style="display:flex;gap:3px;align-items:center;">
                     {% for val, label in [('yes','Going'),('maybe','Maybe'),('no','Can\'t')] %}
                     <form method="POST" action="/events/{{ event.id }}/rsvp" style="display:contents;">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="person_id" value="{{ person.id }}">
                         <input type="hidden" name="status" value="{{ val }}">
                         <button type="submit" class="btn btn-sm {{ 'btn-primary' if status == val else 'btn-secondary' }}"
-                                style="font-size:11px;padding:4px 8px;{% if status and status != val %}opacity:.45;{% endif %}">{{ label }}</button>
+                                style="font-size:11px;padding:4px 7px;{% if status and status != val %}opacity:.4;{% endif %}">{{ label }}</button>
                     </form>
                     {% endfor %}
+                    {% if status %}
+                    <form method="POST" action="/events/{{ event.id }}/rsvp" style="display:contents;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="person_id" value="{{ person.id }}">
+                        <input type="hidden" name="status" value="clear">
+                        <button type="submit" class="btn btn-ghost btn-sm" style="font-size:14px;padding:2px 5px;color:var(--slate-soft);line-height:1;" title="Clear response">×</button>
+                    </form>
+                    {% endif %}
                 </div>
             </div>
             {% endfor %}
         </div>
     </div>
+    {% elif not my_person %}
+    <p style="font-size:13px;color:var(--slate);padding-top:8px;">Link your family profile to RSVP.</p>
     {% endif %}
 
-    {# Roster #}
-    {% if rsvp_groups or family_groups %}
+    {# ── Roster ────────────────────────────────────────────────────────── #}
+    {% if family_groups or rsvp_groups %}
     <div style="border-top:1px solid var(--hairline);padding-top:12px;margin-top:10px;">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);margin-bottom:8px;">
             {% if current_user.active_is_admin or current_user.active_is_delegate %}All Families{% else %}Responses{% endif %}
         </div>
 
         {% if current_user.active_is_admin or current_user.active_is_delegate %}
+        {# Admin: full list, every household, expandable with inline RSVP buttons #}
         {% if family_groups %}
         <div style="display:flex;flex-direction:column;gap:2px;">
             {% for group in family_groups %}
+            {% set all_none = group.adults | selectattr('1', 'none') | list | length == group.adults | length %}
             <details style="border-radius:var(--r-s);" {% if not group.children %}class="no-children"{% endif %}>
                 <summary style="list-style:none;display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:var(--r-s);cursor:pointer;user-select:none;" class="rsvp-row">
                     <div style="flex:1;font-weight:600;font-size:13px;">{{ group.label }}</div>
@@ -85,23 +123,35 @@
                         {% if not loop.last %}<span style="color:var(--hairline);">·</span>{% endif %}
                         {% endfor %}
                     </div>
-                    {% if group.children %}<i data-lucide="chevron-down" style="width:12px;height:12px;color:var(--slate);flex-shrink:0;" class="details-chevron"></i>{% endif %}
+                    <i data-lucide="chevron-down" style="width:12px;height:12px;color:var(--slate);flex-shrink:0;" class="details-chevron"></i>
                 </summary>
-                {% if group.children %}
-                <div style="padding:4px 8px 8px 20px;display:flex;flex-direction:column;gap:4px;">
-                    {% for person, status in group.children %}
-                    <div style="display:flex;align-items:center;gap:8px;">
-                        <span style="font-size:12px;flex:1;color:var(--slate);">{{ person.get_display_name() }}</span>
-                        <span style="font-size:12px;">
-                            {% if status == 'yes' %}<span style="color:var(--vine);">Going</span>
-                            {% elif status == 'maybe' %}<span style="color:#c87c00;">Maybe</span>
-                            {% elif status == 'no' %}<span style="color:var(--tomato);">Can't</span>
-                            {% else %}<span style="color:var(--slate-soft);">—</span>{% endif %}
-                        </span>
+                <div style="padding:6px 8px 10px 16px;display:flex;flex-direction:column;gap:6px;">
+                    {% for person, status in group.adults + group.children %}
+                    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                        <span style="font-size:12px;flex:1;min-width:70px;{% if loop.index > group.adults | length %}color:var(--slate);{% endif %}">{{ person.get_display_name() }}</span>
+                        <div style="display:flex;gap:3px;align-items:center;">
+                            {% for val, label in [('yes','G'),('maybe','M'),('no','N')] %}
+                            <form method="POST" action="/events/{{ event.id }}/rsvp" style="display:contents;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="person_id" value="{{ person.id }}">
+                                <input type="hidden" name="status" value="{{ val }}">
+                                <button type="submit" title="{{ 'Going' if val == 'yes' else ('Maybe' if val == 'maybe' else 'Can\'t') }}"
+                                        class="btn btn-sm {{ 'btn-primary' if status == val else 'btn-secondary' }}"
+                                        style="font-size:10px;padding:3px 6px;{% if status and status != val %}opacity:.35;{% endif %}">{{ label }}</button>
+                            </form>
+                            {% endfor %}
+                            {% if status %}
+                            <form method="POST" action="/events/{{ event.id }}/rsvp" style="display:contents;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="person_id" value="{{ person.id }}">
+                                <input type="hidden" name="status" value="clear">
+                                <button type="submit" class="btn btn-ghost btn-sm" style="font-size:13px;padding:2px 4px;color:var(--slate-soft);line-height:1;" title="Clear">×</button>
+                            </form>
+                            {% endif %}
+                        </div>
                     </div>
                     {% endfor %}
                 </div>
-                {% endif %}
             </details>
             {% endfor %}
         </div>
@@ -110,11 +160,12 @@
         {% endif %}
 
         {% else %}
+        {# Member: responded households only #}
         {% if rsvp_groups %}
         <div style="display:flex;flex-direction:column;gap:6px;">
             {% for group in rsvp_groups %}
             <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">
-                <span style="font-size:13px;font-weight:600;min-width:120px;">{{ group.label }}</span>
+                <span style="font-size:13px;font-weight:600;min-width:110px;">{{ group.label }}</span>
                 <span style="font-size:12px;color:var(--slate);">
                     {% set parts = [] %}
                     {% if group.yes %}{% set _ = parts.append('<span style="color:var(--vine);">' ~ group.yes|join(', ') ~ '</span>') %}{% endif %}
@@ -129,6 +180,16 @@
         <p style="font-size:13px;color:var(--slate);">No responses yet.</p>
         {% endif %}
         {% endif %}
+    </div>
+    {% endif %}
+
+    {# ── Waiting on ────────────────────────────────────────────────────── #}
+    {% if not_responded %}
+    <div style="border-top:1px solid var(--hairline);padding-top:10px;margin-top:8px;">
+        <div style="font-size:11px;color:var(--slate-soft);margin-bottom:5px;">
+            Waiting on {{ not_responded | length }} {{ 'household' if not_responded | length == 1 else 'households' }}:
+        </div>
+        <div style="font-size:12px;color:var(--slate);line-height:1.6;">{{ not_responded | join(' · ') }}</div>
     </div>
     {% endif %}
 </div>

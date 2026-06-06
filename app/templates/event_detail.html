@@ -161,14 +161,6 @@ details[open] .details-chevron { transform: rotate(180deg); }
 {% set date_min = event.start_date.strftime('%Y-%m-%d') %}
 {% set date_max = (event.end_date or event.start_date).strftime('%Y-%m-%d') %}
 
-{% set yes_count = namespace(v=0) %}
-{% set maybe_count = namespace(v=0) %}
-{% set no_count = namespace(v=0) %}
-{% for g in rsvp_groups %}
-    {% set yes_count.v = yes_count.v + g.yes|length %}
-    {% set maybe_count.v = maybe_count.v + g.maybe|length %}
-    {% set no_count.v = no_count.v + g.no|length %}
-{% endfor %}
 
 <div class="ev-grid">
 
@@ -404,16 +396,33 @@ details[open] .details-chevron { transform: rotate(180deg); }
 
 {# ── Mobile sticky RSVP bar ────────────────────────────────────────── #}
 {% if household %}
-<div class="ev-mobile-rsvp">
-    {% set me = household[0] %}
-    {% set my_status = rsvp_map.get(me.id) %}
-    {% for val, label in [('yes','Going'),('maybe','Maybe'),('no','Can\'t')] %}
-    <form method="POST" action="/events/{{ event.id }}/rsvp" style="display:contents;">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="person_id" value="{{ me.id }}">
-        <input type="hidden" name="status" value="{{ val }}">
-        <button type="submit" class="btn btn-sm {{ 'btn-primary' if my_status == val else 'btn-secondary' }}" style="flex:1;">{{ label }}</button>
-    </form>
+<div class="ev-mobile-rsvp" style="flex-direction:column;gap:6px;">
+    {% for person in household %}
+    {% set my_status = rsvp_map.get(person.id) %}
+    <div style="display:flex;align-items:center;gap:6px;">
+        {% if household | length > 1 %}
+        <span style="font-size:12px;font-weight:{% if loop.index <= 2 %}600{% else %}400{% endif %};min-width:70px;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:{% if loop.index > 2 %}var(--slate){% else %}inherit{% endif %};">{{ person.get_display_name() }}</span>
+        {% endif %}
+        <div style="display:flex;gap:4px;{% if household | length == 1 %}flex:1;{% endif %}">
+            {% for val, label in [('yes','Going'),('maybe','Maybe'),('no','Can\'t')] %}
+            <form method="POST" action="/events/{{ event.id }}/rsvp" style="display:contents;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="person_id" value="{{ person.id }}">
+                <input type="hidden" name="status" value="{{ val }}">
+                <button type="submit" class="btn btn-sm {{ 'btn-primary' if my_status == val else 'btn-secondary' }}"
+                        style="flex:1;font-size:{% if household | length > 1 %}11px{% else %}13px{% endif %};">{{ label }}</button>
+            </form>
+            {% endfor %}
+            {% if my_status %}
+            <form method="POST" action="/events/{{ event.id }}/rsvp" style="display:contents;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="person_id" value="{{ person.id }}">
+                <input type="hidden" name="status" value="clear">
+                <button type="submit" class="btn btn-ghost btn-sm" style="font-size:14px;padding:2px 5px;color:var(--slate-soft);" title="Clear">×</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
     {% endfor %}
 </div>
 {% endif %}

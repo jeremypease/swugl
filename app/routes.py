@@ -2259,8 +2259,23 @@ def event_detail(event_id):
 
     # Build grouped RSVP summary: one entry per household unit
     rsvp_groups = _build_rsvp_groups(event, all_people)
-    # Full family groups for admin/contributor view
-    family_groups = _build_family_groups(all_people, rsvp_map) if (current_user.active_is_admin or current_user.active_is_delegate) else []
+    # Full family groups — always built; used for stats + non-responder list for everyone
+    _all_fg = _build_family_groups(all_people, rsvp_map)
+    family_groups = _all_fg if (current_user.active_is_admin or current_user.active_is_delegate) else []
+
+    rsvp_stats = {
+        'yes_people':  sum(1 for s in rsvp_map.values() if s == 'yes'),
+        'maybe_people': sum(1 for s in rsvp_map.values() if s == 'maybe'),
+        'no_people':   sum(1 for s in rsvp_map.values() if s == 'no'),
+        'yes_households': sum(
+            1 for g in _all_fg
+            if any(s == 'yes' for _, s in g['adults'] + g['children'])
+        ),
+    }
+    not_responded = [
+        g['label'] for g in _all_fg
+        if all(s is None for _, s in g['adults'] + g['children'])
+    ]
 
     from .weather import get_event_weather
     try:
@@ -2320,6 +2335,8 @@ def event_detail(event_id):
         comment_form=comment_form,
         assignment_categories=ASSIGNMENT_CATEGORIES,
         rsvp_map=rsvp_map,
+        rsvp_stats=rsvp_stats,
+        not_responded=not_responded,
         household=household,
         rsvp_groups=rsvp_groups,
         family_groups=family_groups,
@@ -2859,24 +2876,28 @@ def event_rsvp(event_id):
         return redirect(url_for('main.events_list'))
     person_id = request.form.get('person_id', type=int)
     status = request.form.get('status')
-    if not person_id or status not in ('yes', 'no', 'maybe'):
+    if not person_id or status not in ('yes', 'no', 'maybe', 'clear'):
         return redirect(url_for('main.event_detail', event_id=event_id))
     # Verify this person belongs to the family
     person = db.session.get(Person, person_id)
     if not person or person.family_id != current_user.active_family_id:
         return redirect(url_for('main.event_detail', event_id=event_id))
-    # Only allow editing RSVPs for your own household (admin can edit anyone)
+    # Members can only RSVP their own household; admins can RSVP anyone
     if not current_user.active_is_admin:
         household_ids = _get_household_ids(current_user.person)
         if person_id not in household_ids:
             return redirect(url_for('main.event_detail', event_id=event_id))
     rsvp = EventRSVP.query.filter_by(event_id=event_id, person_id=person_id).first()
-    if rsvp:
+    if status == 'clear':
+        if rsvp:
+            db.session.delete(rsvp)
+            db.session.commit()
+    elif rsvp:
         rsvp.status = status
+        db.session.commit()
     else:
-        rsvp = EventRSVP(event_id=event_id, person_id=person_id, status=status)
-        db.session.add(rsvp)
-    db.session.commit()
+        db.session.add(EventRSVP(event_id=event_id, person_id=person_id, status=status))
+        db.session.commit()
     return redirect(url_for('main.event_detail', event_id=event_id))
 
 
