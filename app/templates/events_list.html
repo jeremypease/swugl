@@ -43,9 +43,29 @@
         <h1>Events</h1>
     </div>
     {% if current_user.active_is_admin %}
-    <a href="/events/add" class="btn btn-primary"><i data-lucide="plus"></i> New Event</a>
+        {% if not has_paid_access and upcoming|length >= event_limit %}
+        <a href="{{ url_for('billing.billing_page') }}" class="btn btn-secondary"
+           title="Free plan is limited to {{ event_limit }} upcoming events">
+            <i data-lucide="lock"></i> Upgrade to add events
+        </a>
+        {% else %}
+        <a href="/events/add" class="btn btn-primary"><i data-lucide="plus"></i> New Event</a>
+        {% endif %}
     {% endif %}
 </div>
+
+{% if current_user.active_is_admin and not has_paid_access %}
+{% set upcoming_count = upcoming|length %}
+<div style="max-width:760px;margin-bottom:16px;padding:10px 14px;border-radius:var(--r-m);background:var(--leaf-mist);border:1px solid var(--hairline-strong);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+    <span style="font-size:13px;color:var(--vine-deep);">
+        <strong>{{ upcoming_count }} / {{ event_limit }}</strong> upcoming events on the free plan.
+        {% if upcoming_count >= event_limit %}Upgrade to create unlimited events.{% endif %}
+    </span>
+    {% if upcoming_count >= event_limit %}
+    <a href="{{ url_for('billing.billing_page') }}" class="btn btn-primary btn-sm">Upgrade</a>
+    {% endif %}
+</div>
+{% endif %}
 
 {% if not upcoming and not past %}
 <div style="max-width:440px;text-align:center;padding:64px 24px;">

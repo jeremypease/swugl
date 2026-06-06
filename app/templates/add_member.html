@@ -13,6 +13,20 @@
     </a>
 </div>
 
+{% if not has_paid_access %}
+<div style="max-width:580px;margin-bottom:16px;padding:10px 14px;border-radius:var(--r-m);
+     background:{% if person_count >= member_limit %}#fef3c7{% else %}var(--leaf-mist){% endif %};
+     border:1px solid var(--hairline-strong);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+    <span style="font-size:13px;color:var(--vine-deep);">
+        <strong>{{ person_count }} / {{ member_limit }}</strong> members on the free plan.
+        {% if person_count >= member_limit %}You've reached the limit — upgrade to add more.{% endif %}
+    </span>
+    {% if person_count >= member_limit %}
+    <a href="{{ url_for('billing.billing_page') }}" class="btn btn-primary btn-sm">Upgrade</a>
+    {% endif %}
+</div>
+{% endif %}
+
 {% if parent1 %}
 <div class="flash f-info" style="max-width:580px;margin-bottom:16px;">
     <i data-lucide="info" style="width:16px;height:16px;flex-shrink:0;"></i>

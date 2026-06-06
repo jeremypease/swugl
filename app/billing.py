@@ -11,6 +11,9 @@ from .models import Family, FamilyPayoutAccount
 
 PLATFORM_FEE_RATE = 0.02  # 2% Swugl platform fee on event payouts
 
+FREE_MEMBER_LIMIT = 25   # max Person records on free plan
+FREE_EVENT_LIMIT = 3     # max upcoming events on free plan
+
 billing = Blueprint('billing', __name__)
 
 

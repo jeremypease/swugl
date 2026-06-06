@@ -7,7 +7,7 @@ from datetime import date, datetime, timedelta
 from functools import wraps
 from urllib.parse import urlparse
 from . import db, limiter
-from .billing import requires_plan, family_has_paid_access
+from .billing import requires_plan, family_has_paid_access, FREE_MEMBER_LIMIT, FREE_EVENT_LIMIT
 from .storage import upload_photo, delete_object, get_object_bytes
 import secrets
 import hashlib
@@ -617,6 +617,12 @@ def add_member():
                 return render_template('add_member.html', form=form, parent1=parent1,
                                        parent2=parent2, next_page=next_page, similar=similar,
                                        purpose=purpose, link_spouse_for=link_spouse_for)
+        if not family_has_paid_access(current_user.active_family):
+            person_count = Person.query.filter_by(family_id=current_user.active_family_id).count()
+            if person_count >= FREE_MEMBER_LIMIT:
+                flash(f'Free plan is limited to {FREE_MEMBER_LIMIT} family members. '
+                      'Upgrade to add unlimited members.', 'warning')
+                return redirect(url_for('billing.billing_page'))
         person = Person(
             name=f"{first} {last}",
             family_id=current_user.active_family_id,
@@ -643,8 +649,12 @@ def add_member():
             return redirect(url_for('main.admin_link_spouse', person_id=link_spouse_for))
         return redirect(url_for('main.person_detail', person_id=person.id))
     link_spouse_for = request.args.get('link_spouse_for', type=int)
+    person_count = Person.query.filter_by(family_id=current_user.active_family_id).count()
+    has_paid_access = family_has_paid_access(current_user.active_family)
     return render_template('add_member.html', form=form, parent1=parent1, parent2=parent2,
-                           next_page=next_page, purpose=purpose, link_spouse_for=link_spouse_for)
+                           next_page=next_page, purpose=purpose, link_spouse_for=link_spouse_for,
+                           person_count=person_count, member_limit=FREE_MEMBER_LIMIT,
+                           has_paid_access=has_paid_access)
 
 @main.route('/person/<int:person_id>/add-parent', methods=['GET', 'POST'])
 @login_required
@@ -2056,7 +2066,10 @@ def events_list():
     upcoming = [e for e in all_events if e.start_date >= today]
     past = [e for e in all_events if e.start_date < today]
     past.reverse()
-    return render_template('events_list.html', upcoming=upcoming, past=past)
+    has_paid_access = family_has_paid_access(current_user.active_family)
+    return render_template('events_list.html', upcoming=upcoming, past=past,
+                           has_paid_access=has_paid_access,
+                           event_limit=FREE_EVENT_LIMIT)
 
 
 @main.route('/events/ai-parse', methods=['POST'])
@@ -2136,8 +2149,19 @@ def _geocode_location(location_str):
 @login_required
 @admin_required
 def event_add():
+    family = current_user.active_family
+    has_paid_access = family_has_paid_access(family)
     form = EventForm()
     if form.validate_on_submit():
+        if not has_paid_access:
+            upcoming_count = Event.query.filter(
+                Event.family_id == current_user.active_family_id,
+                Event.start_date >= date.today()
+            ).count()
+            if upcoming_count >= FREE_EVENT_LIMIT:
+                flash(f'Free plan is limited to {FREE_EVENT_LIMIT} upcoming events. '
+                      'Upgrade to create unlimited events.', 'warning')
+                return redirect(url_for('billing.billing_page'))
         if form.end_date.data and form.start_date.data and form.end_date.data < form.start_date.data:
             form.end_date.errors.append('End date cannot be before start date.')
             return render_template('event_form.html', form=form, event=None)
