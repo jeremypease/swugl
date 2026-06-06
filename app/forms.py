@@ -244,6 +244,7 @@ class EventAssignmentAdminAssignForm(FlaskForm):
 
 class EventSleepingSpotForm(FlaskForm):
     name = StringField('Room / Spot', validators=[DataRequired(), Length(max=150)])
+    spot_type = SelectField('Type', choices=[('', '— Type —'), ('Bedroom', 'Bedroom'), ('Couch', 'Couch'), ('Air mattress', 'Air mattress'), ('Tent', 'Tent'), ('Cabin bunk', 'Cabin bunk'), ('Other', 'Other')], validators=[Optional()])
     capacity = IntegerField('Capacity', validators=[Optional()])
     notes = TextAreaField('Notes')
     submit = SubmitField('Add Spot')

@@ -25,8 +25,29 @@
             {{ meal_form.hidden_tag() }}
             <div class="field-row">
                 <div class="field">{{ meal_form.name.label }}{{ meal_form.name(placeholder="e.g. Saturday Dinner") }}</div>
-                <div class="field">{{ meal_form.meal_date.label }}{{ meal_form.meal_date(min=date_min, max=date_max) }}</div>
-                <div class="field">{{ meal_form.meal_time.label }}{{ meal_form.meal_time(placeholder="6:00 PM") }}</div>
+                <div class="field" style="max-width:160px;">
+                    <label>Date</label>
+                    <select name="meal_date" style="font-size:14px;">
+                        <option value="">— Day —</option>
+                        {% for d in event_date_range %}
+                        <option value="{{ d.isoformat() }}">{{ d.strftime('%a %b %-d') }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="field" style="max-width:160px;">
+                    <label>Time</label>
+                    <select name="meal_time" style="font-size:14px;">
+                        <option value="">— Time —</option>
+                        <option value="7:00 AM">7:00 AM (Breakfast)</option>
+                        <option value="8:00 AM">8:00 AM (Breakfast)</option>
+                        <option value="9:00 AM">9:00 AM (Brunch)</option>
+                        <option value="12:00 PM">12:00 PM (Lunch)</option>
+                        <option value="1:00 PM">1:00 PM (Lunch)</option>
+                        <option value="5:00 PM">5:00 PM (Dinner)</option>
+                        <option value="6:00 PM">6:00 PM (Dinner)</option>
+                        <option value="7:00 PM">7:00 PM (Dinner)</option>
+                    </select>
+                </div>
             </div>
             <div class="field">{{ meal_form.notes.label }}<span style="color:var(--slate-soft);font-size:12px;"> (optional)</span>{{ meal_form.notes(rows=2) }}</div>
             <button type="submit" class="btn btn-primary btn-sm">Add Meal</button>

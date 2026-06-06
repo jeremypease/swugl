@@ -1,4 +1,15 @@
 {% if event.has_carpool %}
+{% set drivers = event.carpool_offers | selectattr('role', 'equalto', 'driver') | list %}
+{% set all_riders = event.carpool_offers | selectattr('role', 'equalto', 'rider') | list %}
+{% set unmatched_riders = all_riders | selectattr('passenger_of_id', 'none') | list %}
+{% set my_offer = event.carpool_offers | selectattr('person_id', 'equalto', current_user.person.id if current_user.person else -1) | first | default(none) %}
+{% set my_driver_offer = none %}
+{% if my_offer and my_offer.passenger_of_id %}
+    {% for d in drivers %}
+        {% if d.id == my_offer.passenger_of_id %}{% set my_driver_offer = d %}{% endif %}
+    {% endfor %}
+{% endif %}
+
 <div class="card">
     <div class="card-header">
         <h3>Carpool</h3>
@@ -7,7 +18,8 @@
             <form method="POST" action="/events/{{ event.id }}/disable-section" style="display:contents;">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="section" value="carpool">
-                <button type="submit" class="btn btn-ghost btn-sm" title="Hide" style="color:var(--slate-soft);padding:4px 6px;">
+                <button type="submit" class="btn btn-ghost btn-sm" title="Hide" style="color:var(--slate-soft);padding:4px 6px;"
+                        data-confirm="Disable Carpool? Existing offers will be preserved.">
                     <i data-lucide="eye-off" style="width:14px;height:14px;"></i>
                 </button>
             </form>
@@ -15,66 +27,188 @@
         </div>
     </div>
 
-    {% set drivers = event.carpool_offers | selectattr('role', 'equalto', 'driver') | list %}
-    {% set riders = event.carpool_offers | selectattr('role', 'equalto', 'rider') | list %}
-    {% set my_offer = event.carpool_offers | selectattr('person_id', 'equalto', current_user.person.id if current_user.person else -1) | first | default(none) %}
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
-        <div>
-            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);margin-bottom:8px;">Drivers ({{ drivers|length }})</div>
-            {% for offer in drivers %}
-            <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--hairline);">
-                <span style="font-size:13px;font-weight:600;">{{ offer.person.get_display_name() }}</span>
-                {% if offer.seats %}<span style="font-size:12px;color:var(--slate);">{{ offer.seats }} seat{{ 's' if offer.seats != 1 }}</span>{% endif %}
-                {% if offer.notes %}<span style="font-size:12px;color:var(--slate);">· {{ offer.notes }}</span>{% endif %}
-            </div>
-            {% else %}
-            <p style="font-size:13px;color:var(--slate);">No drivers yet.</p>
-            {% endfor %}
+    {# ── Driver cards ─────────────────────────────────────────────────────── #}
+    {% if drivers %}
+    <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:16px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);">
+            Drivers ({{ drivers|length }})
         </div>
-        <div>
-            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);margin-bottom:8px;">Need a ride ({{ riders|length }})</div>
-            {% for offer in riders %}
-            <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--hairline);">
-                <span style="font-size:13px;font-weight:600;">{{ offer.person.get_display_name() }}</span>
-                {% if offer.notes %}<span style="font-size:12px;color:var(--slate);">· {{ offer.notes }}</span>{% endif %}
+        {% for offer in drivers %}
+        {% set matched = all_riders | selectattr('passenger_of_id', 'equalto', offer.id) | list %}
+        {% set seats_taken = matched | length %}
+        {% set seats_open = (offer.seats - seats_taken) if offer.seats else none %}
+        {% set is_full = offer.seats and seats_taken >= offer.seats %}
+        {% set can_claim = my_offer and my_offer.role == 'rider' and my_offer.passenger_of_id != offer.id and not is_full %}
+        {% set no_offer_can_claim = not my_offer and current_user.person and not is_full %}
+        <div style="border:1px solid var(--hairline);border-radius:var(--r-s);padding:12px;">
+            <div style="display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap;">
+                <div style="flex:1;min-width:0;">
+                    <div style="font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                        {{ offer.person.get_display_name() }}
+                        {% if offer.departure_from %}
+                        <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;padding:2px 7px;border-radius:20px;background:var(--leaf-mist);color:var(--vine);">from {{ offer.departure_from }}</span>
+                        {% endif %}
+                        {% if offer.seats %}
+                        <span style="font-size:12px;font-weight:400;color:{% if is_full %}var(--tomato){% else %}var(--slate){% endif %};">
+                            {{ seats_taken }}/{{ offer.seats }} seat{{ 's' if offer.seats != 1 }}{% if is_full %} · Full{% endif %}
+                        </span>
+                        {% endif %}
+                    </div>
+                    {% if offer.notes %}<div style="font-size:13px;color:var(--slate);margin-top:2px;">{{ offer.notes }}</div>{% endif %}
+
+                    {# Matched passengers #}
+                    {% if matched %}
+                    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">
+                        {% for rider in matched %}
+                        <span class="badge b-active" style="display:inline-flex;align-items:center;gap:6px;">
+                            <span class="dot"></span>{{ rider.person.get_display_name() }}
+                            {% if current_user.active_is_admin and (current_user.person and rider.person_id != current_user.person.id) %}
+                            <form method="POST" action="/events/{{ event.id }}/carpool/unclaim" style="display:contents;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                {# need person-specific unclaim — use admin remove rider route #}
+                            </form>
+                            {% endif %}
+                        </span>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div style="font-size:13px;color:var(--slate);margin-top:6px;">No passengers yet.</div>
+                    {% endif %}
+                </div>
+
+                {# Actions column #}
+                <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
+                    {# Member: claim seat #}
+                    {% if (can_claim or no_offer_can_claim) and offer.person_id != (current_user.person.id if current_user.person else -1) %}
+                    <form method="POST" action="/events/{{ event.id }}/carpool/{{ offer.id }}/claim">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-ghost btn-sm">Claim seat</button>
+                    </form>
+                    {% endif %}
+
+                    {# Member: unclaim own seat #}
+                    {% if my_offer and my_offer.passenger_of_id == offer.id %}
+                    <form method="POST" action="/events/{{ event.id }}/carpool/unclaim">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--slate);">Leave car</button>
+                    </form>
+                    {% endif %}
+
+                    {# Admin: assign unmatched rider #}
+                    {% if current_user.active_is_admin and unmatched_riders and not is_full %}
+                    <form method="POST" action="/events/{{ event.id }}/carpool/{{ offer.id }}/assign-rider" style="display:flex;gap:6px;align-items:center;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <select name="rider_offer_id" style="font-size:13px;padding:3px 6px;">
+                            <option value="">— Assign rider —</option>
+                            {% for r in unmatched_riders %}
+                            <option value="{{ r.id }}">{{ r.person.get_display_name() }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-ghost btn-sm">Assign</button>
+                    </form>
+                    {% endif %}
+                </div>
             </div>
-            {% else %}
-            <p style="font-size:13px;color:var(--slate);">No riders listed yet.</p>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {# ── Unmatched riders ─────────────────────────────────────────────────── #}
+    {% if unmatched_riders %}
+    <div style="margin-bottom:16px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);margin-bottom:8px;">
+            Need a ride ({{ unmatched_riders|length }})
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;">
+            {% for rider in unmatched_riders %}
+            <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:var(--r-xs);background:var(--bg-alt);">
+                <span style="font-size:13px;font-weight:600;flex:1;">{{ rider.person.get_display_name() }}</span>
+                {% if rider.notes %}<span style="font-size:12px;color:var(--slate);">{{ rider.notes }}</span>{% endif %}
+                {% if current_user.person and rider.person_id == current_user.person.id %}
+                <form method="POST" action="/events/{{ event.id }}/carpool/remove">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--slate);">Remove</button>
+                </form>
+                {% endif %}
+            </div>
             {% endfor %}
         </div>
     </div>
+    {% elif not drivers %}
+    <p style="font-size:14px;color:var(--slate);padding:4px 0 12px;">No one has signed up yet. Be the first!</p>
+    {% endif %}
 
+    {# ── Current user status ──────────────────────────────────────────────── #}
     {% if current_user.person %}
     {% if my_offer %}
-    <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--leaf-mist);border-radius:var(--r-s);margin-bottom:8px;">
-        <span style="font-size:13px;">You're listed as a <strong>{{ my_offer.role }}</strong>{% if my_offer.seats %} with {{ my_offer.seats }} seat{{ 's' if my_offer.seats != 1 }}{% endif %}.</span>
+    <div style="padding:10px 12px;background:var(--leaf-mist);border-radius:var(--r-s);margin-bottom:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        {% if my_offer.role == 'driver' %}
+        <span style="font-size:13px;">You're <strong>driving</strong>{% if my_offer.seats %} · {{ my_offer.seats }} seat{{ 's' if my_offer.seats != 1 }}{% endif %}{% if my_offer.departure_from %} · from {{ my_offer.departure_from }}{% endif %}.</span>
+        {% elif my_driver_offer %}
+        <span style="font-size:13px;">You're riding with <strong>{{ my_driver_offer.person.get_display_name() }}</strong>.</span>
+        {% else %}
+        <span style="font-size:13px;">You need a ride. {% if drivers %}Claim a seat from a driver above.{% endif %}</span>
+        {% endif %}
         <form method="POST" action="/events/{{ event.id }}/carpool/remove" style="margin-left:auto;">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);">Remove</button>
+            <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);">Remove me</button>
         </form>
     </div>
     {% endif %}
-    <form method="POST" action="/events/{{ event.id }}/carpool/offer" style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div class="field" style="margin:0;">
-            <select name="role" style="font-size:13px;padding:5px 8px;">
-                <option value="driver">I can drive</option>
-                <option value="rider">I need a ride</option>
-            </select>
-        </div>
-        <div class="field" style="margin:0;">
-            <input type="number" name="seats" min="1" max="9" placeholder="Seats available" style="font-size:13px;width:130px;">
-        </div>
-        <div class="field" style="margin:0;flex:1;min-width:140px;">
-            <input type="text" name="notes" placeholder="Notes (optional)" style="font-size:13px;">
-        </div>
-        <button type="submit" class="btn btn-ghost btn-sm">{% if my_offer %}Update{% else %}Add me{% endif %}</button>
-    </form>
+
+    {# ── Add / edit offer form ─────────────────────────────────────────────── #}
+    <details {% if not my_offer %}open{% endif %} style="margin-top:4px;">
+        <summary style="font-size:13px;font-weight:600;cursor:pointer;color:var(--vine);list-style:none;display:flex;align-items:center;gap:6px;">
+            <i data-lucide="car" style="width:14px;height:14px;"></i>
+            {% if my_offer %}Edit my offer{% else %}Add me to carpool{% endif %}
+        </summary>
+        <form method="POST" action="/events/{{ event.id }}/carpool/offer" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;"
+              id="carpool-offer-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="field" style="margin:0;">
+                <label style="font-size:12px;font-weight:600;margin-bottom:3px;display:block;">Role</label>
+                <select name="role" id="carpool-role" style="font-size:13px;padding:5px 8px;"
+                        onchange="carpoolToggleDriverFields(this.value)">
+                    <option value="driver" {% if my_offer and my_offer.role == 'driver' %}selected{% endif %}>I can drive</option>
+                    <option value="rider" {% if my_offer and my_offer.role == 'rider' %}selected{% endif %}>I need a ride</option>
+                </select>
+            </div>
+            <div class="field" id="carpool-seats-field" style="margin:0;max-width:110px;">
+                <label style="font-size:12px;font-weight:600;margin-bottom:3px;display:block;">Seats avail.</label>
+                <input type="number" name="seats" min="1" max="12" placeholder="e.g. 3" style="font-size:13px;"
+                       value="{{ my_offer.seats if my_offer and my_offer.seats else '' }}">
+            </div>
+            <div class="field" id="carpool-departure-field" style="margin:0;max-width:160px;">
+                <label style="font-size:12px;font-weight:600;margin-bottom:3px;display:block;">Departing from</label>
+                <input type="text" name="departure_from" placeholder="City or area" style="font-size:13px;"
+                       value="{{ my_offer.departure_from if my_offer and my_offer.departure_from else '' }}">
+            </div>
+            <div class="field" style="margin:0;flex:1;min-width:140px;">
+                <label style="font-size:12px;font-weight:600;margin-bottom:3px;display:block;">Notes <span style="font-weight:400;color:var(--slate-soft);">(optional)</span></label>
+                <input type="text" name="notes" placeholder="e.g. Leaving Friday noon" style="font-size:13px;"
+                       value="{{ my_offer.notes if my_offer and my_offer.notes else '' }}">
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">{% if my_offer %}Update{% else %}Add me{% endif %}</button>
+        </form>
+    </details>
     {% else %}
     <p style="font-size:13px;color:var(--slate);">Link your family profile to join carpool.</p>
     {% endif %}
 </div>
+
+<script nonce="{{ csp_nonce }}">
+function carpoolToggleDriverFields(role) {
+    var isDriver = role === 'driver';
+    document.getElementById('carpool-seats-field').style.display = isDriver ? '' : 'none';
+    document.getElementById('carpool-departure-field').style.display = isDriver ? '' : 'none';
+}
+(function() {
+    var sel = document.getElementById('carpool-role');
+    if (sel) carpoolToggleDriverFields(sel.value);
+})();
+</script>
+
 {% elif current_user.active_is_admin %}
 <form method="POST" action="/events/{{ event.id }}/enable-section">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

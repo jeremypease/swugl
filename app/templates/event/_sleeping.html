@@ -1,4 +1,18 @@
 {% if event.has_sleeping %}
+{% set ns = namespace(slots=0, filled=0) %}
+{% for spot in event.sleeping_spots %}
+    {% if spot.capacity %}{% set ns.slots = ns.slots + spot.capacity %}{% endif %}
+    {% set ns.filled = ns.filled + (spot.people | length) %}
+{% endfor %}
+
+{# Which spot is the current user already in? #}
+{% set my_ns = namespace(spot_id=None) %}
+{% if my_person %}
+    {% for spot in event.sleeping_spots %}
+        {% if my_person in spot.people %}{% set my_ns.spot_id = spot.id %}{% endif %}
+    {% endfor %}
+{% endif %}
+
 <div class="card">
     <div class="card-header">
         <h3>Sleeping Arrangements</h3>
@@ -18,13 +32,34 @@
             {% endif %}
         </div>
     </div>
+
+    {# ── Occupancy summary ───────────────────────────────────────────── #}
+    {% if event.sleeping_spots %}
+    <div style="font-size:12px;color:var(--slate);padding:6px 0 2px;display:flex;align-items:center;gap:8px;">
+        <span>{{ ns.filled }} {{ 'person' if ns.filled == 1 else 'people' }} placed</span>
+        {% if ns.slots > 0 %}
+        {% set open = ns.slots - ns.filled %}
+        <span style="color:var(--hairline);">·</span>
+        <span>{{ ns.slots }} total slots</span>
+        {% if open > 0 %}
+        <span style="color:var(--hairline);">·</span>
+        <span style="color:var(--vine);font-weight:600;">{{ open }} open</span>
+        {% else %}
+        <span style="color:var(--hairline);">·</span>
+        <span style="color:var(--tomato);font-weight:600;">Full</span>
+        {% endif %}
+        {% endif %}
+    </div>
+    {% endif %}
+
     {% if current_user.active_is_admin %}
     <div id="spot-add-form" style="display:none;padding:12px 0;border-bottom:1px solid var(--hairline);">
         <form method="POST" action="/events/{{ event.id }}/sleeping/add-spot">
             {{ spot_form.hidden_tag() }}
             <div class="field-row">
                 <div class="field">{{ spot_form.name.label }}{{ spot_form.name(placeholder="e.g. Master bedroom") }}</div>
-                <div class="field" style="max-width:120px;">{{ spot_form.capacity.label }}{{ spot_form.capacity(placeholder="2") }}</div>
+                <div class="field" style="max-width:130px;">{{ spot_form.spot_type.label }}{{ spot_form.spot_type() }}</div>
+                <div class="field" style="max-width:100px;">{{ spot_form.capacity.label }}{{ spot_form.capacity(placeholder="2") }}</div>
             </div>
             <div class="field">{{ spot_form.notes.label }}<span style="color:var(--slate-soft);font-size:12px;"> (optional)</span>{{ spot_form.notes(rows=2) }}</div>
             <button type="submit" class="btn btn-primary btn-sm">Add Spot</button>
@@ -39,14 +74,19 @@
         </div>
     </div>
     {% endif %}
+
     {% if event.sleeping_spots %}
     <div style="display:flex;flex-direction:column;gap:12px;padding-top:4px;">
         {% for spot in event.sleeping_spots %}
         {% set at_capacity = spot.capacity and spot.people | length >= spot.capacity %}
+        {% set i_am_here = my_ns.spot_id == spot.id %}
         <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 0;{% if not loop.last %}border-bottom:1px solid var(--hairline);{% endif %}">
             <div style="flex:1;">
-                <div style="font-weight:600;display:flex;align-items:center;gap:8px;">
+                <div style="font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                     {{ spot.name }}
+                    {% if spot.spot_type %}
+                    <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;padding:2px 7px;border-radius:20px;background:var(--leaf-mist);color:var(--vine);">{{ spot.spot_type }}</span>
+                    {% endif %}
                     {% if spot.capacity %}
                     <span style="font-weight:400;font-size:13px;color:{% if at_capacity %}var(--tomato){% else %}var(--slate){% endif %};">
                         {{ spot.people | length }}/{{ spot.capacity }}{% if at_capacity %} · Full{% endif %}
@@ -69,23 +109,58 @@
                     {% if not spot.people %}<span style="font-size:13px;color:var(--slate);">No one assigned</span>{% endif %}
                 </div>
             </div>
-            {% if current_user.active_is_admin %}
-            <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
+
+            <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;min-width:0;">
+                {# ── Member self-assign / leave ─────────────────────── #}
+                {% if my_person %}
+                    {% if i_am_here %}
+                    <form method="POST" action="/events/{{ event.id }}/sleeping/{{ spot.id }}/self-unassign">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--slate);">Leave</button>
+                    </form>
+                    {% elif not at_capacity %}
+                    <form method="POST" action="/events/{{ event.id }}/sleeping/{{ spot.id }}/self-assign">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-ghost btn-sm">Claim</button>
+                    </form>
+                    {% endif %}
+                {% endif %}
+
+                {% if current_user.active_is_admin %}
+                {# ── Admin: assign individual ─────────────────────────── #}
                 {% if sleeping_assign_forms[spot.id] and not at_capacity %}
                 <form method="POST" action="/events/{{ event.id }}/sleeping/{{ spot.id }}/assign" style="display:flex;gap:6px;align-items:center;">
                     {{ sleeping_assign_forms[spot.id].hidden_tag() }}
                     {{ sleeping_assign_forms[spot.id].person_id() }}
                     <button type="submit" class="btn btn-ghost btn-sm">Assign</button>
                 </form>
-                {% elif at_capacity %}
+                {% endif %}
+
+                {# ── Admin: assign household (couples only) ──────────── #}
+                {% set coupled = couple_people | selectattr('get_active_spouse') | list %}
+                {% if coupled and not at_capacity %}
+                <form method="POST" action="/events/{{ event.id }}/sleeping/{{ spot.id }}/assign-household" style="display:flex;gap:6px;align-items:center;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <select name="person_id" style="font-size:13px;padding:3px 6px;">
+                        <option value="">— Couple —</option>
+                        {% for p in couple_people %}{% if p.get_active_spouse() %}
+                        <option value="{{ p.id }}">{{ p.get_couple_name() }}</option>
+                        {% endif %}{% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn-ghost btn-sm">+ Both</button>
+                </form>
+                {% endif %}
+
+                {% if at_capacity %}
                 <span style="font-size:12px;color:var(--tomato);font-weight:600;">Full</span>
                 {% endif %}
+
                 <form method="POST" action="/events/{{ event.id }}/sleeping/{{ spot.id }}/delete">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);">Remove spot</button>
                 </form>
+                {% endif %}
             </div>
-            {% endif %}
         </div>
         {% endfor %}
     </div>

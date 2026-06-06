@@ -539,6 +539,7 @@ class EventMealItem(db.Model):
 
 
 ASSIGNMENT_CATEGORIES = ['General', 'Setup', 'Cleanup', 'Food', 'Errands', 'Other']
+SPOT_TYPES = ['Bedroom', 'Couch', 'Air mattress', 'Tent', 'Cabin bunk', 'Other']
 
 
 class EventRSVP(db.Model):
@@ -574,6 +575,7 @@ class EventSleepingSpot(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     event_id = db.Column(db.Integer, db.ForeignKey('events.id'), nullable=False)
     name = db.Column(db.String(150), nullable=False)
+    spot_type = db.Column(db.String(50), nullable=True)
     capacity = db.Column(db.Integer, nullable=True)
     notes = db.Column(db.Text, nullable=True)
 
@@ -794,6 +796,8 @@ class CarpoolOffer(db.Model):
     person_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=False)
     role = db.Column(db.String(10), nullable=False)  # 'driver' or 'rider'
     seats = db.Column(db.Integer, nullable=True)      # drivers only
+    departure_from = db.Column(db.String(150), nullable=True)  # drivers: city/area departing from
+    passenger_of_id = db.Column(db.Integer, db.ForeignKey('carpool_offers.id'), nullable=True)  # riders: matched driver offer
     notes = db.Column(db.String(200), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -801,7 +805,7 @@ class CarpoolOffer(db.Model):
         db.UniqueConstraint('event_id', 'person_id', name='uq_carpool_offer'),
     )
 
-    person = db.relationship('Person')
+    person = db.relationship('Person', foreign_keys=[person_id])
 
 
 # ── Checklists ────────────────────────────────────────────────────────────────
@@ -884,6 +888,7 @@ class EventPaymentConfig(db.Model):
     event_id = db.Column(db.Integer, db.ForeignKey('events.id'), nullable=False, unique=True)
     amount_cents = db.Column(db.Integer, nullable=False)  # e.g. 2500 = $25.00
     charge_type = db.Column(db.String(20), nullable=False, default='per_family')  # 'per_family' | 'per_person'
+    family_cap_cents = db.Column(db.Integer, nullable=True)  # max charge per household for per_person mode
     description = db.Column(db.String(200), nullable=True)  # shown on Stripe Checkout page
     deadline = db.Column(db.Date, nullable=True)
     is_active = db.Column(db.Boolean, nullable=False, default=True, server_default='1')

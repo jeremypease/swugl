@@ -17,19 +17,25 @@
     {% if current_user.active_is_admin %}
         {% if not payment_config %}
         {# ── Admin setup form ───────────────────────────────────────── #}
-        <form method="POST" action="/events/{{ event.id }}/payment/setup">
+        <form method="POST" action="/events/{{ event.id }}/payment/setup" id="payment-setup-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div style="display:flex;flex-direction:column;gap:10px;">
                 <div>
                     <label style="font-size:12px;color:var(--slate);display:block;margin-bottom:3px;">Amount</label>
-                    <div style="display:flex;align-items:center;gap:6px;">
+                    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
                         <span style="font-size:14px;color:var(--slate);">$</span>
-                        <input type="number" name="amount_dollars" min="0.50" step="0.01" placeholder="25.00"
+                        <input type="number" name="amount_dollars" id="ps-amount" min="0.50" step="0.01" placeholder="25.00"
                                style="width:90px;font-size:14px;" required>
-                        <select name="charge_type" style="font-size:13px;flex:1;">
+                        <select name="charge_type" id="ps-type" style="font-size:13px;">
                             <option value="per_family">per family</option>
                             <option value="per_person">per person (RSVP)</option>
                         </select>
+                    </div>
+                    <div id="ps-cap-row" style="display:none;margin-top:6px;align-items:center;gap:6px;flex-wrap:wrap;">
+                        <label style="font-size:12px;color:var(--slate);white-space:nowrap;">Family cap $</label>
+                        <input type="number" name="family_cap_dollars" id="ps-cap" min="0.50" step="0.01" placeholder="250.00"
+                               style="width:100px;font-size:14px;">
+                        <span style="font-size:12px;color:var(--slate-soft);">max per household</span>
                     </div>
                 </div>
                 <div>
@@ -53,6 +59,9 @@
                     ${{ '%.2f'|format(payment_config.amount_dollars) }} per family
                 {% else %}
                     ${{ '%.2f'|format(payment_config.amount_dollars) }} per person
+                    {% if payment_config.family_cap_cents %}
+                    · max ${{ '%.2f'|format(payment_config.family_cap_cents / 100) }}/family
+                    {% endif %}
                 {% endif %}
                 {% if payment_config.description %} · {{ payment_config.description }}{% endif %}
             </div>
@@ -110,18 +119,28 @@
         {# Edit form (collapsed by default) #}
         <details style="margin-top:10px;">
             <summary style="font-size:12px;color:var(--slate);cursor:pointer;">Edit settings</summary>
-            <form method="POST" action="/events/{{ event.id }}/payment/setup" style="margin-top:10px;">
+            <form method="POST" action="/events/{{ event.id }}/payment/setup" style="margin-top:10px;" id="payment-edit-form">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div style="display:flex;flex-direction:column;gap:8px;">
-                    <div style="display:flex;align-items:center;gap:6px;">
-                        <span style="font-size:14px;color:var(--slate);">$</span>
-                        <input type="number" name="amount_dollars" min="0.50" step="0.01"
-                               value="{{ '%.2f'|format(payment_config.amount_dollars) }}"
-                               style="width:90px;font-size:14px;" required>
-                        <select name="charge_type" style="font-size:13px;flex:1;">
-                            <option value="per_family" {% if payment_config.charge_type == 'per_family' %}selected{% endif %}>per family</option>
-                            <option value="per_person" {% if payment_config.charge_type == 'per_person' %}selected{% endif %}>per person</option>
-                        </select>
+                    <div>
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            <span style="font-size:14px;color:var(--slate);">$</span>
+                            <input type="number" name="amount_dollars" id="pe-amount" min="0.50" step="0.01"
+                                   value="{{ '%.2f'|format(payment_config.amount_dollars) }}"
+                                   style="width:90px;font-size:14px;" required>
+                            <select name="charge_type" id="pe-type" style="font-size:13px;">
+                                <option value="per_family" {% if payment_config.charge_type == 'per_family' %}selected{% endif %}>per family</option>
+                                <option value="per_person" {% if payment_config.charge_type == 'per_person' %}selected{% endif %}>per person</option>
+                            </select>
+                        </div>
+                        <div id="pe-cap-row" style="display:{% if payment_config.charge_type == 'per_person' %}flex{% else %}none{% endif %};margin-top:6px;align-items:center;gap:6px;flex-wrap:wrap;">
+                            <label style="font-size:12px;color:var(--slate);white-space:nowrap;">Family cap $</label>
+                            <input type="number" name="family_cap_dollars" id="pe-cap" min="0.50" step="0.01"
+                                   placeholder="250.00"
+                                   value="{{ '%.2f'|format(payment_config.family_cap_cents / 100) if payment_config.family_cap_cents else '' }}"
+                                   style="width:100px;font-size:14px;">
+                            <span style="font-size:12px;color:var(--slate-soft);">max per household</span>
+                        </div>
                     </div>
                     <input type="text" name="description" maxlength="200"
                            value="{{ payment_config.description or '' }}" placeholder="Description"
@@ -136,12 +155,15 @@
         {% endif %}
 
     {% else %}
-        {# ── Member pay button or paid badge ───────────────────────── #}
+        {# ── Member: pricing summary ────────────────────────────────── #}
         <div style="font-size:13px;color:var(--slate);margin-bottom:10px;">
             {% if payment_config.charge_type == 'per_family' %}
                 ${{ '%.2f'|format(payment_config.amount_dollars) }} per family
             {% else %}
                 ${{ '%.2f'|format(payment_config.amount_dollars) }} per person
+                {% if payment_config.family_cap_cents %}
+                · max ${{ '%.2f'|format(payment_config.family_cap_cents / 100) }}/family
+                {% endif %}
             {% endif %}
             {% if payment_config.description %}<br><span style="color:var(--slate-soft);">{{ payment_config.description }}</span>{% endif %}
             {% if payment_config.deadline %}<br><span style="font-size:12px;">Due {{ payment_config.deadline.strftime('%b %-d') }}</span>{% endif %}
@@ -157,10 +179,29 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-primary btn-sm" style="width:100%;">
                 <i data-lucide="credit-card" style="width:14px;height:14px;"></i>
+                {% if my_charge_cents %}
+                Pay ${{ '%.2f'|format(my_charge_cents / 100) }}
+                {% else %}
                 Pay Now
+                {% endif %}
             </button>
         </form>
         {% endif %}
     {% endif %}
 </div>
+
+<script nonce="{{ g.csp_nonce }}">
+(function() {
+    function wireCapToggle(typeId, capRowId) {
+        const sel = document.getElementById(typeId);
+        const row = document.getElementById(capRowId);
+        if (!sel || !row) return;
+        function update() { row.style.display = sel.value === 'per_person' ? 'flex' : 'none'; }
+        sel.addEventListener('change', update);
+        update();
+    }
+    wireCapToggle('ps-type', 'ps-cap-row');
+    wireCapToggle('pe-type', 'pe-cap-row');
+})();
+</script>
 {% endif %}

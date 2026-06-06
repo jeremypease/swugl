@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, send_file, session, abort
 from flask_login import login_user, logout_user, login_required, current_user
-from .models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, ASSIGNMENT_CATEGORIES, EventRSVP, EventSleepingSpot, EventComment, Announcement, Album, Photo, Poll, NotificationPreference, NOTIFICATION_EVENTS, UserPodMembership, CalendarToken, EventPaymentConfig, EventPaymentRecord, FamilyPayoutAccount
+from .models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, ASSIGNMENT_CATEGORIES, EventRSVP, EventSleepingSpot, SPOT_TYPES, EventComment, Announcement, Album, Photo, Poll, NotificationPreference, NOTIFICATION_EVENTS, UserPodMembership, CalendarToken, EventPaymentConfig, EventPaymentRecord, FamilyPayoutAccount
 from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm, ForgotPasswordForm, ResetPasswordForm, AddPersonForm, RelativeForm, AddParentForm, FamilySettingsForm, EditPersonForm, EventForm, EventCommentForm, EventMealForm, EventMealFamilyAssignForm, EventMealItemForm, EventMealSelfSignupForm, EventMealAssignForm, EventAssignmentForm, EventAssignmentAdminAssignForm, EventSleepingSpotForm, EventSleepingAssignForm, GENDER_CHOICES_DEFAULT, GENDER_CHOICES_EXPANDED, PRONOUN_CHOICES, AnnouncementForm, AlbumForm, PhotoUploadForm, SupportForm
 from .email import send_verification_email, send_pending_notification, send_approval_notification, send_spouse_confirmation_email, send_spouse_invitation_email, send_password_reset_email, send_member_invitation_email, send_welcome_email, send_support_email, send_pod_added_email
 from datetime import date, datetime, timedelta
@@ -2089,8 +2089,39 @@ def event_add():
                 capacity = int(request.form.get(f'rooms[{room_index}][capacity]', '') or 0) or None
             except ValueError:
                 capacity = None
-            db.session.add(EventSleepingSpot(event_id=event.id, name=room_name, capacity=capacity))
+            room_type = request.form.get(f'rooms[{room_index}][type]', '').strip() or None
+            if room_type and room_type not in SPOT_TYPES:
+                room_type = None
+            db.session.add(EventSleepingSpot(event_id=event.id, name=room_name, spot_type=room_type, capacity=capacity))
             room_index += 1
+
+        # Seed meals from the day-grid checkboxes on the form
+        _MEAL_LABELS = {'breakfast': 'Breakfast', 'lunch': 'Lunch', 'dinner': 'Dinner'}
+        _MEAL_TIMES  = {'breakfast': '8:00 AM',   'lunch': '12:00 PM', 'dinner': '6:00 PM'}
+        for key in request.form:
+            m = re.match(r'^meals\[(\d{4}-\d{2}-\d{2})\]\[(breakfast|lunch|dinner)\]$', key)
+            if m:
+                try:
+                    meal_date_val = date.fromisoformat(m.group(1))
+                except ValueError:
+                    continue
+                meal_type = m.group(2)
+                db.session.add(EventMeal(
+                    event_id=event.id,
+                    name=f'{meal_date_val.strftime("%A")} {_MEAL_LABELS[meal_type]}',
+                    meal_date=meal_date_val,
+                    meal_time=_MEAL_TIMES[meal_type],
+                ))
+
+        # Seed assignments from the task seed list
+        for ti in range(50):
+            task_title = request.form.get(f'tasks[{ti}][title]', '').strip()
+            if not task_title:
+                continue
+            task_cat = request.form.get(f'tasks[{ti}][category]', '').strip() or None
+            if task_cat and task_cat not in ASSIGNMENT_CATEGORIES:
+                task_cat = None
+            db.session.add(EventAssignment(event_id=event.id, title=task_title[:150], category=task_cat))
 
         if form.cover_image.data and hasattr(form.cover_image.data, 'filename') and form.cover_image.data.filename:
             key = upload_photo(form.cover_image.data, folder='events')
@@ -2146,6 +2177,7 @@ def event_detail(event_id):
             assign_admin_forms[a.id] = f
 
     spot_form = EventSleepingSpotForm()
+    couple_people = [p for p in dir_people if not p.get_active_spouse() or p.id < p.get_active_spouse().id]
     sleeping_assign_forms = {}
     if current_user.active_is_admin:
         for spot in event.sleeping_spots:
@@ -2194,10 +2226,12 @@ def event_detail(event_id):
 
     payment_config = event.payment_config if event.payment_config and event.payment_config.is_active else None
     my_payment = None
-    if payment_config and current_user.id:
+    my_charge_cents = None
+    if payment_config and current_user.is_authenticated:
         my_payment = EventPaymentRecord.query.filter_by(
             event_id=event.id, payer_user_id=current_user.id
         ).first()
+        my_charge_cents = _compute_member_charge(payment_config, current_user)
 
     # Admin progress stats
     payment_stats = None
@@ -2209,8 +2243,14 @@ def event_detail(event_id):
             'total_cents': total_amount,
         }
 
+    _edr, _cur = [], event.start_date
+    while _cur <= (event.end_date or event.start_date):
+        _edr.append(_cur)
+        _cur += timedelta(days=1)
+
     return render_template('event_detail.html',
         event=event,
+        event_date_range=_edr,
         meal_form=meal_form,
         meal_item_form=meal_item_form,
         meal_family_forms=meal_family_forms,
@@ -2221,6 +2261,7 @@ def event_detail(event_id):
         self_signup_form=self_signup_form,
         spot_form=spot_form,
         sleeping_assign_forms=sleeping_assign_forms,
+        couple_people=couple_people,
         my_person=my_person,
         event_form=event_form,
         comment_form=comment_form,
@@ -2233,6 +2274,7 @@ def event_detail(event_id):
         weather=weather,
         payment_config=payment_config,
         my_payment=my_payment,
+        my_charge_cents=my_charge_cents,
         payment_stats=payment_stats,
         payout_account=current_user.family.payout_account,
     )
@@ -2306,21 +2348,34 @@ def event_payment_setup(event_id):
     if charge_type not in ('per_family', 'per_person'):
         charge_type = 'per_family'
 
+    family_cap_cents = None
+    if charge_type == 'per_person':
+        cap_str = request.form.get('family_cap_dollars', '').strip()
+        if cap_str:
+            try:
+                cap_val = int(round(float(cap_str) * 100))
+                if cap_val > amount_cents:
+                    family_cap_cents = cap_val
+            except (ValueError, TypeError):
+                pass
+
+    deadline_str = request.form.get('deadline', '').strip()
+    deadline = datetime.strptime(deadline_str, '%Y-%m-%d').date() if deadline_str else None
+
     config = event.payment_config
     if config:
         config.amount_cents = amount_cents
         config.charge_type = charge_type
+        config.family_cap_cents = family_cap_cents
         config.description = request.form.get('description', '').strip()[:200]
-        deadline_str = request.form.get('deadline', '').strip()
-        config.deadline = datetime.strptime(deadline_str, '%Y-%m-%d').date() if deadline_str else None
+        config.deadline = deadline
         config.is_active = True
     else:
-        deadline_str = request.form.get('deadline', '').strip()
-        deadline = datetime.strptime(deadline_str, '%Y-%m-%d').date() if deadline_str else None
         config = EventPaymentConfig(
             event_id=event.id,
             amount_cents=amount_cents,
             charge_type=charge_type,
+            family_cap_cents=family_cap_cents,
             description=request.form.get('description', '').strip()[:200],
             deadline=deadline,
         )
@@ -2367,17 +2422,15 @@ def event_payment_checkout(event_id):
         flash('You have already paid for this event.', 'info')
         return redirect(url_for('main.event_detail', event_id=event_id))
 
+    charge_amount = _compute_member_charge(config, current_user)
     yes_in_household = 0
     if config.charge_type == 'per_person':
-        household_ids = _get_household_ids(current_user)
+        household_ids = _get_household_ids(current_user.person)
         yes_in_household = EventRSVP.query.filter(
             EventRSVP.event_id == event.id,
             EventRSVP.status == 'yes',
             EventRSVP.person_id.in_(household_ids),
         ).count() if household_ids else 1
-        charge_amount = config.amount_cents * max(1, yes_in_household)
-    else:
-        charge_amount = config.amount_cents
 
     s = _stripe()
     if not s:
@@ -2399,7 +2452,11 @@ def event_payment_checkout(event_id):
 
     description = config.description or event.name
     if config.charge_type == 'per_person' and yes_in_household > 1:
-        description = f'{description} ({yes_in_household} people × ${config.amount_dollars:.2f})'
+        capped = config.family_cap_cents and charge_amount < config.amount_cents * yes_in_household
+        if capped:
+            description = f'{description} ({yes_in_household} people, capped at ${charge_amount/100:.2f})'
+        else:
+            description = f'{description} ({yes_in_household} people × ${config.amount_dollars:.2f})'
 
     family = current_user.family
     kwargs = dict(
@@ -2448,20 +2505,20 @@ def event_payment_success(event_id):
     return redirect(url_for('main.event_detail', event_id=event_id))
 
 
-def _get_household_ids(user):
-    """Return person IDs for user's household (self + spouse + minor children)."""
-    if not user.person:
-        return []
-    ids = [user.person.id]
-    spouse = user.person.get_active_spouse()
-    if spouse:
-        ids.append(spouse.id)
-    child_ids = {rel.child_id for rel in user.person.child_rels}
-    if spouse:
-        child_ids |= {rel.child_id for rel in spouse.child_rels}
-    all_people = Person.query.filter(Person.id.in_(child_ids)).all()
-    ids.extend(p.id for p in all_people if _in_parent_household(p))
-    return ids
+def _compute_member_charge(config, user):
+    """Return charge in cents for this user given event payment config."""
+    if config.charge_type == 'per_person':
+        hids = _get_household_ids(user.person)
+        yes_count = EventRSVP.query.filter(
+            EventRSVP.event_id == config.event_id,
+            EventRSVP.status == 'yes',
+            EventRSVP.person_id.in_(hids),
+        ).count() if hids else 1
+        total = config.amount_cents * max(1, yes_count)
+        if config.family_cap_cents:
+            total = min(total, config.family_cap_cents)
+        return total
+    return config.amount_cents
 
 
 @main.route('/events/<int:event_id>/delete', methods=['POST'])
@@ -2528,18 +2585,26 @@ def carpool_offer(event_id):
     if not event or event.family_id != current_user.active_family_id or not current_user.person:
         return redirect(url_for('main.events_list'))
     role = request.form.get('role', 'rider')
+    if role not in ('driver', 'rider'):
+        role = 'rider'
     seats = request.form.get('seats', type=int)
-    notes = request.form.get('notes', '').strip()[:200]
+    departure_from = request.form.get('departure_from', '').strip()[:150] or None
+    notes = request.form.get('notes', '').strip()[:200] or None
     existing = CarpoolOffer.query.filter_by(event_id=event_id, person_id=current_user.person.id).first()
     if existing:
         existing.role = role
         existing.seats = seats if role == 'driver' else None
-        existing.notes = notes or None
+        existing.departure_from = departure_from if role == 'driver' else None
+        existing.notes = notes
+        if role == 'driver':
+            existing.passenger_of_id = None  # switching to driver clears any ride claim
     else:
         db.session.add(CarpoolOffer(
             event_id=event_id, person_id=current_user.person.id,
-            role=role, seats=seats if role == 'driver' else None,
-            notes=notes or None,
+            role=role,
+            seats=seats if role == 'driver' else None,
+            departure_from=departure_from if role == 'driver' else None,
+            notes=notes,
         ))
     db.session.commit()
     return redirect(url_for('main.event_detail', event_id=event_id))
@@ -2550,8 +2615,88 @@ def carpool_offer(event_id):
 def carpool_remove(event_id):
     from .models import CarpoolOffer
     if current_user.person:
-        CarpoolOffer.query.filter_by(event_id=event_id, person_id=current_user.person.id).delete()
-        db.session.commit()
+        # Clear any passengers assigned to this person's driver offer first
+        offer = CarpoolOffer.query.filter_by(event_id=event_id, person_id=current_user.person.id).first()
+        if offer:
+            CarpoolOffer.query.filter_by(passenger_of_id=offer.id).update({'passenger_of_id': None})
+            db.session.delete(offer)
+            db.session.commit()
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+@main.route('/events/<int:event_id>/carpool/<int:offer_id>/claim', methods=['POST'])
+@login_required
+def carpool_claim_seat(event_id, offer_id):
+    from .models import CarpoolOffer
+    event = db.session.get(Event, event_id)
+    if not event or event.family_id != current_user.active_family_id or not current_user.person:
+        return redirect(url_for('main.events_list'))
+    driver_offer = db.session.get(CarpoolOffer, offer_id)
+    if not driver_offer or driver_offer.event_id != event_id or driver_offer.role != 'driver':
+        flash('Driver not found.', 'error')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    # Check capacity
+    if driver_offer.seats:
+        taken = CarpoolOffer.query.filter_by(passenger_of_id=offer_id).count()
+        if taken >= driver_offer.seats:
+            flash(f'{driver_offer.person.get_display_name()}\'s car is full.', 'error')
+            return redirect(url_for('main.event_detail', event_id=event_id))
+    existing = CarpoolOffer.query.filter_by(event_id=event_id, person_id=current_user.person.id).first()
+    if existing:
+        existing.role = 'rider'
+        existing.passenger_of_id = offer_id
+        existing.seats = None
+        existing.departure_from = None
+    else:
+        db.session.add(CarpoolOffer(
+            event_id=event_id, person_id=current_user.person.id,
+            role='rider', passenger_of_id=offer_id,
+        ))
+    db.session.commit()
+    flash(f'Seat claimed with {driver_offer.person.get_display_name()}.', 'info')
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+@main.route('/events/<int:event_id>/carpool/unclaim', methods=['POST'])
+@login_required
+def carpool_unclaim(event_id):
+    from .models import CarpoolOffer
+    if current_user.person:
+        offer = CarpoolOffer.query.filter_by(event_id=event_id, person_id=current_user.person.id).first()
+        if offer:
+            offer.passenger_of_id = None
+            db.session.commit()
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+@main.route('/events/<int:event_id>/carpool/<int:offer_id>/assign-rider', methods=['POST'])
+@login_required
+@admin_required
+def carpool_assign_rider(event_id, offer_id):
+    from .models import CarpoolOffer
+    event = db.session.get(Event, event_id)
+    if not event or event.family_id != current_user.active_family_id:
+        return redirect(url_for('main.events_list'))
+    driver_offer = db.session.get(CarpoolOffer, offer_id)
+    if not driver_offer or driver_offer.event_id != event_id or driver_offer.role != 'driver':
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    try:
+        rider_offer_id = int(request.form.get('rider_offer_id', 0))
+    except (ValueError, TypeError):
+        rider_offer_id = 0
+    if not rider_offer_id:
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    rider_offer = db.session.get(CarpoolOffer, rider_offer_id)
+    if not rider_offer or rider_offer.event_id != event_id or rider_offer.role != 'rider':
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    if driver_offer.seats:
+        taken = CarpoolOffer.query.filter_by(passenger_of_id=offer_id).count()
+        if taken >= driver_offer.seats and rider_offer.passenger_of_id != offer_id:
+            flash(f'{driver_offer.person.get_display_name()}\'s car is full.', 'error')
+            return redirect(url_for('main.event_detail', event_id=event_id))
+    rider_offer.passenger_of_id = offer_id
+    db.session.commit()
+    flash(f'{rider_offer.person.get_display_name()} assigned to {driver_offer.person.get_display_name()}.', 'info')
     return redirect(url_for('main.event_detail', event_id=event_id))
 
 
@@ -3020,6 +3165,36 @@ def event_assignment_add(event_id):
     return redirect(url_for('main.event_detail', event_id=event_id))
 
 
+@main.route('/events/<int:event_id>/assignments/bulk-add', methods=['POST'])
+@login_required
+@admin_required
+def event_assignment_bulk_add(event_id):
+    event = db.session.get(Event, event_id)
+    if not event or event.family_id != current_user.active_family_id:
+        flash('Event not found.', 'error')
+        return redirect(url_for('main.events_list'))
+    raw = request.form.get('bulk_tasks', '')
+    added = 0
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        cat = None
+        if ' #' in line:
+            parts = line.rsplit(' #', 1)
+            candidate = parts[1].strip().title()
+            if candidate in ASSIGNMENT_CATEGORIES:
+                cat = candidate
+                line = parts[0].strip()
+        if line:
+            db.session.add(EventAssignment(event_id=event_id, title=line[:150], category=cat))
+            added += 1
+    if added:
+        db.session.commit()
+        flash(f'{added} task{"s" if added != 1 else ""} added.', 'info')
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
 @main.route('/events/<int:event_id>/assignments/<int:aid>/claim', methods=['POST'])
 @login_required
 def event_assignment_claim(event_id, aid):
@@ -3121,6 +3296,13 @@ def event_assignment_admin_assign(event_id, aid):
 
 # ── Sleeping ──────────────────────────────────────────────────────────────────
 
+def _sleeping_remove_from_event(event, person):
+    """Remove person from every sleeping spot in this event."""
+    for spot in event.sleeping_spots:
+        if person in spot.people:
+            spot.people.remove(person)
+
+
 @main.route('/events/<int:event_id>/sleeping/add-spot', methods=['POST'])
 @login_required
 @admin_required
@@ -3131,9 +3313,13 @@ def event_sleeping_add_spot(event_id):
         return redirect(url_for('main.events_list'))
     form = EventSleepingSpotForm()
     if form.validate_on_submit():
+        spot_type = form.spot_type.data or None
+        if spot_type and spot_type not in SPOT_TYPES:
+            spot_type = None
         spot = EventSleepingSpot(
             event_id=event_id,
             name=form.name.data,
+            spot_type=spot_type,
             capacity=form.capacity.data,
             notes=form.notes.data or None,
         )
@@ -3188,10 +3374,11 @@ def event_sleeping_assign(event_id, sid):
     form.person_id.choices = [(0, '— Select —')] + [(p.id, p.get_display_name()) for p in eligible if p.id not in spot_assigned_ids]
     if form.validate_on_submit() and form.person_id.data:
         person = db.session.get(Person, form.person_id.data)
-        if person and person.family_id == current_user.active_family_id and person not in spot.people:
-            if spot.capacity and len(spot.people) >= spot.capacity:
+        if person and person.family_id == current_user.active_family_id:
+            if spot.capacity and len(spot.people) >= spot.capacity and person not in spot.people:
                 flash(f'"{spot.name}" is at capacity ({spot.capacity}).', 'error')
-            else:
+            elif person not in spot.people:
+                _sleeping_remove_from_event(spot.event, person)
                 spot.people.append(person)
                 db.session.commit()
                 flash(f'{person.get_display_name()} assigned to {spot.name}.', 'info')
@@ -3225,6 +3412,77 @@ def event_sleeping_delete_spot(event_id, sid):
     db.session.delete(spot)
     db.session.commit()
     flash(f'"{spot.name}" removed.', 'info')
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+@main.route('/events/<int:event_id>/sleeping/<int:sid>/assign-household', methods=['POST'])
+@login_required
+@admin_required
+def event_sleeping_assign_household(event_id, sid):
+    spot = db.session.get(EventSleepingSpot, sid)
+    if not spot or spot.event.family_id != current_user.active_family_id:
+        flash('Spot not found.', 'error')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    try:
+        pid = int(request.form.get('person_id', 0))
+    except (ValueError, TypeError):
+        pid = 0
+    person = pid and db.session.get(Person, pid)
+    if not person or person.family_id != current_user.active_family_id:
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    people_to_add = [person]
+    spouse = person.get_active_spouse()
+    if spouse and spouse.family_id == current_user.active_family_id:
+        people_to_add.append(spouse)
+    needed = sum(1 for p in people_to_add if p not in spot.people)
+    if spot.capacity and len(spot.people) + needed > spot.capacity:
+        flash(f'Not enough space in "{spot.name}" for the whole household.', 'error')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    added = []
+    for p in people_to_add:
+        if p not in spot.people:
+            _sleeping_remove_from_event(spot.event, p)
+            spot.people.append(p)
+            added.append(p.get_display_name())
+    if added:
+        db.session.commit()
+        flash(f'{", ".join(added)} assigned to {spot.name}.', 'info')
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+@main.route('/events/<int:event_id>/sleeping/<int:sid>/self-assign', methods=['POST'])
+@login_required
+def event_sleeping_self_assign(event_id, sid):
+    spot = db.session.get(EventSleepingSpot, sid)
+    if not spot or spot.event.family_id != current_user.active_family_id:
+        flash('Spot not found.', 'error')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    person = current_user.person
+    if not person:
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    if spot.capacity and len(spot.people) >= spot.capacity and person not in spot.people:
+        flash(f'"{spot.name}" is full.', 'error')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    if person not in spot.people:
+        _sleeping_remove_from_event(spot.event, person)
+        spot.people.append(person)
+        db.session.commit()
+        flash(f'You\'ve been placed in {spot.name}.', 'info')
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+@main.route('/events/<int:event_id>/sleeping/<int:sid>/self-unassign', methods=['POST'])
+@login_required
+def event_sleeping_self_unassign(event_id, sid):
+    spot = db.session.get(EventSleepingSpot, sid)
+    if not spot or spot.event.family_id != current_user.active_family_id:
+        flash('Spot not found.', 'error')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    person = current_user.person
+    if person and person in spot.people:
+        spot.people.remove(person)
+        db.session.commit()
+        flash(f'You\'ve been removed from {spot.name}.', 'info')
     return redirect(url_for('main.event_detail', event_id=event_id))
 
 

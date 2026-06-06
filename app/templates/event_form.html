@@ -143,10 +143,23 @@
                     {{ form.has_meals(id="f-has-meals") }}
                     <span><strong>Meals</strong> <span style="color:var(--text-muted);font-size:13px;margin-left:6px;">Sign-up sheet for who's bringing what</span></span>
                 </label>
+                {% if not event %}
+                <div id="meals-seed-section" style="display:none;margin-left:24px;margin-top:4px;">
+                    <div id="meals-grid-container"></div>
+                </div>
+                {% endif %}
                 <label class="checkbox-row">
                     {{ form.has_assignments(id="f-has-assignments") }}
                     <span><strong>Assignments</strong> <span style="color:var(--text-muted);font-size:13px;margin-left:6px;">Task list members can claim</span></span>
                 </label>
+                {% if not event %}
+                <div id="tasks-seed-section" style="display:none;margin-left:24px;margin-top:2px;">
+                    <div id="tasks-list" style="display:flex;flex-direction:column;gap:4px;margin-bottom:6px;"></div>
+                    <button type="button" id="add-task-btn" class="btn btn-ghost btn-sm" style="font-size:12px;">
+                        <i data-lucide="plus" style="width:12px;height:12px;"></i> Add task
+                    </button>
+                </div>
+                {% endif %}
                 <label class="checkbox-row">
                     {{ form.has_sleeping(id="f-has-sleeping") }}
                     <span><strong>Sleeping Arrangements</strong> <span style="color:var(--text-muted);font-size:13px;margin-left:6px;">Rooms and spots assigned by admin</span></span>
@@ -169,16 +182,19 @@
                 <div id="rooms-list">
                     <div class="room-row">
                         <input type="text" name="rooms[0][name]" placeholder="Room name (e.g. Master bedroom)">
+                        <select name="rooms[0][type]" style="font-size:13px;width:110px;"><option value="">Type</option><option>Bedroom</option><option>Couch</option><option>Air mattress</option><option>Tent</option><option>Cabin bunk</option><option>Other</option></select>
                         <input type="number" name="rooms[0][capacity]" placeholder="Sleeps" min="1">
                         <button type="button" class="btn btn-ghost btn-sm remove-room" style="padding:4px 6px;color:var(--slate);">×</button>
                     </div>
                     <div class="room-row">
                         <input type="text" name="rooms[1][name]" placeholder="Room name">
+                        <select name="rooms[1][type]" style="font-size:13px;width:110px;"><option value="">Type</option><option>Bedroom</option><option>Couch</option><option>Air mattress</option><option>Tent</option><option>Cabin bunk</option><option>Other</option></select>
                         <input type="number" name="rooms[1][capacity]" placeholder="Sleeps" min="1">
                         <button type="button" class="btn btn-ghost btn-sm remove-room" style="padding:4px 6px;color:var(--slate);">×</button>
                     </div>
                     <div class="room-row">
                         <input type="text" name="rooms[2][name]" placeholder="Room name">
+                        <select name="rooms[2][type]" style="font-size:13px;width:110px;"><option value="">Type</option><option>Bedroom</option><option>Couch</option><option>Air mattress</option><option>Tent</option><option>Cabin bunk</option><option>Other</option></select>
                         <input type="number" name="rooms[2][capacity]" placeholder="Sleeps" min="1">
                         <button type="button" class="btn btn-ghost btn-sm remove-room" style="padding:4px 6px;color:var(--slate);">×</button>
                     </div>
@@ -231,6 +247,7 @@
             updateDuration();
             updateTimeLabels();
             validateDates();
+            updateMealsSection();
         },
     });
     fpEnd = flatpickr(endEl, {
@@ -240,6 +257,7 @@
             updateDuration();
             updateTimeLabels();
             validateDates();
+            updateMealsSection();
         },
     });
     // Seed minDate if start is already set (edit mode)
@@ -312,6 +330,106 @@
     if (etEl) etEl.addEventListener('change', updateTimeDuration);
     updateTimeDuration();
 
+    // ── Meal seed grid (new events only) ───────────────────────────
+    const mealsCheck   = document.getElementById('f-has-meals');
+    const mealsSeedSec = document.getElementById('meals-seed-section');
+    const mealsGridEl  = document.getElementById('meals-grid-container');
+    const MEAL_TYPES   = [{key:'breakfast',label:'Breakfast'},{key:'lunch',label:'Lunch'},{key:'dinner',label:'Dinner'}];
+    const DOW_SHORT    = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const MON_SHORT    = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+    function updateMealsSection() {
+        if (!mealsSeedSec || !mealsGridEl) return;
+        const visible = mealsCheck && mealsCheck.checked;
+        mealsSeedSec.style.display = visible ? 'block' : 'none';
+        if (!visible) return;
+        const s = startEl.value;
+        const e = endEl.value || s;
+        if (!s) {
+            mealsGridEl.innerHTML = '<p style="font-size:13px;color:var(--slate);margin:0;">Set the event dates above to plan meals.</p>';
+            return;
+        }
+        const dates = [];
+        const cur = new Date(s + 'T00:00:00');
+        const fin = new Date((e || s) + 'T00:00:00');
+        while (cur <= fin) {
+            dates.push(cur.toISOString().slice(0, 10));
+            cur.setDate(cur.getDate() + 1);
+        }
+        let html = '<table style="font-size:13px;border-collapse:collapse;margin-top:4px;">';
+        html += '<thead><tr><th style="text-align:left;padding:3px 12px 3px 0;color:var(--slate);font-weight:600;white-space:nowrap;"></th>';
+        for (const m of MEAL_TYPES) html += `<th style="text-align:center;padding:3px 10px;color:var(--slate);font-weight:600;">${m.label}</th>`;
+        html += '</tr></thead><tbody>';
+        for (const d of dates) {
+            const dt = new Date(d + 'T00:00:00');
+            const lbl = `${DOW_SHORT[dt.getDay()]} ${MON_SHORT[dt.getMonth()]} ${dt.getDate()}`;
+            html += `<tr><td style="padding:3px 12px 3px 0;white-space:nowrap;">${lbl}</td>`;
+            for (const m of MEAL_TYPES) {
+                const checked = m.key === 'dinner' ? ' checked' : '';
+                html += `<td style="text-align:center;padding:3px 10px;"><input type="checkbox" name="meals[${d}][${m.key}]" value="1"${checked}></td>`;
+            }
+            html += '</tr>';
+        }
+        html += '</tbody></table>';
+        mealsGridEl.innerHTML = html;
+    }
+
+    if (mealsCheck) mealsCheck.addEventListener('change', updateMealsSection);
+    updateMealsSection();
+
+    // ── Task seed list (new events only) ───────────────────────────
+    const assignsCheck = document.getElementById('f-has-assignments');
+    const tasksSeedSec = document.getElementById('tasks-seed-section');
+    const tasksList    = document.getElementById('tasks-list');
+    let taskCount = 0;
+
+    const TASK_CATS = ['', 'Setup', 'Cleanup', 'Food', 'Errands', 'Other'];
+    const TYPE_TASKS = {
+        'Camping':    [{title:'Set up camp',cat:'Setup'},{title:'Grocery run',cat:'Errands'},{title:'Firewood',cat:'Errands'},{title:'Pack out trash',cat:'Cleanup'},{title:'Teardown',cat:'Cleanup'}],
+        'Reunion':    [{title:'Setup',cat:'Setup'},{title:'Cleanup',cat:'Cleanup'}],
+        'Holiday':    [{title:'Setup',cat:'Setup'},{title:'Grocery run',cat:'Food'},{title:'Cleanup',cat:'Cleanup'}],
+        'Birthday':   [{title:'Setup',cat:'Setup'},{title:'Cake',cat:'Food'},{title:'Cleanup',cat:'Cleanup'}],
+        'Wedding':    [{title:'Decoration setup',cat:'Setup'},{title:'Coordinate catering',cat:'Food'},{title:'Photo coordination',cat:''},{title:'Cleanup',cat:'Cleanup'}],
+        'Graduation': [{title:'Setup',cat:'Setup'},{title:'Food & drinks',cat:'Food'},{title:'Cleanup',cat:'Cleanup'}],
+    };
+
+    function catOptions(selected) {
+        return TASK_CATS.map(c => `<option value="${c}"${c===selected?' selected':''}>${c||'General'}</option>`).join('');
+    }
+
+    function addTaskRow(title='', cat='') {
+        if (!tasksList) return;
+        const row = document.createElement('div');
+        row.className = 'task-row';
+        row.style.cssText = 'display:flex;gap:6px;align-items:center;';
+        row.innerHTML = `<input type="text" name="tasks[${taskCount}][title]" value="${title.replace(/"/g,'&quot;')}" placeholder="Task name" style="flex:1;font-size:13px;">` +
+            `<select name="tasks[${taskCount}][category]" style="font-size:13px;width:110px;">${catOptions(cat)}</select>` +
+            `<button type="button" class="btn btn-ghost btn-sm remove-task" style="padding:4px 6px;color:var(--slate);">×</button>`;
+        row.querySelector('.remove-task').addEventListener('click', () => row.remove());
+        tasksList.appendChild(row);
+        taskCount++;
+    }
+
+    function populateTasks(tasks) {
+        if (!tasksList) return;
+        tasksList.innerHTML = '';
+        for (const t of tasks) addTaskRow(t.title, t.cat);
+    }
+
+    function updateTasksSection() {
+        if (!tasksSeedSec || !tasksList) return;
+        const visible = assignsCheck && assignsCheck.checked;
+        tasksSeedSec.style.display = visible ? 'block' : 'none';
+        if (visible && tasksList.children.length === 0) {
+            const kind = kindEl ? kindEl.value : '';
+            populateTasks(TYPE_TASKS[kind] || []);
+        }
+    }
+
+    if (assignsCheck) assignsCheck.addEventListener('change', updateTasksSection);
+    document.getElementById('add-task-btn')?.addEventListener('click', () => addTaskRow());
+    updateTasksSection();
+
     // ── Type smart defaults ─────────────────────────────────────────
     const kindEl = document.getElementById('f-kind');
     const TYPE_DEFAULTS = {
@@ -332,6 +450,9 @@
             setCheck('f-has-assignments', d.assignments);
             setCheck('f-has-carpool', d.carpool);
             updateRoomsVisibility();
+            updateMealsSection();
+            if (d.assignments) populateTasks(TYPE_TASKS[this.value] || []);
+            updateTasksSection();
         });
     }
 
@@ -353,7 +474,9 @@
         const list = document.getElementById('rooms-list');
         const row = document.createElement('div');
         row.className = 'room-row';
+        const typeOpts = '<option value="">Type</option><option>Bedroom</option><option>Couch</option><option>Air mattress</option><option>Tent</option><option>Cabin bunk</option><option>Other</option>';
         row.innerHTML = `<input type="text" name="rooms[${roomCount}][name]" placeholder="Room name">` +
+            `<select name="rooms[${roomCount}][type]" style="font-size:13px;width:110px;">${typeOpts}</select>` +
             `<input type="number" name="rooms[${roomCount}][capacity]" placeholder="Sleeps" min="1">` +
             `<button type="button" class="btn btn-ghost btn-sm remove-room" style="padding:4px 6px;color:var(--slate);">×</button>`;
         list.appendChild(row);
@@ -474,6 +597,8 @@
                 setCheck('f-has-assignments', d.has_assignments);
                 setCheck('f-has-carpool', d.has_carpool);
                 updateRoomsVisibility();
+                updateMealsSection();
+                updateTasksSection();
                 updateDuration();
                 updateTimeDuration();
 

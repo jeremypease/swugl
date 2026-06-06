@@ -25,12 +25,28 @@
             {{ assign_form.hidden_tag() }}
             <div class="field-row">
                 <div class="field">{{ assign_form.title.label }}{{ assign_form.title(placeholder="e.g. Set up tables") }}</div>
-                <div class="field" style="max-width:140px;">{{ assign_form.category.label }}{{ assign_form.category() }}</div>
-                <div class="field" style="max-width:140px;">{{ assign_form.due_date.label }}{{ assign_form.due_date(min=date_min, max=date_max) }}</div>
+                <div class="field" style="max-width:130px;">{{ assign_form.category.label }}{{ assign_form.category() }}</div>
+                <div class="field" style="max-width:150px;">
+                    <label>Due date</label>
+                    <select name="due_date" style="font-size:14px;">
+                        <option value="">No deadline</option>
+                        {% for d in event_date_range %}
+                        <option value="{{ d.isoformat() }}">{{ d.strftime('%a %b %-d') }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
             </div>
             <div class="field">{{ assign_form.description.label }}{{ assign_form.description(placeholder="Optional details", rows=1) }}</div>
             <button type="submit" class="btn btn-primary btn-sm">Add Task</button>
         </form>
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--hairline);">
+            <div style="font-size:12px;font-weight:600;color:var(--slate);margin-bottom:6px;">Bulk add tasks</div>
+            <form method="POST" action="/events/{{ event.id }}/assignments/bulk-add">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <textarea name="bulk_tasks" rows="4" placeholder="One task per line, optionally ending with #Category&#10;Set up tents #Setup&#10;Grocery run #Errands&#10;Firewood&#10;Pack out trash #Cleanup" style="width:100%;font-size:13px;margin-bottom:6px;"></textarea>
+                <button type="submit" class="btn btn-secondary btn-sm">Add All Tasks</button>
+            </form>
+        </div>
     </div>
     {% endif %}
 
