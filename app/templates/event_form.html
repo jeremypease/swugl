@@ -123,10 +123,37 @@
         </div>
 
         {# Location #}
-        <div class="field" style="position:relative;">
+        <div class="field">
             {{ form.location.label }}
-            {{ form.location(placeholder="e.g. Pease Family Cabin, Midway UT", autocomplete="off", id="location-input") }}
-            <div id="location-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1.5px solid var(--vine);border-top:none;border-radius:0 0 var(--r-m) var(--r-m);z-index:200;max-height:220px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.08);"></div>
+            {{ form.location_id(id="location-id-input") }}
+
+            {# Saved locations chips #}
+            {% if saved_locations %}
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+                {% for loc in saved_locations %}
+                <button type="button"
+                    class="loc-chip"
+                    data-loc-id="{{ loc.id }}"
+                    data-loc-name="{{ loc.name }}"
+                    data-loc-address="{{ loc.address or '' }}"
+                    style="font-size:12px;padding:3px 10px;border-radius:99px;border:1px solid var(--hairline-strong);background:var(--paper);color:var(--slate);cursor:pointer;transition:background .1s,color .1s,border-color .1s;">
+                    <i data-lucide="map-pin" style="width:11px;height:11px;vertical-align:-1px;margin-right:2px;"></i>{{ loc.name }}
+                </button>
+                {% endfor %}
+                <a href="{{ url_for('main.admin_locations') }}" style="font-size:12px;color:var(--slate);display:inline-flex;align-items:center;gap:3px;padding:3px 6px;text-decoration:none;">
+                    <i data-lucide="settings" style="width:11px;height:11px;"></i> Manage
+                </a>
+            </div>
+            {% else %}
+            <div style="margin-bottom:8px;font-size:12px;color:var(--slate);">
+                No saved locations yet. <a href="{{ url_for('main.admin_locations') }}" style="color:var(--vine);">Add one</a> to reuse across events.
+            </div>
+            {% endif %}
+
+            <div style="position:relative;">
+                {{ form.location(placeholder="e.g. Pease Family Cabin, Midway UT", autocomplete="off", id="location-input") }}
+                <div id="location-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1.5px solid var(--vine);border-top:none;border-radius:0 0 var(--r-m) var(--r-m);z-index:200;max-height:220px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.08);"></div>
+            </div>
         </div>
 
         {# Description #}
@@ -141,7 +168,7 @@
             <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
                 <label class="checkbox-row">
                     {{ form.has_meals(id="f-has-meals") }}
-                    <span><strong>Meals</strong> <span style="color:var(--text-muted);font-size:13px;margin-left:6px;">Sign-up sheet for who's bringing what</span></span>
+                    <span><strong>Meals</strong> <span style="color:var(--slate);font-size:13px;margin-left:6px;">Sign-up sheet for who's bringing what</span></span>
                 </label>
                 {% if not event %}
                 <div id="meals-seed-section" style="display:none;margin-left:24px;margin-top:4px;">
@@ -150,7 +177,7 @@
                 {% endif %}
                 <label class="checkbox-row">
                     {{ form.has_assignments(id="f-has-assignments") }}
-                    <span><strong>Assignments</strong> <span style="color:var(--text-muted);font-size:13px;margin-left:6px;">Task list members can claim</span></span>
+                    <span><strong>Assignments</strong> <span style="color:var(--slate);font-size:13px;margin-left:6px;">Task list members can claim</span></span>
                 </label>
                 {% if not event %}
                 <div id="tasks-seed-section" style="display:none;margin-left:24px;margin-top:2px;">
@@ -162,11 +189,11 @@
                 {% endif %}
                 <label class="checkbox-row">
                     {{ form.has_sleeping(id="f-has-sleeping") }}
-                    <span><strong>Sleeping Arrangements</strong> <span style="color:var(--text-muted);font-size:13px;margin-left:6px;">Rooms and spots assigned by admin</span></span>
+                    <span><strong>Sleeping Arrangements</strong> <span style="color:var(--slate);font-size:13px;margin-left:6px;">Rooms and spots assigned by admin</span></span>
                 </label>
                 <label class="checkbox-row">
                     {{ form.has_carpool(id="f-has-carpool") }}
-                    <span><strong>Carpool</strong> <span style="color:var(--text-muted);font-size:13px;margin-left:6px;">Coordinate rides to the event</span></span>
+                    <span><strong>Carpool</strong> <span style="color:var(--slate);font-size:13px;margin-left:6px;">Coordinate rides to the event</span></span>
                 </label>
             </div>
         </div>
@@ -487,6 +514,49 @@
     document.querySelectorAll('.remove-room').forEach(btn => {
         btn.addEventListener('click', function() { this.closest('.room-row').remove(); });
     });
+
+    // ── Saved location chips ────────────────────────────────────────
+    (function() {
+        const locIdInput = document.getElementById('location-id-input');
+        const locInput   = document.getElementById('location-input');
+        const chips = document.querySelectorAll('.loc-chip');
+        function setActive(activeId) {
+            chips.forEach(c => {
+                const on = c.dataset.locId === activeId;
+                c.style.background = on ? 'var(--vine)' : 'var(--paper)';
+                c.style.color = on ? '#fff' : 'var(--slate)';
+                c.style.borderColor = on ? 'var(--vine)' : 'var(--hairline-strong)';
+            });
+        }
+        // Restore active chip on edit
+        if (locIdInput && locIdInput.value) setActive(locIdInput.value);
+
+        chips.forEach(chip => {
+            chip.addEventListener('click', function() {
+                const already = locIdInput.value === this.dataset.locId;
+                if (already) {
+                    // Deselect — revert to free-text mode
+                    locIdInput.value = '';
+                    locInput.value = '';
+                    setActive('');
+                } else {
+                    locIdInput.value = this.dataset.locId;
+                    locInput.value = this.dataset.locAddress || this.dataset.locName;
+                    setActive(this.dataset.locId);
+                }
+            });
+        });
+
+        // Typing in the text box clears the saved location selection
+        if (locInput) {
+            locInput.addEventListener('input', function() {
+                if (locIdInput.value) {
+                    locIdInput.value = '';
+                    setActive('');
+                }
+            });
+        }
+    })();
 
     // ── Location autocomplete ───────────────────────────────────────
     const locInput = document.getElementById('location-input');

@@ -189,6 +189,7 @@ class EventForm(FlaskForm):
     kind = SelectField('Type', choices=EVENT_KIND_CHOICES, validators=[Optional()])
     description = TextAreaField('Description')
     location = StringField('Location', validators=[Optional(), Length(max=200)])
+    location_id = HiddenField('location_id')
     start_date = DateField('Start Date', validators=[DataRequired()])
     end_date = DateField('End Date', validators=[Optional()])
     start_time = TimeField('Start Time', validators=[Optional()], format='%H:%M')

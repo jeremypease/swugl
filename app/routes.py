@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, send_file, session, abort, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
-from .models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, ASSIGNMENT_CATEGORIES, EventRSVP, EventSleepingSpot, SPOT_TYPES, EventComment, Announcement, Album, Photo, Poll, NotificationPreference, NOTIFICATION_EVENTS, UserPodMembership, CalendarToken, EventPaymentConfig, EventPaymentRecord, FamilyPayoutAccount
+from .models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, ASSIGNMENT_CATEGORIES, EventRSVP, EventSleepingSpot, SPOT_TYPES, EventComment, Announcement, Album, Photo, Poll, NotificationPreference, NOTIFICATION_EVENTS, UserPodMembership, CalendarToken, EventPaymentConfig, EventPaymentRecord, FamilyPayoutAccount, Location
 from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm, ForgotPasswordForm, ResetPasswordForm, AddPersonForm, RelativeForm, AddParentForm, FamilySettingsForm, EditPersonForm, EventForm, EventCommentForm, EventMealForm, EventMealFamilyAssignForm, EventMealItemForm, EventMealSelfSignupForm, EventMealAssignForm, EventAssignmentForm, EventAssignmentAdminAssignForm, EventSleepingSpotForm, EventSleepingAssignForm, GENDER_CHOICES_DEFAULT, GENDER_CHOICES_EXPANDED, PRONOUN_CHOICES, AnnouncementForm, AlbumForm, PhotoUploadForm, SupportForm
 from .email import send_verification_email, send_pending_notification, send_approval_notification, send_spouse_confirmation_email, send_spouse_invitation_email, send_password_reset_email, send_member_invitation_email, send_welcome_email, send_support_email, send_pod_added_email
 from datetime import date, datetime, timedelta
@@ -1802,6 +1802,82 @@ def toggle_directory(person_id):
     db.session.commit()
     return redirect(url_for('main.admin_users'))
 
+@main.route('/admin/locations')
+@login_required
+@admin_required
+def admin_locations():
+    locations = (Location.query
+                 .filter_by(family_id=current_user.active_family_id)
+                 .order_by(Location.name)
+                 .all())
+    return render_template('locations.html', locations=locations)
+
+
+@main.route('/admin/locations/add', methods=['POST'])
+@login_required
+@admin_required
+def location_add():
+    name = request.form.get('name', '').strip()
+    address = request.form.get('address', '').strip() or None
+    notes = request.form.get('notes', '').strip() or None
+    if not name:
+        flash('Location name is required.', 'error')
+        return redirect(url_for('main.admin_locations'))
+    lat, lng = _geocode_location(address) if address else (None, None)
+    loc = Location(
+        family_id=current_user.active_family_id,
+        name=name,
+        address=address,
+        lat=lat,
+        lng=lng,
+        notes=notes,
+    )
+    db.session.add(loc)
+    db.session.commit()
+    flash(f'"{name}" added.', 'info')
+    return redirect(url_for('main.admin_locations'))
+
+
+@main.route('/admin/locations/<int:loc_id>/edit', methods=['POST'])
+@login_required
+@admin_required
+def location_edit(loc_id):
+    loc = db.session.get(Location, loc_id)
+    if not loc or loc.family_id != current_user.active_family_id:
+        flash('Location not found.', 'error')
+        return redirect(url_for('main.admin_locations'))
+    name = request.form.get('name', '').strip()
+    address = request.form.get('address', '').strip() or None
+    notes = request.form.get('notes', '').strip() or None
+    if not name:
+        flash('Location name is required.', 'error')
+        return redirect(url_for('main.admin_locations'))
+    if address != loc.address:
+        loc.lat, loc.lng = _geocode_location(address) if address else (None, None)
+    loc.name = name
+    loc.address = address
+    loc.notes = notes
+    db.session.commit()
+    flash(f'"{name}" updated.', 'info')
+    return redirect(url_for('main.admin_locations'))
+
+
+@main.route('/admin/locations/<int:loc_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def location_delete(loc_id):
+    loc = db.session.get(Location, loc_id)
+    if not loc or loc.family_id != current_user.active_family_id:
+        flash('Location not found.', 'error')
+        return redirect(url_for('main.admin_locations'))
+    # Detach any events linked to this location before deleting
+    Event.query.filter_by(location_id=loc_id).update({'location_id': None})
+    db.session.delete(loc)
+    db.session.commit()
+    flash('Location deleted.', 'info')
+    return redirect(url_for('main.admin_locations'))
+
+
 @main.route('/person/<int:person_id>/invite', methods=['POST'])
 @login_required
 @contributor_or_admin_required
@@ -2424,6 +2500,9 @@ def _geocode_location(location_str):
 def event_add():
     family = current_user.active_family
     has_paid_access = family_has_paid_access(family)
+    saved_locations = (Location.query
+                       .filter_by(family_id=current_user.active_family_id)
+                       .order_by(Location.name).all())
     form = EventForm()
     if form.validate_on_submit():
         if not has_paid_access:
@@ -2437,15 +2516,23 @@ def event_add():
                 return redirect(url_for('billing.billing_page'))
         if form.end_date.data and form.start_date.data and form.end_date.data < form.start_date.data:
             form.end_date.errors.append('End date cannot be before start date.')
-            return render_template('event_form.html', form=form, event=None)
-        location = form.location.data or None
-        lat, lng = _geocode_location(location)
+            return render_template('event_form.html', form=form, event=None, saved_locations=saved_locations)
+        loc_id = int(form.location_id.data) if form.location_id.data else None
+        saved_loc = db.session.get(Location, loc_id) if loc_id else None
+        if saved_loc and saved_loc.family_id == current_user.active_family_id:
+            location = saved_loc.address or saved_loc.name
+            lat, lng = saved_loc.lat, saved_loc.lng
+        else:
+            loc_id = None
+            location = form.location.data or None
+            lat, lng = _geocode_location(location)
         event = Event(
             family_id=current_user.active_family_id,
             name=form.name.data,
             kind=form.kind.data or None,
             description=form.description.data or None,
             location=location,
+            location_id=loc_id,
             lat=lat,
             lng=lng,
             start_date=form.start_date.data,
@@ -2520,7 +2607,7 @@ def event_add():
         event_url = url_for('main.event_detail', event_id=event.id, _external=True)
         notify(recipients, 'new_event', event=event, url=event_url)
         return redirect(url_for('main.event_detail', event_id=event.id))
-    return render_template('event_form.html', form=form, event=None)
+    return render_template('event_form.html', form=form, event=None, saved_locations=saved_locations)
 
 
 @main.route('/events/<int:event_id>')
@@ -2698,17 +2785,28 @@ def event_edit(event_id):
     if not event or event.family_id != current_user.active_family_id:
         flash('Event not found.', 'error')
         return redirect(url_for('main.events_list'))
+    saved_locations = (Location.query
+                       .filter_by(family_id=current_user.active_family_id)
+                       .order_by(Location.name).all())
     form = EventForm(obj=event)
     if form.validate_on_submit():
         if form.end_date.data and form.start_date.data and form.end_date.data < form.start_date.data:
             form.end_date.errors.append('End date cannot be before start date.')
-            return render_template('event_form.html', form=form, event=event)
+            return render_template('event_form.html', form=form, event=event, saved_locations=saved_locations)
         event.name = form.name.data
         event.kind = form.kind.data or None
         event.description = form.description.data or None
-        new_location = form.location.data or None
-        if new_location != event.location:
-            event.lat, event.lng = _geocode_location(new_location)
+        loc_id = int(form.location_id.data) if form.location_id.data else None
+        saved_loc = db.session.get(Location, loc_id) if loc_id else None
+        if saved_loc and saved_loc.family_id == current_user.active_family_id:
+            new_location = saved_loc.address or saved_loc.name
+            event.lat, event.lng = saved_loc.lat, saved_loc.lng
+            event.location_id = loc_id
+        else:
+            event.location_id = None
+            new_location = form.location.data or None
+            if new_location != event.location:
+                event.lat, event.lng = _geocode_location(new_location)
         event.location = new_location
         event.start_date = form.start_date.data
         event.end_date = form.end_date.data
@@ -2731,7 +2829,10 @@ def event_edit(event_id):
         db.session.commit()
         flash('Event updated.', 'info')
         return redirect(url_for('main.event_detail', event_id=event.id))
-    return render_template('event_form.html', form=form, event=event)
+    # Pre-populate location_id from the event for the edit form
+    if not form.location_id.data and event.location_id:
+        form.location_id.data = str(event.location_id)
+    return render_template('event_form.html', form=form, event=event, saved_locations=saved_locations)
 
 
 @main.route('/events/<int:event_id>/payment/setup', methods=['POST'])

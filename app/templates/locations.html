@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}Locations — {{ current_user.active_family.name }}{% endblock %}
+
+{% block head %}
+<style>
+.locations-layout {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: 28px;
+    align-items: start;
+}
+.settings-nav {
+    position: sticky;
+    top: 66px;
+    background: var(--paper);
+    border: 1px solid var(--hairline-strong);
+    border-radius: var(--r-m);
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.settings-nav a {
+    display: block;
+    padding: 7px 10px;
+    border-radius: var(--r-s);
+    font-size: 13px;
+    text-decoration: none;
+    color: var(--slate);
+    transition: background .12s, color .12s;
+}
+.settings-nav a:hover { background: var(--leaf-mist); color: var(--ink); }
+.settings-nav a.active { background: var(--leaf-mist); color: var(--vine); font-weight: 600; }
+@media (max-width: 680px) {
+    .locations-layout { grid-template-columns: 1fr; }
+    .settings-nav { position: static; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="locations-layout">
+
+{# ── Settings sidebar nav ─────────────────────────────────────── #}
+<div class="settings-nav">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);padding:4px 10px 8px;">Pod Settings</div>
+    <a href="/admin/users">Members &amp; invites</a>
+    <a href="/admin/family">Family settings</a>
+    <a href="{{ url_for('billing.billing_page') }}">Billing</a>
+    <a href="{{ url_for('main.admin_locations') }}" class="active">Locations</a>
+</div>
+
+{# ── Main content ─────────────────────────────────────────────── #}
+<div style="max-width:600px;">
+
+<div class="page-head">
+    <div>
+        <div class="eyebrow">{{ current_user.active_family.name }}</div>
+        <h1>Saved Locations</h1>
+    </div>
+</div>
+
+<p style="font-size:14px;color:var(--slate);margin-bottom:20px;">
+    Save locations you use often — like Grandma's house or the family cabin — and pick them instantly when creating events.
+</p>
+
+{# ── Add form ─────────────────────────────────────────────────── #}
+<div class="card" style="margin-bottom:20px;">
+    <div class="card-header"><h3>Add Location</h3></div>
+    <form method="POST" action="{{ url_for('main.location_add') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="field">
+            <label for="new-name">Name <span style="color:var(--tomato);">*</span></label>
+            <input type="text" id="new-name" name="name" placeholder="e.g. Grandma's House" maxlength="150" required>
+        </div>
+        <div class="field">
+            <label for="new-address">Address</label>
+            <input type="text" id="new-address" name="address" placeholder="e.g. 123 Main St, Provo, UT 84601" maxlength="200" autocomplete="off">
+        </div>
+        <div class="field">
+            <label for="new-notes">Notes</label>
+            <textarea id="new-notes" name="notes" rows="2" placeholder="Parking tips, door code, etc."></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">
+            <i data-lucide="plus" style="width:14px;height:14px;vertical-align:-2px;"></i> Add location
+        </button>
+    </form>
+</div>
+
+{# ── Existing locations ────────────────────────────────────────── #}
+{% if locations %}
+<div class="card">
+    <div class="card-header"><h3>{{ locations|length }} saved location{{ 's' if locations|length != 1 }}</h3></div>
+    {% for loc in locations %}
+    <div style="padding:14px 0;{% if not loop.last %}border-bottom:1px solid var(--hairline);{% endif %}">
+        <details>
+            <summary style="cursor:pointer;list-style:none;display:flex;align-items:flex-start;gap:10px;">
+                <i data-lucide="map-pin" style="width:15px;height:15px;color:var(--vine);flex-shrink:0;margin-top:2px;"></i>
+                <div style="flex:1;">
+                    <div style="font-weight:600;font-size:14px;">{{ loc.name }}</div>
+                    {% if loc.address %}
+                    <div style="font-size:13px;color:var(--slate);margin-top:1px;">{{ loc.address }}</div>
+                    {% endif %}
+                    {% if loc.notes %}
+                    <div style="font-size:12px;color:var(--slate);margin-top:2px;">{{ loc.notes }}</div>
+                    {% endif %}
+                    <div style="font-size:12px;color:var(--slate);margin-top:4px;">
+                        Used in {{ loc.events|length }} event{{ 's' if loc.events|length != 1 }}
+                    </div>
+                </div>
+                <span style="font-size:12px;color:var(--slate);flex-shrink:0;margin-top:2px;">Edit ▾</span>
+            </summary>
+
+            <div style="margin-top:12px;margin-left:25px;">
+                <form method="POST" action="{{ url_for('main.location_edit', loc_id=loc.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="field">
+                        <label>Name <span style="color:var(--tomato);">*</span></label>
+                        <input type="text" name="name" value="{{ loc.name }}" maxlength="150" required>
+                    </div>
+                    <div class="field">
+                        <label>Address</label>
+                        <input type="text" name="address" value="{{ loc.address or '' }}" maxlength="200" autocomplete="off">
+                    </div>
+                    <div class="field">
+                        <label>Notes</label>
+                        <textarea name="notes" rows="2">{{ loc.notes or '' }}</textarea>
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <button type="submit" class="btn btn-secondary btn-sm">Save changes</button>
+                    </div>
+                </form>
+
+                <form method="POST" action="{{ url_for('main.location_delete', loc_id=loc.id) }}" style="margin-top:10px;"
+                      onsubmit="return confirm('Delete {{ loc.name | e }}? Events using it will keep their address text.');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);">
+                        <i data-lucide="trash-2" style="width:13px;height:13px;vertical-align:-2px;"></i> Delete
+                    </button>
+                </form>
+            </div>
+        </details>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card" style="text-align:center;padding:32px;">
+    <i data-lucide="map-pin" style="width:32px;height:32px;color:var(--hairline-strong);margin-bottom:10px;"></i>
+    <p style="color:var(--slate);font-size:14px;margin:0;">No saved locations yet. Add one above.</p>
+</div>
+{% endif %}
+
+</div>
+</div>
+{% endblock %}

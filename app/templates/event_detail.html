@@ -176,7 +176,7 @@ details[open] .details-chevron { transform: rotate(180deg); }
             <h1>{{ event.name }}{% if event.is_annual %} <span style="font-size:13px;font-weight:500;color:var(--slate);vertical-align:middle;">↻ Annual</span>{% endif %}</h1>
             <div style="font-size:13px;color:var(--slate);margin-top:2px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;">
                 {% if event.kind %}<span style="background:var(--leaf-mist);color:var(--vine-deep);font-size:11px;font-weight:600;padding:1px 7px;border-radius:99px;letter-spacing:.4px;text-transform:uppercase;">{{ event.kind }}</span>{% endif %}
-                {{ event.date_range_display() }}{% if event.location %} · {{ event.location }}{% endif %}
+                {{ event.date_range_display() }}{% if event.saved_location %} · <strong>{{ event.saved_location.name }}</strong>{% if event.saved_location.address and event.saved_location.address != event.saved_location.name %} · {{ event.saved_location.address }}{% endif %}{% elif event.location %} · {{ event.location }}{% endif %}
                 {% if event.location %}<a href="#" data-directions="{{ event.location | e }}" target="_blank" rel="noopener" style="color:var(--vine);font-size:12px;display:inline-flex;align-items:center;gap:3px;text-decoration:none;margin-left:2px;"><i data-lucide="navigation" style="width:11px;height:11px;"></i> Directions</a>{% endif %}
                 {% if event.rsvp_deadline %}<span style="color:var(--slate-soft);">· RSVP by {{ event.rsvp_deadline.strftime('%B %-d') }}</span>{% endif %}
             </div>

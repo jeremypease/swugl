@@ -485,6 +485,20 @@ event_sleeping_assignments = db.Table('event_sleeping_assignments',
 )
 
 
+class Location(db.Model):
+    """Reusable named locations for events (e.g. "Grandma's House")."""
+    __tablename__ = 'locations'
+
+    id = db.Column(db.Integer, primary_key=True)
+    family_id = db.Column(db.Integer, db.ForeignKey('families.id'), nullable=False, index=True)
+    name = db.Column(db.String(150), nullable=False)
+    address = db.Column(db.String(200), nullable=True)
+    lat = db.Column(db.Float, nullable=True)
+    lng = db.Column(db.Float, nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 class Event(db.Model):
     __tablename__ = 'events'
 
@@ -493,6 +507,7 @@ class Event(db.Model):
     name = db.Column(db.String(150), nullable=False)
     description = db.Column(db.Text, nullable=True)
     location = db.Column(db.String(200), nullable=True)
+    location_id = db.Column(db.Integer, db.ForeignKey('locations.id'), nullable=True)
     start_date = db.Column(db.Date, nullable=False)
     end_date = db.Column(db.Date, nullable=True)
     kind = db.Column(db.String(50), nullable=True)
@@ -508,6 +523,8 @@ class Event(db.Model):
     lng = db.Column(db.Float, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     cover_image_path = db.Column(db.String(200), nullable=True)
+
+    saved_location = db.relationship('Location', backref='events', foreign_keys=[location_id])
 
     meals = db.relationship('EventMeal', backref='event', cascade='all, delete-orphan', order_by='EventMeal.meal_date')
     assignments = db.relationship('EventAssignment', backref='event', cascade='all, delete-orphan')
