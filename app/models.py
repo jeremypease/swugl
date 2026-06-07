@@ -450,6 +450,28 @@ class ApiTokenBlocklist(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class SystemConfig(db.Model):
+    """Platform-wide key-value configuration, editable at runtime."""
+    __tablename__ = 'system_config'
+
+    key = db.Column(db.String(100), primary_key=True)
+    value = db.Column(db.String(500), nullable=True)
+
+    @classmethod
+    def get(cls, key, default=None):
+        row = cls.query.filter_by(key=key).first()
+        return row.value if row else default
+
+    @classmethod
+    def set(cls, key, value):
+        row = cls.query.filter_by(key=key).first()
+        if row:
+            row.value = value
+        else:
+            db.session.add(cls(key=key, value=value))
+        db.session.commit()
+
+
 class OAuthAccount(db.Model):
     """Links a third-party OAuth identity (Google, Apple) to a User."""
     __tablename__ = 'oauth_accounts'

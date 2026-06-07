@@ -6,7 +6,8 @@ from . import db
 import stripe as stripe_lib
 from .models import (Family, User, Person, Event, Album, Photo,
                      PlatformAuditLog, SystemAnnouncement, UserPodMembership,
-                     SupportNote)
+                     SupportNote, SystemConfig)
+from .billing import get_stripe_mode
 
 platform = Blueprint('platform', __name__, url_prefix='/platform')
 
@@ -63,8 +64,10 @@ def dashboard():
     }
     recent_pods = Family.query.order_by(Family.created_at.desc()).limit(10).all()
     audit_log = PlatformAuditLog.query.order_by(PlatformAuditLog.created_at.desc()).limit(20).all()
+    stripe_mode = get_stripe_mode()
     return render_template('platform/dashboard.html',
-                           stats=stats, recent_pods=recent_pods, audit_log=audit_log)
+                           stats=stats, recent_pods=recent_pods, audit_log=audit_log,
+                           stripe_mode=stripe_mode)
 
 
 # ── Pods ─────────────────────────────────────────────────────────────────────
@@ -231,6 +234,25 @@ def extend_trial(user_id):
     db.session.commit()
     _audit('extend_trial', 'family', pod.id, f'{days} days')
     flash(f"Trial for {pod.name} extended by {days} days.", 'info')
+    return redirect(url_for('platform.users', q=user.email))
+
+
+@platform.route('/users/<int:user_id>/toggle-platform-admin', methods=['POST'])
+@login_required
+@platform_admin_required
+def toggle_platform_admin(user_id):
+    user = db.session.get(User, user_id)
+    if not user:
+        flash('User not found.', 'error')
+        return redirect(url_for('platform.users'))
+    if user.id == current_user.id:
+        flash('You cannot remove your own platform admin status.', 'error')
+        return redirect(url_for('platform.users', q=user.email))
+    user.is_platform_admin = not user.is_platform_admin
+    db.session.commit()
+    action = 'granted' if user.is_platform_admin else 'revoked'
+    _audit(f'platform_admin_{action}', 'user', user.id, user.email)
+    flash(f'Platform admin {action} for {user.get_full_name()}.', 'info')
     return redirect(url_for('platform.users', q=user.email))
 
 
@@ -582,6 +604,18 @@ def debug_weather():
         result['weatherkit_error'] = str(e)
 
     return jsonify(result)
+
+
+@platform.route('/stripe-mode/toggle', methods=['POST'])
+@login_required
+@platform_admin_required
+def toggle_stripe_mode():
+    current_mode = get_stripe_mode()
+    new_mode = 'test' if current_mode == 'live' else 'live'
+    SystemConfig.set('stripe_mode', new_mode)
+    _audit('stripe_mode_toggle', detail=f'{current_mode} → {new_mode}')
+    flash(f'Stripe switched to {new_mode} mode. {"Use test card 4242 4242 4242 4242." if new_mode == "test" else "Real charges are now active."}', 'info')
+    return redirect(url_for('platform.dashboard'))
 
 
 @platform.route('/dismiss-announcement/<int:ann_id>', methods=['POST'])

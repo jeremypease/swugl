@@ -70,14 +70,14 @@ def create_app(test_config=None):
     app.config['RESEND_FROM_EMAIL'] = os.environ.get('RESEND_FROM_EMAIL', 'Swugl <noreply@swugl.com>')
     app.config['MAIL_ENABLED'] = os.environ.get('MAIL_ENABLED', '').lower() == 'true'
 
+    # Load both key sets so the in-app platform toggle can switch modes at runtime
+    for _sfx in ('_TEST', '_LIVE'):
+        for _k in ('STRIPE_SECRET_KEY', 'STRIPE_PUBLISHABLE_KEY', 'STRIPE_WEBHOOK_SECRET',
+                   'STRIPE_MONTHLY_PRICE_ID', 'STRIPE_ANNUAL_PRICE_ID'):
+            app.config[f'{_k}{_sfx}'] = os.environ.get(f'{_k}{_sfx}') or os.environ.get(_k)
+    # Default mode from env var; runtime DB override handled by get_stripe_mode() in billing.py
     _stripe_mode = os.environ.get('STRIPE_MODE', 'live').lower()
-    app.config['STRIPE_TEST_MODE'] = (_stripe_mode == 'test')
-    _sfx = '_TEST' if _stripe_mode == 'test' else '_LIVE'
-    app.config['STRIPE_SECRET_KEY']      = os.environ.get(f'STRIPE_SECRET_KEY{_sfx}')      or os.environ.get('STRIPE_SECRET_KEY')
-    app.config['STRIPE_PUBLISHABLE_KEY'] = os.environ.get(f'STRIPE_PUBLISHABLE_KEY{_sfx}') or os.environ.get('STRIPE_PUBLISHABLE_KEY')
-    app.config['STRIPE_WEBHOOK_SECRET']  = os.environ.get(f'STRIPE_WEBHOOK_SECRET{_sfx}')  or os.environ.get('STRIPE_WEBHOOK_SECRET')
-    app.config['STRIPE_MONTHLY_PRICE_ID']= os.environ.get(f'STRIPE_MONTHLY_PRICE_ID{_sfx}')or os.environ.get('STRIPE_MONTHLY_PRICE_ID')
-    app.config['STRIPE_ANNUAL_PRICE_ID'] = os.environ.get(f'STRIPE_ANNUAL_PRICE_ID{_sfx}') or os.environ.get('STRIPE_ANNUAL_PRICE_ID')
+    app.config['STRIPE_MODE_DEFAULT'] = _stripe_mode
 
     app.config['SUPPORT_EMAIL'] = os.environ.get('SUPPORT_EMAIL', 'jeremypease@me.com')
 
@@ -138,7 +138,7 @@ def create_app(test_config=None):
     limiter.init_app(app)
     jwt.init_app(app)
 
-    from .models import User, Person, SystemAnnouncement, Notification, ApiTokenBlocklist
+    from .models import User, Person, SystemAnnouncement, Notification, ApiTokenBlocklist, SystemConfig
     from .routes import main
     from .billing import billing
     from .two_factor import tf
@@ -194,11 +194,12 @@ def create_app(test_config=None):
                 .limit(8)
                 .all()
             )
+        from .billing import get_stripe_mode
         return {
             'now': datetime.utcnow(),
             'system_announcement': active_ann,
             'support_mode': s.get('support_mode', False),
-            'stripe_test_mode': app.config.get('STRIPE_TEST_MODE', False),
+            'stripe_test_mode': get_stripe_mode() == 'test',
             'unread_notification_count': unread,
             'recent_notifications': recent_notifications,
         }

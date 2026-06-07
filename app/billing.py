@@ -5,9 +5,10 @@ from datetime import datetime, timedelta
 from functools import wraps
 from flask import (Blueprint, render_template, redirect, url_for, flash,
                    request, current_app, jsonify)
+from flask import g
 from flask_login import login_required, current_user
 from . import db
-from .models import Family, FamilyPayoutAccount
+from .models import Family, FamilyPayoutAccount, SystemConfig
 
 PLATFORM_FEE_RATE = 0.02  # 2% Swugl platform fee on event payouts
 
@@ -19,12 +20,34 @@ billing = Blueprint('billing', __name__)
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
+def get_stripe_mode():
+    """Return 'test' or 'live'. DB row overrides env-var default; cached in g per request."""
+    if hasattr(g, '_stripe_mode'):
+        return g._stripe_mode
+    db_val = SystemConfig.get('stripe_mode')
+    mode = db_val if db_val in ('test', 'live') else current_app.config.get('STRIPE_MODE_DEFAULT', 'live')
+    g._stripe_mode = mode
+    return mode
+
+
 def _stripe():
-    key = current_app.config.get('STRIPE_SECRET_KEY')
+    mode = get_stripe_mode()
+    sfx = '_TEST' if mode == 'test' else '_LIVE'
+    key = current_app.config.get(f'STRIPE_SECRET_KEY{sfx}')
     if not key:
         return None
     stripe.api_key = key
     return stripe
+
+
+def _stripe_price_ids():
+    """Return (monthly_price_id, annual_price_id) for the current mode."""
+    mode = get_stripe_mode()
+    sfx = '_TEST' if mode == 'test' else '_LIVE'
+    return (
+        current_app.config.get(f'STRIPE_MONTHLY_PRICE_ID{sfx}'),
+        current_app.config.get(f'STRIPE_ANNUAL_PRICE_ID{sfx}'),
+    )
 
 
 def family_has_paid_access(family):
@@ -260,8 +283,8 @@ def billing_page():
     return render_template('billing.html', family=family,
                            days_left=days_left, grace_days_left=grace_days_left,
                            invoices=invoices,
-                           monthly_price_id=current_app.config.get('STRIPE_MONTHLY_PRICE_ID'),
-                           annual_price_id=current_app.config.get('STRIPE_ANNUAL_PRICE_ID'),
+                           monthly_price_id=_stripe_price_ids()[0],
+                           annual_price_id=_stripe_price_ids()[1],
                            payout_account=family.payout_account)
 
 
@@ -337,7 +360,9 @@ def webhook():
 
     payload = request.get_data()
     sig = request.headers.get('Stripe-Signature')
-    secret = current_app.config.get('STRIPE_WEBHOOK_SECRET')
+    mode = get_stripe_mode()
+    sfx = '_TEST' if mode == 'test' else '_LIVE'
+    secret = current_app.config.get(f'STRIPE_WEBHOOK_SECRET{sfx}')
 
     try:
         event = s.Webhook.construct_event(payload, sig, secret)

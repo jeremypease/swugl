@@ -7,6 +7,28 @@
     <p>Platform health at a glance.</p>
 </div>
 
+{# ── Stripe mode toggle ───────────────────────────────────────────── #}
+<div style="display:flex;align-items:center;gap:14px;padding:12px 16px;border-radius:var(--r-m);margin-bottom:24px;
+    {% if stripe_mode == 'test' %}background:#faf5ff;border:1px solid #7c3aed;{% else %}background:var(--paper);border:1px solid var(--hairline-strong);{% endif %}">
+    <i data-lucide="{% if stripe_mode == 'test' %}flask-conical{% else %}credit-card{% endif %}"
+        style="width:18px;height:18px;flex-shrink:0;color:{% if stripe_mode == 'test' %}#7c3aed{% else %}var(--slate){% endif %};"></i>
+    <div style="flex:1;">
+        <div style="font-weight:600;font-size:14px;color:{% if stripe_mode == 'test' %}#7c3aed{% else %}var(--ink){% endif %};">
+            Stripe {{ stripe_mode | capitalize }} Mode
+        </div>
+        <div style="font-size:12px;color:var(--slate);margin-top:1px;">
+            {% if stripe_mode == 'test' %}No real charges. Test card: 4242 4242 4242 4242.{% else %}Live — real charges are active.{% endif %}
+        </div>
+    </div>
+    <form method="POST" action="{{ url_for('platform.toggle_stripe_mode') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-sm {% if stripe_mode == 'test' %}btn-secondary{% else %}btn-ghost{% endif %}"
+            {% if stripe_mode == 'live' %}onclick="return confirm('Switch to TEST mode? No real charges will occur.')"{% else %}onclick="return confirm('Switch to LIVE mode? Real charges will be active.')"{% endif %}>
+            Switch to {{ 'live' if stripe_mode == 'test' else 'test' }}
+        </button>
+    </form>
+</div>
+
 <div class="stat-grid">
     <div class="stat-card">
         <div class="num">{{ stats.total_pods }}</div>

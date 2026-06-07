@@ -28,6 +28,22 @@
                 </div>
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                {% if user.is_platform_admin %}
+                <span style="font-size:12px;font-weight:600;padding:3px 8px;border-radius:99px;background:#7c3aed;color:#fff;">Platform admin</span>
+                {% if user.id != current_user.id %}
+                <form method="POST" action="{{ url_for('platform.toggle_platform_admin', user_id=user.id) }}"
+                      onsubmit="return confirm('Remove platform admin from {{ user.get_full_name() | e }}?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-ghost btn-sm" style="color:var(--tomato);">Remove admin</button>
+                </form>
+                {% endif %}
+                {% else %}
+                <form method="POST" action="{{ url_for('platform.toggle_platform_admin', user_id=user.id) }}"
+                      onsubmit="return confirm('Grant platform admin to {{ user.get_full_name() | e }}? They will have full access to all pods and settings.');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-ghost btn-sm">Make platform admin</button>
+                </form>
+                {% endif %}
                 {% if not user.email_verified %}
                 <form method="POST" action="{{ url_for('platform.resend_verification', user_id=user.id) }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
