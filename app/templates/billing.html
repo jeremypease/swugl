@@ -66,6 +66,22 @@
     </div>
 </div>
 
+{# ── Test mode notice ─────────────────────────────────────────── #}
+{% if stripe_test_mode %}
+<div class="card" style="margin-bottom:20px;border-left:3px solid #7c3aed;background:#faf5ff;">
+    <div style="display:flex;align-items:center;gap:10px;">
+        <i data-lucide="flask-conical" style="width:18px;height:18px;color:#7c3aed;flex-shrink:0;"></i>
+        <div>
+            <div style="font-weight:600;font-size:14px;color:#7c3aed;">Stripe test mode active</div>
+            <div style="font-size:13px;color:var(--slate);margin-top:2px;">
+                Use test card <strong>4242 4242 4242 4242</strong>, any future expiry, any CVC.
+                No real charges will occur. Set <code>STRIPE_MODE=live</code> in Railway to go live.
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 {# ── Current plan ─────────────────────────────────────────────── #}
 <div class="card" style="margin-bottom:20px;">
     <div class="card-header"><h3>Current Plan</h3></div>

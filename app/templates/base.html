@@ -159,6 +159,13 @@
             {% endif %}
         {% endwith %}
 
+        {% if stripe_test_mode and current_user.is_authenticated and current_user.active_is_admin %}
+        <div style="background:#7c3aed;color:#fff;font-size:13px;font-weight:600;padding:8px 20px;display:flex;align-items:center;gap:8px;">
+            <i data-lucide="flask-conical" style="width:14px;height:14px;flex-shrink:0;"></i>
+            Test mode — Stripe charges are not real. Set <code style="background:rgba(255,255,255,0.2);padding:1px 5px;border-radius:3px;">STRIPE_MODE=live</code> to go live.
+        </div>
+        {% endif %}
+
         {% if support_mode %}
         <div class="notification-banner" style="background:#1a2b1b;color:#fff;border:none;gap:12px;justify-content:space-between;">
             <span><i data-lucide="eye" style="width:14px;height:14px;display:inline;vertical-align:middle;"></i> <strong>Support mode</strong> — you are viewing this pod read-only. No changes can be saved.</span>
