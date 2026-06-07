@@ -335,10 +335,35 @@ document.addEventListener('click', function(e) {
 </script>
 <script nonce="{{ g.csp_nonce }}">lucide.createIcons();</script>
 <script nonce="{{ g.csp_nonce }}">
-if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function() {});
-}
+(function() {
+    if (!('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.register('/sw.js', { scope: '/' }).then(function(reg) {
+        reg.addEventListener('updatefound', function() {
+            var newSW = reg.installing;
+            newSW.addEventListener('statechange', function() {
+                if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+                    var badge = document.getElementById('version-badge');
+                    if (!badge) return;
+                    badge.textContent = '↑ Update available';
+                    badge.title = 'Click to reload with the latest version';
+                    badge.style.background = 'var(--vine)';
+                    badge.style.color = '#fff';
+                    badge.style.borderColor = 'var(--vine)';
+                    badge.style.cursor = 'pointer';
+                    badge.style.fontWeight = '600';
+                    badge.onclick = function() {
+                        newSW.postMessage({ type: 'SKIP_WAITING' });
+                        navigator.serviceWorker.addEventListener('controllerchange', function() {
+                            window.location.reload();
+                        });
+                    };
+                }
+            });
+        });
+    }).catch(function() {});
+})();
 </script>
+<div id="version-badge" title="Swugl {{ config.APP_VERSION }}" style="position:fixed;bottom:14px;left:14px;z-index:900;font-size:11px;color:var(--slate-soft);background:var(--surface);border:1px solid var(--hairline);padding:2px 8px;border-radius:99px;letter-spacing:.02em;user-select:none;transition:background .2s,color .2s,border-color .2s;">v{{ config.APP_VERSION }}</div>
 <script nonce="{{ g.csp_nonce }}">
 (function() {
     var panel = document.getElementById('notif-panel');

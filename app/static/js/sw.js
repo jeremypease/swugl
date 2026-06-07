@@ -1,4 +1,4 @@
-const CACHE = 'peapod-v1';
+const CACHE = 'swugl-v1.0.0';
 
 const PRECACHE = [
   '/offline',
@@ -9,8 +9,12 @@ const PRECACHE = [
 
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(PRECACHE)).then(() => self.skipWaiting())
+    caches.open(CACHE).then(c => c.addAll(PRECACHE))
   );
+});
+
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('activate', event => {

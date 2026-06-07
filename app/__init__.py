@@ -112,6 +112,7 @@ def create_app(test_config=None):
     app.config['WEATHERKIT_SERVICE_ID'] = os.environ.get('WEATHERKIT_SERVICE_ID', '')
     app.config['WEATHERKIT_PRIVATE_KEY'] = os.environ.get('WEATHERKIT_PRIVATE_KEY', '')
     app.config['ANTHROPIC_API_KEY'] = os.environ.get('ANTHROPIC_API_KEY', '')
+    app.config['APP_VERSION'] = os.environ.get('APP_VERSION', '1.0.0')
 
     # Session lifetime
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=14)
