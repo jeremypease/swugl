@@ -105,11 +105,22 @@
                 <i data-lucide="x"></i>
             </button>
         </div>
+        <div style="background:var(--surface-raised,#f8f9f6);border-radius:var(--r-s);padding:12px;margin-bottom:16px;display:flex;align-items:flex-end;gap:8px;">
+            <div class="field" style="flex:1;margin:0;">
+                <label style="font-size:12px;font-weight:600;color:var(--slate);">
+                    <i data-lucide="sparkles" style="width:12px;height:12px;display:inline;vertical-align:middle;color:var(--vine);"></i>
+                    Suggest with AI
+                </label>
+                <input type="text" id="ai-poll-topic" placeholder="e.g. reunion dates, cabin meals, games to pack…" style="width:100%;font-size:13px;">
+            </div>
+            <button type="button" id="ai-poll-btn" class="btn btn-secondary btn-sm" style="white-space:nowrap;flex-shrink:0;">Suggest</button>
+            <span id="ai-poll-status" style="font-size:12px;color:var(--slate);display:none;white-space:nowrap;">Thinking…</span>
+        </div>
         <form method="POST" action="{{ url_for('main.create_poll') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="field">
                 <label>Question</label>
-                <input type="text" name="question" placeholder="Which weekend works for the reunion?" required style="width:100%;">
+                <input type="text" id="poll-question" name="question" placeholder="Which weekend works for the reunion?" required style="width:100%;">
             </div>
             <div class="field">
                 <label>Options <span style="color:var(--slate);font-size:12px;">(one per line, at least 2)</span></label>
@@ -145,6 +156,56 @@ document.getElementById('add-option').addEventListener('click', function() {
     list.appendChild(inp);
     inp.focus();
 });
+
+(function() {
+    const aiBtn = document.getElementById('ai-poll-btn');
+    const topicInput = document.getElementById('ai-poll-topic');
+    const status = document.getElementById('ai-poll-status');
+    const questionInput = document.getElementById('poll-question');
+    const csrf = document.querySelector('[name=csrf_token]').value;
+
+    aiBtn.addEventListener('click', async function() {
+        const topic = topicInput.value.trim();
+        if (!topic) { topicInput.focus(); return; }
+        aiBtn.disabled = true;
+        status.style.display = 'inline';
+        status.style.color = 'var(--slate)';
+        status.textContent = 'Thinking…';
+        try {
+            const resp = await fetch('/polls/ai-suggest', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
+                body: JSON.stringify({topic}),
+            });
+            if (!resp.ok) throw new Error();
+            const d = await resp.json();
+            if (d.question) questionInput.value = d.question;
+            if (d.options && d.options.length) {
+                const list = document.getElementById('options-list');
+                list.innerHTML = '';
+                d.options.forEach((opt, i) => {
+                    const inp = document.createElement('input');
+                    inp.type = 'text'; inp.name = 'options';
+                    inp.value = opt; inp.style.width = '100%';
+                    inp.placeholder = 'Option ' + (i + 1);
+                    list.appendChild(inp);
+                });
+            }
+            status.textContent = '✓ Edit as needed';
+            status.style.color = 'var(--vine)';
+        } catch {
+            status.textContent = 'Could not suggest — fill in manually.';
+            status.style.color = 'var(--tomato)';
+        } finally {
+            aiBtn.disabled = false;
+            status.style.display = 'inline';
+        }
+    });
+
+    topicInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); aiBtn.click(); }
+    });
+})();
 </script>
 {% endblock %}
 {% endblock %}

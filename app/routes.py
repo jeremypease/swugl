@@ -2535,6 +2535,65 @@ Description: {description}"""
         return jsonify({'error': 'AI parsing failed'}), 500
 
 
+@main.route('/cards/ai-draft', methods=['POST'])
+@login_required
+def card_ai_draft():
+    from flask import jsonify
+    from .ai import draft_card_message
+    data = request.json or {}
+    recipient_name = data.get('recipient_name', '').strip()
+    occasion = data.get('occasion', '').strip()
+    if not recipient_name or not occasion:
+        return jsonify({'error': 'Missing fields'}), 400
+    if not current_app.config.get('ANTHROPIC_API_KEY'):
+        return jsonify({'error': 'AI not configured'}), 503
+    try:
+        message = draft_card_message(recipient_name, occasion, current_user.active_family.name)
+        return jsonify({'message': message})
+    except Exception as e:
+        current_app.logger.error(f'AI card draft error: {e}')
+        return jsonify({'error': 'AI draft failed'}), 500
+
+
+@main.route('/polls/ai-suggest', methods=['POST'])
+@login_required
+def poll_ai_suggest():
+    from flask import jsonify
+    from .ai import suggest_poll
+    data = request.json or {}
+    topic = data.get('topic', '').strip()
+    if not topic:
+        return jsonify({'error': 'Missing topic'}), 400
+    if not current_app.config.get('ANTHROPIC_API_KEY'):
+        return jsonify({'error': 'AI not configured'}), 503
+    try:
+        result = suggest_poll(topic, current_user.active_family.name)
+        return jsonify(result)
+    except Exception as e:
+        current_app.logger.error(f'AI poll suggest error: {e}')
+        return jsonify({'error': 'AI suggest failed'}), 500
+
+
+@main.route('/photos/<int:photo_id>/ai-caption', methods=['POST'])
+@login_required
+def photo_ai_caption(photo_id):
+    from flask import jsonify
+    from .ai import suggest_photo_caption
+    from .storage import get_object_bytes
+    photo = db.session.get(Photo, photo_id)
+    if not photo or photo.family_id != current_user.active_family_id:
+        return jsonify({'error': 'Not found'}), 404
+    if not current_app.config.get('ANTHROPIC_API_KEY'):
+        return jsonify({'error': 'AI not configured'}), 503
+    try:
+        image_bytes, content_type = get_object_bytes(photo.path)
+        caption = suggest_photo_caption(image_bytes, content_type)
+        return jsonify({'caption': caption})
+    except Exception as e:
+        current_app.logger.error(f'AI photo caption error: {e}')
+        return jsonify({'error': 'AI caption failed'}), 500
+
+
 def _geocode_location(location_str):
     """Return (lat, lng) for a location string, or (None, None)."""
     if not location_str:

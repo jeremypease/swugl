@@ -45,8 +45,14 @@
     <h3 style="margin-bottom:12px;">{% if my_signature %}Your message{% else %}Sign this card{% endif %}</h3>
     <form method="POST" action="{{ url_for('main.sign_card', card_id=card.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <textarea name="message" rows="3" placeholder="Write a message for {{ card.recipient.get_display_name() }}…"
-                  style="width:100%;margin-bottom:10px;">{{ my_signature.message if my_signature else '' }}</textarea>
+        <textarea id="card-message" name="message" rows="3" placeholder="Write a message for {{ card.recipient.get_display_name() }}…"
+                  style="width:100%;margin-bottom:6px;">{{ my_signature.message if my_signature else '' }}</textarea>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+            <button type="button" id="ai-draft-btn" class="btn btn-secondary btn-sm">
+                <i data-lucide="sparkles" style="width:13px;height:13px;"></i> Suggest message
+            </button>
+            <span id="ai-draft-status" style="font-size:13px;color:var(--slate);display:none;">Writing…</span>
+        </div>
         <button type="submit" class="btn btn-primary">
             {% if my_signature %}<i data-lucide="edit-2"></i> Update message{% else %}<i data-lucide="pen-line"></i> Sign card{% endif %}
         </button>
@@ -100,4 +106,44 @@
 {% endif %}
 
 </div>
+
+{% block scripts %}
+<script nonce="{{ g.csp_nonce }}">
+(function() {
+    const btn = document.getElementById('ai-draft-btn');
+    if (!btn) return;
+    const textarea = document.getElementById('card-message');
+    const status = document.getElementById('ai-draft-status');
+    const csrf = document.querySelector('[name=csrf_token]').value;
+
+    btn.addEventListener('click', async function() {
+        btn.disabled = true;
+        status.style.display = 'inline';
+        status.style.color = 'var(--slate)';
+        status.textContent = 'Writing…';
+        try {
+            const resp = await fetch('/cards/ai-draft', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
+                body: JSON.stringify({
+                    recipient_name: {{ card.recipient.get_display_name() | tojson }},
+                    occasion: {{ card.occasion | tojson }},
+                }),
+            });
+            if (!resp.ok) throw new Error();
+            const d = await resp.json();
+            textarea.value = d.message;
+            status.textContent = '✓ Edit as you like';
+            status.style.color = 'var(--vine)';
+        } catch {
+            status.textContent = 'Could not suggest — write your own!';
+            status.style.color = 'var(--tomato)';
+        } finally {
+            btn.disabled = false;
+            status.style.display = 'inline';
+        }
+    });
+})();
+</script>
+{% endblock %}
 {% endblock %}

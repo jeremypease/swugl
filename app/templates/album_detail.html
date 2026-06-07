@@ -153,6 +153,7 @@
                style="font-size:13px;padding:4px 10px;border-radius:4px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.15);color:#fff;width:280px;">
         <button onclick="saveCaption()" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:12px;margin-left:4px;">Save</button>
         <button onclick="cancelCaptionEdit()" style="background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:12px;margin-left:2px;">Cancel</button>
+        <button id="lb-ai-caption-btn" onclick="suggestCaption()" style="background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:12px;margin-left:6px;" title="Suggest caption with AI">✨</button>
     </div>
 
     <!-- Tags -->
@@ -190,6 +191,7 @@ const photos = [
         downloadUrl: "{{ photo_url(photo.path) }}",
         deleteUrl: "/albums/{{ album.id }}/photos/{{ photo.id }}/delete",
         captionUrl: "/photos/{{ photo.id }}/caption",
+        aiCaptionUrl: "/photos/{{ photo.id }}/ai-caption",
         canEditCaption: {{ ('true' if (current_user.active_is_admin or (current_user.person and photo.uploaded_by_id == current_user.person.id)) else 'false') }},
         tagUrl: "/photos/{{ photo.id }}/tag",
         tags: [{% for tag in photo.tags %}{id:{{ tag.id }},name:{{ tag.person.get_display_name()|tojson }},personId:{{ tag.person_id }},removeUrl:"/photos/{{ photo.id }}/tags/{{ tag.id }}/remove"}{% if not loop.last %},{% endif %}{% endfor %}],
@@ -325,6 +327,30 @@ function saveCaption() {
         document.getElementById('lb-meta').textContent = meta.join(' · ');
         document.getElementById('lb-edit-caption-btn').style.display = 'inline-flex';
     });
+}
+
+async function suggestCaption() {
+    const p = photos[current];
+    const btn = document.getElementById('lb-ai-caption-btn');
+    const input = document.getElementById('lb-caption-input');
+    if (!p.aiCaptionUrl) return;
+    btn.textContent = '⏳';
+    btn.disabled = true;
+    try {
+        const csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        const resp = await fetch(p.aiCaptionUrl, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
+        });
+        if (!resp.ok) throw new Error();
+        const d = await resp.json();
+        if (d.caption) input.value = d.caption;
+        btn.textContent = '✨';
+    } catch {
+        btn.textContent = '✨';
+    } finally {
+        btn.disabled = false;
+    }
 }
 </script>
 {% else %}

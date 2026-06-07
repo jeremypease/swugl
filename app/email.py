@@ -354,7 +354,7 @@ def send_event_comment_notification(user, commenter_name, event, comment_body, u
     )
 
 
-def send_digest_email(user, family, content, dashboard_url):
+def send_digest_email(user, family, content, dashboard_url, ai_intro=None):
     upcoming_events = content['upcoming_events']
     upcoming_birthdays = content['upcoming_birthdays']
     upcoming_anniversaries = content['upcoming_anniversaries']
@@ -424,7 +424,7 @@ def send_digest_email(user, family, content, dashboard_url):
         <div style="font-family:sans-serif;max-width:560px;margin:0 auto;color:#222;">
             <p style="font-size:13px;color:#888;margin-bottom:4px;">{family.name} · Weekly digest</p>
             <h2 style="margin:0 0 4px;font-size:22px;font-weight:600;">This week in your circle</h2>
-            <p style="font-size:14px;color:#555;margin-top:4px;">Hi {user.first_name} — here's what's coming up.</p>
+            <p style="font-size:14px;color:#555;margin-top:4px;">Hi {user.first_name} — {ai_intro or "here's what's coming up."}</p>
             {body}
             <div style="margin-top:32px;">
                 <a href="{dashboard_url}" style="background:#3a6b1e;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:14px;">Go to your circle →</a>

@@ -220,16 +220,22 @@ def send_family_digest(family):
     Returns the number of emails sent.
     """
     from .email import send_digest_email
+    from .ai import narrate_digest
 
     content = compute_digest(family)
     if content is None:
         return 0
+
+    try:
+        ai_intro = narrate_digest(content, family.name)
+    except Exception:
+        ai_intro = None
 
     members = User.query.filter_by(family_id=family.id, status='approved').all()
     dashboard_url = url_for('main.home', _external=True)
     sent = 0
     for user in members:
         if NotificationPreference.is_enabled(user.id, 'digest'):
-            send_digest_email(user, family, content, dashboard_url)
+            send_digest_email(user, family, content, dashboard_url, ai_intro=ai_intro)
             sent += 1
     return sent
