@@ -381,22 +381,19 @@ function closeChangelog() {
 }
 
 document.addEventListener('click', function(e) {
+    if (e.target.id === 'version-badge') {
+        if (__pendingSW) {
+            window.location.reload();
+        } else {
+            openChangelog();
+        }
+        return;
+    }
     var wrap = document.getElementById('version-wrap');
     if (wrap && !wrap.contains(e.target)) closeChangelog();
 });
 
 (function() {
-    var badge = document.getElementById('version-badge');
-    if (badge) {
-        badge.addEventListener('click', function() {
-            if (__pendingSW) {
-                window.location.reload();
-            } else {
-                openChangelog();
-            }
-        });
-    }
-
     if (!('serviceWorker' in navigator)) return;
     navigator.serviceWorker.register('/sw.js', { scope: '/' }).then(function(reg) {
         reg.addEventListener('updatefound', function() {
