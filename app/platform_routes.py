@@ -6,7 +6,7 @@ from . import db
 import stripe as stripe_lib
 from .models import (Family, User, Person, Event, Album, Photo,
                      PlatformAuditLog, SystemAnnouncement, UserPodMembership,
-                     SupportNote, SystemConfig)
+                     SupportNote, SystemConfig, AppVersion)
 from .billing import get_stripe_mode
 
 platform = Blueprint('platform', __name__, url_prefix='/platform')
@@ -632,3 +632,70 @@ def dismiss_announcement(ann_id):
         dismissed.append(ann_id)
     session['dismissed_announcements'] = dismissed
     return ('', 204)
+
+
+# ── Versions ──────────────────────────────────────────────────────────────────
+
+@platform.route('/versions')
+@login_required
+@platform_admin_required
+def versions():
+    all_versions = AppVersion.query.order_by(AppVersion.released_at.desc()).all()
+    return render_template('platform/versions.html', versions=all_versions)
+
+
+@platform.route('/versions/new', methods=['POST'])
+@login_required
+@platform_admin_required
+def version_new():
+    import json
+    version = request.form.get('version', '').strip()
+    title = request.form.get('title', '').strip()
+    raw = request.form.get('changes', '').strip()
+    if not version:
+        flash('Version number is required.', 'error')
+        return redirect(url_for('platform.versions'))
+    if AppVersion.query.filter_by(version=version).first():
+        flash(f'Version {version} already exists.', 'error')
+        return redirect(url_for('platform.versions'))
+    changes = [l.strip() for l in raw.splitlines() if l.strip()]
+    v = AppVersion(version=version, title=title, changes=json.dumps(changes))
+    db.session.add(v)
+    db.session.commit()
+    _audit('version_created', detail=version)
+    flash(f'Version {version} created.', 'info')
+    return redirect(url_for('platform.versions'))
+
+
+@platform.route('/versions/<int:version_id>/publish', methods=['POST'])
+@login_required
+@platform_admin_required
+def version_publish(version_id):
+    v = db.session.get(AppVersion, version_id)
+    if not v:
+        flash('Version not found.', 'error')
+        return redirect(url_for('platform.versions'))
+    AppVersion.query.update({AppVersion.is_current: False})
+    v.is_current = True
+    db.session.commit()
+    _audit('version_published', detail=v.version)
+    flash(f'v{v.version} is now the current version.', 'info')
+    return redirect(url_for('platform.versions'))
+
+
+@platform.route('/versions/<int:version_id>/delete', methods=['POST'])
+@login_required
+@platform_admin_required
+def version_delete(version_id):
+    v = db.session.get(AppVersion, version_id)
+    if not v:
+        flash('Version not found.', 'error')
+        return redirect(url_for('platform.versions'))
+    if v.is_current:
+        flash('Cannot delete the current version. Publish another version first.', 'error')
+        return redirect(url_for('platform.versions'))
+    db.session.delete(v)
+    db.session.commit()
+    _audit('version_deleted', detail=v.version)
+    flash(f'Version {v.version} deleted.', 'info')
+    return redirect(url_for('platform.versions'))

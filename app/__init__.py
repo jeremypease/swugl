@@ -196,6 +196,8 @@ def create_app(test_config=None):
                 .all()
             )
         from .billing import get_stripe_mode
+        from .models import AppVersion
+        current_ver = AppVersion.query.filter_by(is_current=True).first()
         return {
             'now': datetime.utcnow(),
             'system_announcement': active_ann,
@@ -203,6 +205,7 @@ def create_app(test_config=None):
             'stripe_test_mode': get_stripe_mode() == 'test',
             'unread_notification_count': unread,
             'recent_notifications': recent_notifications,
+            'app_version': current_ver.version if current_ver else app.config.get('APP_VERSION', '1.0.0'),
         }
 
     @app.template_filter('datetime_format')

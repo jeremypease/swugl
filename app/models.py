@@ -449,6 +449,24 @@ class ApiTokenBlocklist(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class AppVersion(db.Model):
+    __tablename__ = 'app_versions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    version = db.Column(db.String(50), nullable=False, unique=True)
+    title = db.Column(db.String(200), nullable=False, default='')
+    changes = db.Column(db.Text, nullable=False, default='[]')  # JSON array
+    released_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    is_current = db.Column(db.Boolean, default=False, nullable=False)
+
+    def changes_list(self):
+        import json
+        try:
+            return json.loads(self.changes or '[]')
+        except Exception:
+            return []
+
+
 class SystemConfig(db.Model):
     """Platform-wide key-value configuration, editable at runtime."""
     __tablename__ = 'system_config'

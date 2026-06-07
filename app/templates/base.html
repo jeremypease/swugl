@@ -337,26 +337,43 @@ document.addEventListener('click', function(e) {
 <script nonce="{{ g.csp_nonce }}">
 var __clLoaded = false;
 var __pendingSW = null;
+var __loadedVersion = '{{ app_version }}';
 
 function openChangelog() {
     var panel = document.getElementById('changelog-panel');
     if (!panel) return;
     if (!__clLoaded) {
-        fetch('/static/data/changelog.json').then(function(r) { return r.json(); }).then(function(data) {
+        fetch('/api/v1/version').then(function(r) { return r.json(); }).then(function(entry) {
             __clLoaded = true;
-            var version = '{{ config.APP_VERSION }}';
-            var entry = data.find(function(e) { return e.version === version; }) || data[0];
-            if (!entry) return;
             document.getElementById('cl-version').textContent = 'v' + entry.version;
             document.getElementById('cl-title').textContent = entry.title || '';
             var ul = document.getElementById('cl-list');
-            ul.innerHTML = entry.changes.map(function(c) { return '<li>' + c + '</li>'; }).join('');
+            ul.innerHTML = (entry.changes || []).map(function(c) { return '<li>' + c + '</li>'; }).join('');
             panel.style.display = 'block';
         }).catch(function() {});
     } else {
         panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
     }
 }
+
+function __checkForUpdate() {
+    fetch('/api/v1/version').then(function(r) { return r.json(); }).then(function(d) {
+        if (d.version && d.version !== __loadedVersion && !__pendingSW) {
+            __pendingSW = true;
+            __clLoaded = false;
+            closeChangelog();
+            var badge = document.getElementById('version-badge');
+            if (!badge) return;
+            badge.textContent = '↑ Update available';
+            badge.title = 'Click to reload with the latest version';
+            badge.style.background = 'var(--vine)';
+            badge.style.color = '#fff';
+            badge.style.borderColor = 'var(--vine)';
+            badge.style.fontWeight = '600';
+        }
+    }).catch(function() {});
+}
+setTimeout(function poll() { __checkForUpdate(); setTimeout(poll, 5 * 60 * 1000); }, 5 * 60 * 1000);
 
 function closeChangelog() {
     var panel = document.getElementById('changelog-panel');
@@ -373,10 +390,7 @@ document.addEventListener('click', function(e) {
     if (badge) {
         badge.addEventListener('click', function() {
             if (__pendingSW) {
-                __pendingSW.postMessage({ type: 'SKIP_WAITING' });
-                navigator.serviceWorker.addEventListener('controllerchange', function() {
-                    window.location.reload();
-                });
+                window.location.reload();
             } else {
                 openChangelog();
             }
@@ -389,7 +403,7 @@ document.addEventListener('click', function(e) {
             var newSW = reg.installing;
             newSW.addEventListener('statechange', function() {
                 if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
-                    __pendingSW = newSW;
+                    __pendingSW = true;
                     closeChangelog();
                     if (!badge) return;
                     badge.textContent = '↑ Update available';
@@ -416,7 +430,7 @@ document.addEventListener('click', function(e) {
         </div>
         <ul id="cl-list" style="margin:0;padding-left:18px;font-size:13px;line-height:1.7;color:var(--ink-soft);"></ul>
     </div>
-    <div id="version-badge" style="font-size:11px;color:var(--slate-soft);background:var(--surface);border:1px solid var(--hairline);padding:2px 8px;border-radius:99px;letter-spacing:.02em;user-select:none;transition:background .2s,color .2s,border-color .2s;cursor:pointer;display:inline-block;">v{{ config.APP_VERSION }}</div>
+    <div id="version-badge" style="font-size:11px;color:var(--slate-soft);background:var(--surface);border:1px solid var(--hairline);padding:2px 8px;border-radius:99px;letter-spacing:.02em;user-select:none;transition:background .2s,color .2s,border-color .2s;cursor:pointer;display:inline-block;">v{{ app_version }}</div>
 </div>
 <script nonce="{{ g.csp_nonce }}">
 (function() {

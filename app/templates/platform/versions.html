@@ -1,0 +1,83 @@
+{% extends "platform/base.html" %}
+{% block title %}Versions{% endblock %}
+{% block content %}
+<div style="max-width:720px;">
+
+<div class="page-head" style="margin-bottom:24px;">
+    <h1>Versions</h1>
+    <p style="color:var(--slate);font-size:14px;margin-top:4px;">Manage release versions and changelog entries shown to users.</p>
+</div>
+
+{# New version form #}
+<div class="card" style="margin-bottom:28px;">
+    <div class="card-header"><strong>Add version</strong></div>
+    <form method="POST" action="{{ url_for('platform.version_new') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div style="display:flex;gap:12px;margin-bottom:12px;">
+            <div class="field" style="flex:0 0 120px;margin:0;">
+                <label>Version <span style="color:var(--tomato);">*</span></label>
+                <input type="text" name="version" placeholder="1.0.1" required style="width:100%;" pattern="[\d]+\.[\d]+\.[\d]+">
+            </div>
+            <div class="field" style="flex:1;margin:0;">
+                <label>Title</label>
+                <input type="text" name="title" placeholder="e.g. Bug fixes and improvements" style="width:100%;">
+            </div>
+        </div>
+        <div class="field" style="margin-bottom:12px;">
+            <label>Changelog <span style="color:var(--slate);font-size:12px;">(one item per line)</span></label>
+            <textarea name="changes" rows="5" placeholder="Fixed photo upload on Safari&#10;Improved event RSVP flow&#10;Added dark mode support" style="width:100%;font-size:13px;line-height:1.6;"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">Add version</button>
+    </form>
+</div>
+
+{# Version list #}
+{% if versions %}
+<div style="display:flex;flex-direction:column;gap:12px;">
+    {% for v in versions %}
+    <div class="card" style="{% if v.is_current %}border-color:var(--vine);{% endif %}">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;">
+            <div style="flex:1;">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+                    <span style="font-weight:700;font-size:16px;">v{{ v.version }}</span>
+                    {% if v.title %}<span style="font-size:14px;color:var(--slate);">{{ v.title }}</span>{% endif %}
+                    {% if v.is_current %}
+                    <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:99px;">Current</span>
+                    {% endif %}
+                </div>
+                <div style="font-size:12px;color:var(--slate-soft);margin-bottom:{% if v.changes_list() %}10px{% else %}0{% endif %};">
+                    {{ v.released_at.strftime('%B %-d, %Y') }}
+                </div>
+                {% if v.changes_list() %}
+                <ul style="margin:0;padding-left:18px;font-size:13px;color:var(--ink-soft);line-height:1.7;">
+                    {% for change in v.changes_list() %}
+                    <li>{{ change }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">
+                {% if not v.is_current %}
+                <form method="POST" action="{{ url_for('platform.version_publish', version_id=v.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-secondary btn-sm">Publish</button>
+                </form>
+                <form method="POST" action="{{ url_for('platform.version_delete', version_id=v.id) }}"
+                      onsubmit="return confirm('Delete version {{ v.version }}?')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);">Delete</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card" style="text-align:center;padding:32px;color:var(--slate);">
+    No versions yet — add the first one above.
+</div>
+{% endif %}
+
+</div>
+{% endblock %}
