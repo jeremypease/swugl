@@ -72,12 +72,16 @@
             <a href="/announcements" {% if request.path.startswith('/announcements') %}class="active"{% endif %}>
                 <i data-lucide="megaphone"></i> Announcements
             </a>
+            {% if current_user.active_family.enable_greeting_cards %}
             <a href="/cards" {% if request.path.startswith('/cards') %}class="active"{% endif %}>
                 <i data-lucide="gift"></i> Cards
             </a>
+            {% endif %}
+            {% if current_user.active_family.enable_polls %}
             <a href="/polls" {% if request.path.startswith('/polls') %}class="active"{% endif %}>
                 <i data-lucide="bar-chart-2"></i> Polls
             </a>
+            {% endif %}
             <a href="/checklists" {% if request.path.startswith('/checklists') %}class="active"{% endif %}>
                 <i data-lucide="list-checks"></i> Lists
             </a>

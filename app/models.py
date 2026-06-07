@@ -47,15 +47,15 @@ class Family(db.Model):
     email_trial_warning_sent = db.Column(db.Boolean, nullable=False, server_default='false')
     email_trial_ended_sent = db.Column(db.Boolean, nullable=False, server_default='false')
 
-    patriarch_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=True)
-    matriarch_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=True)
     has_lgbtq_options = db.Column(db.Boolean, default=False, nullable=False)
+    require_member_approval = db.Column(db.Boolean, default=False, nullable=False, server_default='false')
+    default_event_location = db.Column(db.String(200), nullable=True)
+    enable_polls = db.Column(db.Boolean, default=True, nullable=False, server_default='true')
+    enable_greeting_cards = db.Column(db.Boolean, default=True, nullable=False, server_default='true')
 
     people = db.relationship('Person', back_populates='family', foreign_keys='Person.family_id')
     users = db.relationship('User', back_populates='family', foreign_keys='User.family_id')
     pod_members = db.relationship('UserPodMembership', back_populates='family', cascade='all, delete-orphan')
-    patriarch = db.relationship('Person', foreign_keys=[patriarch_id])
-    matriarch = db.relationship('Person', foreign_keys=[matriarch_id])
 
 
 class SpouseRelationship(db.Model):

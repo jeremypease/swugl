@@ -307,11 +307,9 @@ def home():
     onboarding = None
     if current_user.active_is_admin and current_user.family and current_user.active_family.account_id:
         has_members = member_count > 1
-        has_patriarch_or_matriarch = bool(current_user.active_family.patriarch_id or current_user.active_family.matriarch_id)
         has_photo = len(recent_photos) > 0
         steps = [
             ('members', 'Add your first family member', url_for('main.members'), has_members),
-            ('tree',    'Set your patriarch or matriarch', url_for('main.family_settings'), has_patriarch_or_matriarch),
             ('photo',   'Upload a photo', url_for('main.albums'), has_photo),
         ]
         incomplete = [s for s in steps if not s[3]]
@@ -581,16 +579,23 @@ def register_invited(token):
         invited_user.phone = format_phone(form.phone.data)
         invited_user.set_password(form.password.data)
         invited_user.email_verified = True
-        invited_user.status = 'approved'
         invited_user.invitation_token = None
         invited_user.invitation_token_expiry = None
         # Sync person name if first/last name changed during registration
         if invited_user.person:
             invited_user.person.name = f"{form.first_name.data} {form.last_name.data}"
-        NotificationPreference.seed_defaults(invited_user.id)
-        _ensure_membership(invited_user)
-        db.session.commit()
-        flash('Account created! You can now log in.', 'info')
+        if invited_user.family and invited_user.family.require_member_approval:
+            invited_user.status = 'pending'
+            db.session.commit()
+            if current_app.config.get('MAIL_ENABLED'):
+                send_pending_notification(invited_user)
+            flash('Account created! An admin will review and approve your access shortly.', 'info')
+        else:
+            invited_user.status = 'approved'
+            NotificationPreference.seed_defaults(invited_user.id)
+            _ensure_membership(invited_user)
+            db.session.commit()
+            flash('Account created! You can now log in.', 'info')
         return redirect(url_for('main.login'))
 
     return render_template('register.html', form=form, invited=True)
@@ -828,10 +833,18 @@ def family_settings():
     form = FamilySettingsForm()
     if request.method == 'GET':
         form.family_name.data = family.name
+        form.default_event_location.data = family.default_event_location
+        form.require_member_approval.data = family.require_member_approval
         form.has_lgbtq_options.data = family.has_lgbtq_options
+        form.enable_polls.data = family.enable_polls
+        form.enable_greeting_cards.data = family.enable_greeting_cards
     if form.validate_on_submit():
         family.name = form.family_name.data
+        family.default_event_location = form.default_event_location.data or None
+        family.require_member_approval = form.require_member_approval.data
         family.has_lgbtq_options = form.has_lgbtq_options.data
+        family.enable_polls = form.enable_polls.data
+        family.enable_greeting_cards = form.enable_greeting_cards.data
         db.session.commit()
         flash('Family settings saved.', 'info')
         return redirect(url_for('main.family_settings'))
@@ -1287,6 +1300,9 @@ def checklist_clear_done(checklist_id):
 @main.route('/polls')
 @login_required
 def polls():
+    if not current_user.active_family.enable_polls:
+        flash('Polls are disabled for this family.', 'error')
+        return redirect(url_for('main.home'))
     from .models import Poll, PollVote
     from sqlalchemy import func as _func
     all_polls = Poll.query.filter_by(family_id=current_user.active_family_id)\
@@ -1408,6 +1424,9 @@ CARD_OCCASIONS = [
 @main.route('/cards')
 @login_required
 def cards():
+    if not current_user.active_family.enable_greeting_cards:
+        flash('Greeting cards are disabled for this family.', 'error')
+        return redirect(url_for('main.home'))
     from .models import GreetingCard, CardSignature
     all_cards = GreetingCard.query.filter_by(family_id=current_user.active_family_id)\
         .order_by(GreetingCard.created_at.desc()).all()
@@ -2504,6 +2523,8 @@ def event_add():
                        .filter_by(family_id=current_user.active_family_id)
                        .order_by(Location.name).all())
     form = EventForm()
+    if request.method == 'GET' and family.default_event_location:
+        form.location.data = family.default_event_location
     if form.validate_on_submit():
         if not has_paid_access:
             upcoming_count = Event.query.filter(

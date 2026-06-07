@@ -68,6 +68,13 @@
                 {% for error in form.family_name.errors %}<span class="msg">{{ error }}</span>{% endfor %}
             </div>
 
+            <div class="field">
+                {{ form.default_event_location.label }}
+                {{ form.default_event_location(placeholder="e.g. Pease Family Cabin, Midway UT") }}
+                <div style="font-size:12px;color:var(--slate);margin-top:4px;">Pre-fills the location field when creating a new event.</div>
+                {% for error in form.default_event_location.errors %}<span class="msg">{{ error }}</span>{% endfor %}
+            </div>
+
             <details style="margin-top:20px;margin-bottom:4px;border:1px solid var(--hairline-strong);border-radius:var(--r-m);background:var(--leaf-mist);">
                 <summary style="padding:14px 16px;font-size:15px;font-weight:600;cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;user-select:none;">
                     Optional Features
@@ -75,11 +82,38 @@
                 </summary>
                 <div style="padding:4px 16px 16px;">
                     <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:4px 0;">
+                        {{ form.require_member_approval(style="width:16px;height:16px;margin-top:2px;flex-shrink:0;cursor:pointer;") }}
+                        <div>
+                            <div style="font-weight:600;font-size:14px;">{{ form.require_member_approval.label.text }}</div>
+                            <div style="font-size:12px;color:var(--slate);margin-top:2px;">
+                                When on, invited members who complete registration will be held as pending until an admin approves them.
+                            </div>
+                        </div>
+                    </label>
+                    <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:4px 0;margin-top:8px;">
                         {{ form.has_lgbtq_options(style="width:16px;height:16px;margin-top:2px;flex-shrink:0;cursor:pointer;") }}
                         <div>
                             <div style="font-weight:600;font-size:14px;">{{ form.has_lgbtq_options.label.text }}</div>
                             <div style="font-size:12px;color:var(--slate);margin-top:2px;">
                                 Adds expanded gender identities (Non-binary, Genderfluid, etc.) and a pronouns field to all member profiles.
+                            </div>
+                        </div>
+                    </label>
+                    <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:4px 0;margin-top:8px;">
+                        {{ form.enable_polls(style="width:16px;height:16px;margin-top:2px;flex-shrink:0;cursor:pointer;") }}
+                        <div>
+                            <div style="font-weight:600;font-size:14px;">{{ form.enable_polls.label.text }}</div>
+                            <div style="font-size:12px;color:var(--slate);margin-top:2px;">
+                                Show the Polls section in the nav. When off, the polls module is hidden for all members.
+                            </div>
+                        </div>
+                    </label>
+                    <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:4px 0;margin-top:8px;">
+                        {{ form.enable_greeting_cards(style="width:16px;height:16px;margin-top:2px;flex-shrink:0;cursor:pointer;") }}
+                        <div>
+                            <div style="font-weight:600;font-size:14px;">{{ form.enable_greeting_cards.label.text }}</div>
+                            <div style="font-size:12px;color:var(--slate);margin-top:2px;">
+                                Show the Cards section in the nav. When off, the greeting cards module is hidden for all members.
                             </div>
                         </div>
                     </label>
