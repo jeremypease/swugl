@@ -47,7 +47,7 @@
 {# ── Settings sidebar nav (admins only) ───────────────────────── #}
 {% if current_user.active_is_admin %}
 <div class="settings-nav">
-    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);padding:4px 10px 8px;">Pod Settings</div>
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);padding:4px 10px 8px;">Circle Settings</div>
     <a href="/admin/users">Members &amp; invites</a>
     <a href="/admin/family">Family settings</a>
     <a href="{{ url_for('billing.billing_page') }}" class="active">Billing</a>
@@ -132,7 +132,7 @@
 
     {% else %}
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
-            <span style="background:var(--hairline);color:var(--slate);font-weight:600;font-size:13px;padding:4px 10px;border-radius:99px;">Free Pod</span>
+            <span style="background:var(--hairline);color:var(--slate);font-weight:600;font-size:13px;padding:4px 10px;border-radius:99px;">Free Circle</span>
         </div>
         <p style="font-size:14px;color:var(--slate);margin-bottom:0;">You're on the free plan. Upgrade to unlock all features.</p>
     {% endif %}

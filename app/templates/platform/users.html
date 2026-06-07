@@ -4,7 +4,7 @@
 {% block content %}
 <div class="pa-head">
     <h1>User Lookup</h1>
-    <p>Search any user across all pods by email address.</p>
+    <p>Search any user across all circles by email address.</p>
 </div>
 
 <form method="get" style="margin-bottom:24px;display:flex;gap:8px;">
@@ -39,7 +39,7 @@
                 {% endif %}
                 {% else %}
                 <form method="POST" action="{{ url_for('platform.toggle_platform_admin', user_id=user.id) }}"
-                      onsubmit="return confirm('Grant platform admin to {{ user.get_full_name() | e }}? They will have full access to all pods and settings.');">
+                      onsubmit="return confirm('Grant platform admin to {{ user.get_full_name() | e }}? They will have full access to all circles and settings.');">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button class="btn btn-ghost btn-sm">Make platform admin</button>
                 </form>

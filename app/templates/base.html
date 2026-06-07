@@ -35,7 +35,7 @@
         <div class="pod-switcher">
             <div class="family-name">{{ current_user.active_family.name }}</div>
             <details class="pod-switcher-menu">
-                <summary title="Switch pod"><i data-lucide="chevrons-up-down" style="width:14px;height:14px;"></i></summary>
+                <summary title="Switch circle"><i data-lucide="chevrons-up-down" style="width:14px;height:14px;"></i></summary>
                 <ul>
                     {% for m in current_user.memberships %}
                     {% if m.family_id != current_user.active_family_id %}
@@ -172,7 +172,7 @@
 
         {% if support_mode %}
         <div class="notification-banner" style="background:#1a2b1b;color:#fff;border:none;gap:12px;justify-content:space-between;">
-            <span><i data-lucide="eye" style="width:14px;height:14px;display:inline;vertical-align:middle;"></i> <strong>Support mode</strong> — you are viewing this pod read-only. No changes can be saved.</span>
+            <span><i data-lucide="eye" style="width:14px;height:14px;display:inline;vertical-align:middle;"></i> <strong>Support mode</strong> — you are viewing this circle read-only. No changes can be saved.</span>
             <a href="{{ url_for('platform.exit_support') }}" class="btn btn-ghost btn-sm" style="color:#fff;border-color:rgba(255,255,255,0.3);white-space:nowrap;">Exit support mode</a>
         </div>
         {% endif %}

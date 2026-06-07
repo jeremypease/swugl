@@ -1,9 +1,9 @@
 {% extends "platform/base.html" %}
-{% block title %}Pods{% endblock %}
+{% block title %}Circles{% endblock %}
 
 {% block content %}
 <div class="pa-head">
-    <h1>Pods</h1>
+    <h1>Circles</h1>
     <p>{{ pod_data|length }} pod{{ 's' if pod_data|length != 1 else '' }}{% if q %} matching "{{ q }}"{% endif %}</p>
 </div>
 
@@ -46,7 +46,7 @@
             </td>
         </tr>
         {% else %}
-        <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">No pods found.</td></tr>
+        <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">No circles found.</td></tr>
         {% endfor %}
         </tbody>
     </table>

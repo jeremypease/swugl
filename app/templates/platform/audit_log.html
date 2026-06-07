@@ -19,9 +19,9 @@
         </select>
     </div>
     <div>
-        <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:4px;">Pod</label>
+        <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:4px;">Circle</label>
         <select name="pod_id" style="font-size:13px;border:1px solid var(--hairline-strong);border-radius:var(--r-s);padding:5px 8px;">
-            <option value="">All pods</option>
+            <option value="">All circles</option>
             {% for pod in pods %}
             <option value="{{ pod.id }}" {% if pod.id == pod_filter %}selected{% endif %}>{{ pod.name }}</option>
             {% endfor %}

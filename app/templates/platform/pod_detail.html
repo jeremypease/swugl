@@ -7,7 +7,7 @@
         <div>
             <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;"><a href="{{ url_for('platform.pods') }}" style="color:var(--text-muted);">Pods</a> /</div>
             <h1>{{ pod.name }}</h1>
-            <p>Pod ID: <code>{{ pod.account_id or '—' }}</code> · Created {{ pod.created_at.strftime('%B %-d, %Y') }}</p>
+            <p>Circle ID: <code>{{ pod.account_id or '—' }}</code> · Created {{ pod.created_at.strftime('%B %-d, %Y') }}</p>
         </div>
         <form method="POST" action="{{ url_for('platform.enter_support', pod_id=pod.id) }}" style="display:flex;flex-direction:column;gap:6px;min-width:260px;">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -194,7 +194,7 @@
               onsubmit="return confirm('This will permanently delete {{ pod.name }} and all its data. Are you absolutely sure?')">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                <input type="text" name="confirm_name" placeholder="Type pod name to confirm"
+                <input type="text" name="confirm_name" placeholder="Type circle name to confirm"
                        style="border:1px solid #fca5a5;border-radius:var(--r-s);font-size:13px;padding:5px 10px;width:220px;">
                 <button type="submit" class="btn btn-sm" style="background:#dc2626;color:#fff;border:none;">Delete pod</button>
             </div>

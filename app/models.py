@@ -519,6 +519,21 @@ class Location(db.Model):
     notes = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    sleeping_spots = db.relationship('LocationSleepingSpot', backref='location',
+                                     cascade='all, delete-orphan', order_by='LocationSleepingSpot.sort_order')
+
+
+class LocationSleepingSpot(db.Model):
+    """Reusable sleeping room template attached to a saved location."""
+    __tablename__ = 'location_sleeping_spots'
+
+    id = db.Column(db.Integer, primary_key=True)
+    location_id = db.Column(db.Integer, db.ForeignKey('locations.id'), nullable=False, index=True)
+    name = db.Column(db.String(150), nullable=False)
+    spot_type = db.Column(db.String(50), nullable=True)
+    capacity = db.Column(db.Integer, nullable=True)
+    sort_order = db.Column(db.Integer, default=0, nullable=False)
+
 
 class Event(db.Model):
     __tablename__ = 'events'

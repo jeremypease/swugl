@@ -83,7 +83,7 @@
                 <i data-lucide="bar-chart-2"></i> Dashboard
             </a>
             <a href="{{ url_for('platform.pods') }}" {% if request.path.startswith('/platform/pods') %}class="active"{% endif %}>
-                <i data-lucide="layers"></i> Pods
+                <i data-lucide="layers"></i> Circles
             </a>
             <a href="{{ url_for('platform.users') }}" {% if request.path == '/platform/users' %}class="active"{% endif %}>
                 <i data-lucide="users"></i> Users

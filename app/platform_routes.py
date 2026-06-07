@@ -109,7 +109,7 @@ def pods():
 def pod_detail(pod_id):
     pod = db.session.get(Family, pod_id)
     if not pod:
-        flash('Pod not found.', 'error')
+        flash('Circle not found.', 'error')
         return redirect(url_for('platform.pods'))
     members = User.query.filter_by(family_id=pod.id).order_by(User.is_admin.desc(), User.first_name).all()
     event_count  = Event.query.filter_by(family_id=pod.id).count()
@@ -132,7 +132,7 @@ def pod_detail(pod_id):
 def enter_support(pod_id):
     pod = db.session.get(Family, pod_id)
     if not pod:
-        flash('Pod not found.', 'error')
+        flash('Circle not found.', 'error')
         return redirect(url_for('platform.pods'))
     reason = request.form.get('reason', '').strip()
     if not reason:
@@ -264,7 +264,7 @@ def toggle_platform_admin(user_id):
 def set_plan(pod_id):
     pod = db.session.get(Family, pod_id)
     if not pod:
-        flash('Pod not found.', 'error')
+        flash('Circle not found.', 'error')
         return redirect(url_for('platform.pods'))
     new_plan = request.form.get('plan', '').strip()
     if new_plan not in ('free', 'trial', 'paid', 'past_due'):
@@ -287,7 +287,7 @@ def set_plan(pod_id):
 def cancel_subscription(pod_id):
     pod = db.session.get(Family, pod_id)
     if not pod:
-        flash('Pod not found.', 'error')
+        flash('Circle not found.', 'error')
         return redirect(url_for('platform.pods'))
     if not pod.stripe_subscription_id:
         flash('No active Stripe subscription to cancel.', 'error')
@@ -314,12 +314,12 @@ def cancel_subscription(pod_id):
 def pod_set_admin(pod_id):
     pod = db.session.get(Family, pod_id)
     if not pod:
-        flash('Pod not found.', 'error')
+        flash('Circle not found.', 'error')
         return redirect(url_for('platform.pods'))
     user_id = request.form.get('user_id', type=int)
     user = db.session.get(User, user_id)
     if not user or user.family_id != pod_id:
-        flash('User not found in this pod.', 'error')
+        flash('User not found in this circle.', 'error')
         return redirect(url_for('platform.pod_detail', pod_id=pod_id))
     user.is_admin = True
     user.is_delegate = False
@@ -327,7 +327,7 @@ def pod_set_admin(pod_id):
     if membership:
         membership.role = 'admin'
     db.session.commit()
-    _audit('set_admin', 'user', user.id, f'pod {pod_id} ({pod.name})')
+    _audit('set_admin', 'user', user.id, f'circle {pod_id} ({pod.name})')
     flash(f'{user.get_full_name()} is now an admin of {pod.name}.', 'info')
     return redirect(url_for('platform.pod_detail', pod_id=pod_id))
 
@@ -339,13 +339,13 @@ def pod_approve_user(pod_id, user_id):
     pod = db.session.get(Family, pod_id)
     user = db.session.get(User, user_id)
     if not pod or not user or user.family_id != pod_id:
-        flash('User not found in this pod.', 'error')
+        flash('User not found in this circle.', 'error')
         return redirect(url_for('platform.pod_detail', pod_id=pod_id))
     from .models import NotificationPreference
     user.status = 'approved'
     NotificationPreference.seed_defaults(user.id)
     db.session.commit()
-    _audit('approve_user', 'user', user.id, f'pod {pod_id} ({pod.name})')
+    _audit('approve_user', 'user', user.id, f'circle {pod_id} ({pod.name})')
     flash(f'{user.get_full_name()} approved.', 'info')
     return redirect(url_for('platform.pod_detail', pod_id=pod_id))
 
@@ -356,21 +356,21 @@ def pod_approve_user(pod_id, user_id):
 def delete_pod(pod_id):
     pod = db.session.get(Family, pod_id)
     if not pod:
-        flash('Pod not found.', 'error')
+        flash('Circle not found.', 'error')
         return redirect(url_for('platform.pods'))
     confirm_name = request.form.get('confirm_name', '').strip()
     if confirm_name != pod.name:
-        flash('Pod name did not match. Deletion cancelled.', 'error')
+        flash('Circle name did not match. Deletion cancelled.', 'error')
         return redirect(url_for('platform.pod_detail', pod_id=pod_id))
     pod_name = pod.name
     _audit('delete_pod', 'family', pod_id, pod_name)
     _hard_delete_pod(pod)
-    flash(f'Pod "{pod_name}" and all its data have been permanently deleted.', 'info')
+    flash(f'Circle "{pod_name}" and all its data have been permanently deleted.', 'info')
     return redirect(url_for('platform.pods'))
 
 
 def _hard_delete_pod(pod):
-    """Permanently delete a pod and all associated data in dependency order."""
+    """Permanently delete a circle and all associated data in dependency order."""
     from .models import (
         Event, EventMeal, EventMealItem, EventAssignment, EventRSVP,
         EventSleepingSpot, EventComment, CarpoolOffer, EventSurveyResponse,
@@ -381,6 +381,7 @@ def _hard_delete_pod(pod):
         ParentRelationship, SpouseRelationship,
         NotificationPreference, Notification, UserDevice,
         OAuthAccount, UserCredential, CalendarToken,
+        Location, LocationSleepingSpot,
     )
     fid = pod.id
 
@@ -405,6 +406,11 @@ def _hard_delete_pod(pod):
         EventPaymentRecord.query.filter(EventPaymentRecord.event_id.in_(event_ids)).delete(synchronize_session=False)
         EventPaymentConfig.query.filter(EventPaymentConfig.event_id.in_(event_ids)).delete(synchronize_session=False)
         Event.query.filter_by(family_id=fid).delete(synchronize_session=False)
+
+    loc_ids = [l.id for l in Location.query.filter_by(family_id=fid).all()]
+    if loc_ids:
+        LocationSleepingSpot.query.filter(LocationSleepingSpot.location_id.in_(loc_ids)).delete(synchronize_session=False)
+    Location.query.filter_by(family_id=fid).delete(synchronize_session=False)
 
     if album_ids:
         photo_ids = [p.id for p in Photo.query.filter(Photo.album_id.in_(album_ids)).all()]
@@ -470,7 +476,7 @@ def _hard_delete_pod(pod):
 def add_note(pod_id):
     pod = db.session.get(Family, pod_id)
     if not pod:
-        flash('Pod not found.', 'error')
+        flash('Circle not found.', 'error')
         return redirect(url_for('platform.pods'))
     body = request.form.get('body', '').strip()
     if not body:
@@ -500,7 +506,7 @@ def audit_log():
         q = q.filter(
             db.or_(
                 db.and_(PlatformAuditLog.target_type == 'family', PlatformAuditLog.target_id == pod_filter),
-                PlatformAuditLog.detail.ilike(f'%pod {pod_filter}%'),
+                PlatformAuditLog.detail.ilike(f'%circle {pod_filter}%'),
             )
         )
     pagination = q.paginate(page=page, per_page=50, error_out=False)

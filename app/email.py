@@ -125,18 +125,18 @@ def send_spouse_invitation_email(inviting_person, to_email, url):
 def send_welcome_email(user, family, dashboard_url):
     return send_email(
         user.email,
-        f"Welcome to Swugl — your {family.name} pod is ready",
+        f"Welcome to Swugl — your {family.name} circle is ready",
         f"""
         <h2>You're all set, {user.first_name}!</h2>
-        <p>Your email is verified and your <strong>{family.name}</strong> pod is ready to go.</p>
+        <p>Your email is verified and your <strong>{family.name}</strong> circle is ready to go.</p>
         <p>Here's what to do first:</p>
         <ol>
             <li><strong>Add your first family member</strong> — invite someone or add them yourself from the Members page.</li>
             <li><strong>Build your family tree</strong> — connect parents, children, and spouses.</li>
             <li><strong>Upload a photo</strong> — start your family album.</li>
         </ol>
-        <p><a href="{dashboard_url}" style="background:#3D7040;color:#fff;padding:10px 20px;text-decoration:none;border-radius:4px;display:inline-block;">Go to your pod</a></p>
-        <p style="color:#666;font-size:13px;">Your pod ID is <strong>{family.account_id}</strong> — keep this handy if you ever need to contact support.</p>
+        <p><a href="{dashboard_url}" style="background:#3D7040;color:#fff;padding:10px 20px;text-decoration:none;border-radius:4px;display:inline-block;">Go to your circle</a></p>
+        <p style="color:#666;font-size:13px;">Your circle ID is <strong>{family.account_id}</strong> — keep this handy if you ever need to contact support.</p>
         <p style="color:#666;font-size:13px;">— The Swugl team</p>
         """
     )
@@ -145,10 +145,10 @@ def send_welcome_email(user, family, dashboard_url):
 def send_nudge_day3_email(admin, family, members_url):
     return send_email(
         admin.email,
-        f"Your {family.name} pod is quiet — invite your family",
+        f"Your {family.name} circle is quiet — invite your family",
         f"""
         <h2>Hi {admin.first_name},</h2>
-        <p>You created your <strong>{family.name}</strong> pod 3 days ago — great start!</p>
+        <p>You created your <strong>{family.name}</strong> circle 3 days ago — great start!</p>
         <p>It looks like it's still just you in there. Swugl is a lot more fun when your family is with you.</p>
         <p>Here's how to bring them in:</p>
         <ul>
@@ -167,13 +167,13 @@ def send_nudge_day7_email(admin, family, dashboard_url):
         f"3 things Swugl can do for your {family.name}",
         f"""
         <h2>Hi {admin.first_name},</h2>
-        <p>Here are a few things worth exploring in your pod this week:</p>
+        <p>Here are a few things worth exploring in your circle this week:</p>
         <ul>
             <li><strong>Plan your next event</strong> — RSVPs, meal sign-ups, task assignments, and sleeping arrangements, all in one place.</li>
             <li><strong>Build your family tree</strong> — connect parents, children, and spouses across generations.</li>
             <li><strong>Start a photo album</strong> — upload family photos so everyone can see them, no group text required.</li>
         </ul>
-        <p><a href="{dashboard_url}" style="background:#3D7040;color:#fff;padding:10px 20px;text-decoration:none;border-radius:4px;display:inline-block;">Go to your pod</a></p>
+        <p><a href="{dashboard_url}" style="background:#3D7040;color:#fff;padding:10px 20px;text-decoration:none;border-radius:4px;display:inline-block;">Go to your circle</a></p>
         <p style="color:#666;font-size:13px;">— The Swugl team</p>
         """
     )
@@ -186,9 +186,9 @@ def send_trial_warning_email(admin, family, days_left, billing_url):
         f"""
         <h2>Hi {admin.first_name},</h2>
         <p>Your 30-day free trial for <strong>{family.name}</strong> ends in <strong>{days_left} day{'s' if days_left != 1 else ''}</strong>.</p>
-        <p>After your trial, your pod moves to the free tier unless you upgrade. Here's what changes:</p>
+        <p>After your trial, your circle moves to the free tier unless you upgrade. Here's what changes:</p>
         <ul>
-            <li>Members capped at 15 (you keep everyone already in your pod)</li>
+            <li>Members capped at 15 (you keep everyone already in your circle)</li>
             <li>Photo storage limited to 1 GB</li>
             <li>Family chat, calendar feed, and mobile app become unavailable</li>
         </ul>
@@ -423,11 +423,11 @@ def send_digest_email(user, family, content, dashboard_url):
         f"""
         <div style="font-family:sans-serif;max-width:560px;margin:0 auto;color:#222;">
             <p style="font-size:13px;color:#888;margin-bottom:4px;">{family.name} · Weekly digest</p>
-            <h2 style="margin:0 0 4px;font-size:22px;font-weight:600;">This week in your pod</h2>
+            <h2 style="margin:0 0 4px;font-size:22px;font-weight:600;">This week in your circle</h2>
             <p style="font-size:14px;color:#555;margin-top:4px;">Hi {user.first_name} — here's what's coming up.</p>
             {body}
             <div style="margin-top:32px;">
-                <a href="{dashboard_url}" style="background:#3a6b1e;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:14px;">Go to your pod →</a>
+                <a href="{dashboard_url}" style="background:#3a6b1e;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:14px;">Go to your circle →</a>
             </div>
             <p style="font-size:11px;color:#aaa;margin-top:32px;">
                 You're receiving this weekly digest from Swugl.
@@ -445,8 +445,8 @@ def send_pod_added_email(user, family_name, dashboard_url):
         f"""
         <h2>You've been added to {family_name}</h2>
         <p>Hi {user.first_name},</p>
-        <p>A pod admin has added you to the <strong>{family_name}</strong> family on Swugl.
-        Sign in to see the family and switch between your pods.</p>
+        <p>A circle admin has added you to the <strong>{family_name}</strong> family on Swugl.
+        Sign in to see the family and switch between your circles.</p>
         <p><a href="{dashboard_url}">Go to Swugl</a></p>
         """
     )
@@ -475,7 +475,7 @@ def send_subscription_cancelled_email(admin_email, admin_name, billing_url):
         f"""
         <h2>Subscription cancelled</h2>
         <p>Hi {admin_name},</p>
-        <p>Your Swugl Family Plan has been cancelled and your pod has moved to the free plan.
+        <p>Your Swugl Family Plan has been cancelled and your circle has moved to the free plan.
         Your family's data — members, events, and photos — is safe and still accessible.</p>
         <p><strong>What you still have on the free plan:</strong></p>
         <ul>
@@ -506,7 +506,7 @@ def send_support_email(user, family, category, message, support_email):
     <h2>Support Request</h2>
     <table style="border-collapse:collapse;font-size:14px;">
         <tr><td style="padding:4px 12px 4px 0;color:#666;">From</td><td><strong>{user.get_full_name()}</strong> &lt;{user.email}&gt;</td></tr>
-        <tr><td style="padding:4px 12px 4px 0;color:#666;">Pod</td><td>{family.name if family else '—'} (<code>{pod_id}</code>)</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;color:#666;">Circle</td><td>{family.name if family else '—'} (<code>{pod_id}</code>)</td></tr>
         <tr><td style="padding:4px 12px 4px 0;color:#666;">Category</td><td>{category_label}</td></tr>
     </table>
     <hr style="margin:16px 0;">

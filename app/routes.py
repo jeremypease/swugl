@@ -375,7 +375,7 @@ def home():
             _ts = datetime(_u.approved_date.year, _u.approved_date.month, _u.approved_date.day, 12, 0)
             _activity.append({
                 'type': 'member', 'ts': _ts, 'actor': None,
-                'label': f'{_u.person.get_display_name()} joined the pod',
+                'label': f'{_u.person.get_display_name()} joined the circle',
                 'url': f'/person/{_u.person_id}', 'icon': 'user-plus',
             })
 
@@ -446,7 +446,7 @@ def logout():
 def switch_pod(family_id):
     membership = next((m for m in current_user.memberships if m.family_id == family_id), None)
     if not membership:
-        flash('You are not a member of that pod.', 'error')
+        flash('You are not a member of that circle.', 'error')
         return redirect(url_for('main.home'))
     session['active_family_id'] = family_id
     return redirect(url_for('main.home'))
@@ -1895,6 +1895,50 @@ def location_delete(loc_id):
     return redirect(url_for('main.admin_locations'))
 
 
+@main.route('/admin/locations/<int:loc_id>/spots/add', methods=['POST'])
+@login_required
+@admin_required
+def location_spot_add(loc_id):
+    from .models import LocationSleepingSpot
+    loc = db.session.get(Location, loc_id)
+    if not loc or loc.family_id != current_user.active_family_id:
+        flash('Location not found.', 'error')
+        return redirect(url_for('main.admin_locations'))
+    name = request.form.get('name', '').strip()
+    if not name:
+        flash('Room name is required.', 'error')
+        return redirect(url_for('main.admin_locations'))
+    spot_type = request.form.get('spot_type', '').strip() or None
+    if spot_type and spot_type not in SPOT_TYPES:
+        spot_type = None
+    try:
+        capacity = int(request.form.get('capacity', '') or 0) or None
+    except ValueError:
+        capacity = None
+    sort_order = len(loc.sleeping_spots)
+    db.session.add(LocationSleepingSpot(
+        location_id=loc_id, name=name, spot_type=spot_type,
+        capacity=capacity, sort_order=sort_order,
+    ))
+    db.session.commit()
+    return redirect(url_for('main.admin_locations'))
+
+
+@main.route('/admin/locations/<int:loc_id>/spots/<int:spot_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def location_spot_delete(loc_id, spot_id):
+    from .models import LocationSleepingSpot
+    loc = db.session.get(Location, loc_id)
+    spot = db.session.get(LocationSleepingSpot, spot_id)
+    if not loc or loc.family_id != current_user.active_family_id or not spot or spot.location_id != loc_id:
+        flash('Room not found.', 'error')
+        return redirect(url_for('main.admin_locations'))
+    db.session.delete(spot)
+    db.session.commit()
+    return redirect(url_for('main.admin_locations'))
+
+
 @main.route('/person/<int:person_id>/invite', methods=['POST'])
 @login_required
 @contributor_or_admin_required
@@ -1920,7 +1964,7 @@ def invite_person(person_id):
             user_id=existing_user.id, family_id=current_user.active_family_id
         ).first()
         if already:
-            flash(f'{person.get_display_name()} is already a member of this pod.', 'error')
+            flash(f'{person.get_display_name()} is already a member of this circle.', 'error')
         else:
             db.session.add(UserPodMembership(
                 user_id=existing_user.id,
@@ -1935,7 +1979,7 @@ def invite_person(person_id):
                     current_user.active_family.name,
                     url_for('main.home', _external=True),
                 )
-            flash(f'{person.get_display_name()} has been added to this pod.', 'info')
+            flash(f'{person.get_display_name()} has been added to this circle.', 'info')
         return redirect(url_for('main.person_detail', person_id=person_id))
     names = person.name.strip().split()
     first = names[0]
@@ -2582,6 +2626,13 @@ def event_add():
                 room_type = None
             db.session.add(EventSleepingSpot(event_id=event.id, name=room_name, spot_type=room_type, capacity=capacity))
             room_index += 1
+        # Fallback: seed from location template if no rooms were submitted
+        if room_index == 0 and event.has_sleeping and saved_loc and saved_loc.sleeping_spots:
+            for spot in saved_loc.sleeping_spots:
+                db.session.add(EventSleepingSpot(
+                    event_id=event.id, name=spot.name,
+                    spot_type=spot.spot_type, capacity=spot.capacity,
+                ))
 
         # Seed meals from the day-grid checkboxes on the form
         _MEAL_LABELS = {'breakfast': 'Breakfast', 'lunch': 'Lunch', 'dinner': 'Dinner'}

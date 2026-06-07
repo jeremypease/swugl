@@ -136,6 +136,7 @@
                     data-loc-id="{{ loc.id }}"
                     data-loc-name="{{ loc.name }}"
                     data-loc-address="{{ loc.address or '' }}"
+                    data-loc-spots='{{ [{"name": s.name, "spot_type": s.spot_type or "", "capacity": s.capacity} for s in loc.sleeping_spots] | tojson }}'
                     style="font-size:12px;padding:3px 10px;border-radius:99px;border:1px solid var(--hairline-strong);background:var(--paper);color:var(--slate);cursor:pointer;transition:background .1s,color .1s,border-color .1s;">
                     <i data-lucide="map-pin" style="width:11px;height:11px;vertical-align:-1px;margin-right:2px;"></i>{{ loc.name }}
                 </button>
@@ -531,6 +532,33 @@
         // Restore active chip on edit
         if (locIdInput && locIdInput.value) setActive(locIdInput.value);
 
+        function fillRoomsFromSpots(spots) {
+            const list = document.getElementById('rooms-list');
+            if (!list) return;
+            // Clear existing rows
+            list.querySelectorAll('.room-row').forEach(r => r.remove());
+            roomCount = 0;
+            const typeOpts = '<option value="">Type</option><option>Bedroom</option><option>Couch</option><option>Air mattress</option><option>Tent</option><option>Cabin bunk</option><option>Other</option>';
+            spots.forEach(function(s) {
+                const row = document.createElement('div');
+                row.className = 'room-row';
+                row.innerHTML = `<input type="text" name="rooms[${roomCount}][name]" value="${s.name.replace(/"/g,'&quot;')}" placeholder="Room name">` +
+                    `<select name="rooms[${roomCount}][type]" style="font-size:13px;width:110px;">${typeOpts}</select>` +
+                    `<input type="number" name="rooms[${roomCount}][capacity]" value="${s.capacity || ''}" placeholder="Sleeps" min="1">` +
+                    `<button type="button" class="btn btn-ghost btn-sm remove-room" style="padding:4px 6px;color:var(--slate);">×</button>`;
+                list.appendChild(row);
+                // Set the selected spot type
+                if (s.spot_type) {
+                    const sel = row.querySelector('select');
+                    for (let i = 0; i < sel.options.length; i++) {
+                        if (sel.options[i].text === s.spot_type) { sel.selectedIndex = i; break; }
+                    }
+                }
+                row.querySelector('.remove-room').addEventListener('click', function() { row.remove(); });
+                roomCount++;
+            });
+        }
+
         chips.forEach(chip => {
             chip.addEventListener('click', function() {
                 const already = locIdInput.value === this.dataset.locId;
@@ -543,6 +571,15 @@
                     locIdInput.value = this.dataset.locId;
                     locInput.value = this.dataset.locAddress || this.dataset.locName;
                     setActive(this.dataset.locId);
+                    // Pre-fill sleeping rooms if location has a template
+                    try {
+                        const spots = JSON.parse(this.dataset.locSpots || '[]');
+                        if (spots.length > 0 && sleepingCheck && !sleepingCheck.checked) {
+                            sleepingCheck.checked = true;
+                            updateRoomsVisibility();
+                        }
+                        if (spots.length > 0) fillRoomsFromSpots(spots);
+                    } catch(e) {}
                 }
             });
         });
