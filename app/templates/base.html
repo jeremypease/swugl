@@ -335,35 +335,89 @@ document.addEventListener('click', function(e) {
 </script>
 <script nonce="{{ g.csp_nonce }}">lucide.createIcons();</script>
 <script nonce="{{ g.csp_nonce }}">
+var __clLoaded = false;
+var __pendingSW = null;
+
+function openChangelog() {
+    var panel = document.getElementById('changelog-panel');
+    if (!panel) return;
+    if (!__clLoaded) {
+        fetch('/static/data/changelog.json').then(function(r) { return r.json(); }).then(function(data) {
+            __clLoaded = true;
+            var version = '{{ config.APP_VERSION }}';
+            var entry = data.find(function(e) { return e.version === version; }) || data[0];
+            if (!entry) return;
+            document.getElementById('cl-version').textContent = 'v' + entry.version;
+            document.getElementById('cl-title').textContent = entry.title || '';
+            var ul = document.getElementById('cl-list');
+            ul.innerHTML = entry.changes.map(function(c) { return '<li>' + c + '</li>'; }).join('');
+            panel.style.display = 'block';
+        }).catch(function() {});
+    } else {
+        panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    }
+}
+
+function closeChangelog() {
+    var panel = document.getElementById('changelog-panel');
+    if (panel) panel.style.display = 'none';
+}
+
+document.addEventListener('click', function(e) {
+    var wrap = document.getElementById('version-wrap');
+    if (wrap && !wrap.contains(e.target)) closeChangelog();
+});
+
 (function() {
+    var badge = document.getElementById('version-badge');
+    if (badge) {
+        badge.addEventListener('click', function() {
+            if (__pendingSW) {
+                __pendingSW.postMessage({ type: 'SKIP_WAITING' });
+                navigator.serviceWorker.addEventListener('controllerchange', function() {
+                    window.location.reload();
+                });
+            } else {
+                openChangelog();
+            }
+        });
+    }
+
     if (!('serviceWorker' in navigator)) return;
     navigator.serviceWorker.register('/sw.js', { scope: '/' }).then(function(reg) {
         reg.addEventListener('updatefound', function() {
             var newSW = reg.installing;
             newSW.addEventListener('statechange', function() {
                 if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
-                    var badge = document.getElementById('version-badge');
+                    __pendingSW = newSW;
+                    closeChangelog();
                     if (!badge) return;
                     badge.textContent = '↑ Update available';
                     badge.title = 'Click to reload with the latest version';
                     badge.style.background = 'var(--vine)';
                     badge.style.color = '#fff';
                     badge.style.borderColor = 'var(--vine)';
-                    badge.style.cursor = 'pointer';
                     badge.style.fontWeight = '600';
-                    badge.onclick = function() {
-                        newSW.postMessage({ type: 'SKIP_WAITING' });
-                        navigator.serviceWorker.addEventListener('controllerchange', function() {
-                            window.location.reload();
-                        });
-                    };
                 }
             });
         });
     }).catch(function() {});
 })();
 </script>
-<div id="version-badge" title="Swugl {{ config.APP_VERSION }}" style="position:fixed;bottom:14px;left:14px;z-index:900;font-size:11px;color:var(--slate-soft);background:var(--surface);border:1px solid var(--hairline);padding:2px 8px;border-radius:99px;letter-spacing:.02em;user-select:none;transition:background .2s,color .2s,border-color .2s;">v{{ config.APP_VERSION }}</div>
+{# Version badge + changelog panel #}
+<div id="version-wrap" style="position:fixed;bottom:14px;left:14px;z-index:900;">
+    <div id="changelog-panel" style="display:none;background:var(--surface);border:1px solid var(--hairline);border-radius:12px;padding:16px 18px;margin-bottom:8px;width:300px;box-shadow:0 8px 32px rgba(0,0,0,.14);max-height:60vh;overflow-y:auto;">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px;">
+            <div>
+                <span id="cl-version" style="font-weight:700;font-size:14px;color:var(--ink);"></span>
+                <span id="cl-title" style="font-size:13px;color:var(--slate);margin-left:6px;"></span>
+            </div>
+            <button onclick="closeChangelog()" style="background:none;border:none;color:var(--slate);cursor:pointer;font-size:18px;line-height:1;padding:0 0 0 8px;">×</button>
+        </div>
+        <ul id="cl-list" style="margin:0;padding-left:18px;font-size:13px;line-height:1.7;color:var(--ink-soft);"></ul>
+    </div>
+    <div id="version-badge" style="font-size:11px;color:var(--slate-soft);background:var(--surface);border:1px solid var(--hairline);padding:2px 8px;border-radius:99px;letter-spacing:.02em;user-select:none;transition:background .2s,color .2s,border-color .2s;cursor:pointer;display:inline-block;">v{{ config.APP_VERSION }}</div>
+</div>
 <script nonce="{{ g.csp_nonce }}">
 (function() {
     var panel = document.getElementById('notif-panel');

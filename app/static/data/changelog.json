@@ -1,0 +1,20 @@
+[
+  {
+    "version": "1.0.0",
+    "date": "2026-06-07",
+    "title": "Launch",
+    "changes": [
+      "Family circles with invitation-based membership and optional admin approval",
+      "Events with RSVPs, sleeping arrangements, meals, carpool coordination, and weather forecasts",
+      "Saved locations with sleeping room templates that auto-fill new events",
+      "Photo albums with tagging and AI-suggested captions",
+      "Greeting cards — sign together, send on a date, with AI message drafting",
+      "Polls with AI-generated question and option suggestions",
+      "Family tree with profiles, relationships, and milestones",
+      "Weekly digest emails with AI-narrated summaries",
+      "Announcements and in-app notifications",
+      "Passkey and two-factor authentication",
+      "Offline support"
+    ]
+  }
+]
