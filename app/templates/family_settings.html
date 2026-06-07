@@ -68,13 +68,6 @@
                 {% for error in form.family_name.errors %}<span class="msg">{{ error }}</span>{% endfor %}
             </div>
 
-            <div class="field">
-                {{ form.default_event_location.label }}
-                {{ form.default_event_location(placeholder="e.g. Pease Family Cabin, Midway UT") }}
-                <div style="font-size:12px;color:var(--slate);margin-top:4px;">Pre-fills the location field when creating a new event.</div>
-                {% for error in form.default_event_location.errors %}<span class="msg">{{ error }}</span>{% endfor %}
-            </div>
-
             <details style="margin-top:20px;margin-bottom:4px;border:1px solid var(--hairline-strong);border-radius:var(--r-m);background:var(--leaf-mist);">
                 <summary style="padding:14px 16px;font-size:15px;font-weight:600;cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;user-select:none;">
                     Optional Features

@@ -49,7 +49,6 @@ class Family(db.Model):
 
     has_lgbtq_options = db.Column(db.Boolean, default=False, nullable=False)
     require_member_approval = db.Column(db.Boolean, default=False, nullable=False, server_default='false')
-    default_event_location = db.Column(db.String(200), nullable=True)
     enable_polls = db.Column(db.Boolean, default=True, nullable=False, server_default='true')
     enable_greeting_cards = db.Column(db.Boolean, default=True, nullable=False, server_default='true')
 

@@ -114,7 +114,6 @@ class SpouseInviteForm(FlaskForm):
 
 class FamilySettingsForm(FlaskForm):
     family_name = StringField('Family Name', validators=[DataRequired(), Length(max=100)])
-    default_event_location = StringField('Default event location', validators=[Optional(), Length(max=200)])
     require_member_approval = BooleanField('Require admin approval after invited members register')
     has_lgbtq_options = BooleanField('Enable expanded gender & pronoun options')
     enable_polls = BooleanField('Enable polls')

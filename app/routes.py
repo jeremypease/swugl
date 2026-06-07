@@ -833,14 +833,12 @@ def family_settings():
     form = FamilySettingsForm()
     if request.method == 'GET':
         form.family_name.data = family.name
-        form.default_event_location.data = family.default_event_location
         form.require_member_approval.data = family.require_member_approval
         form.has_lgbtq_options.data = family.has_lgbtq_options
         form.enable_polls.data = family.enable_polls
         form.enable_greeting_cards.data = family.enable_greeting_cards
     if form.validate_on_submit():
         family.name = form.family_name.data
-        family.default_event_location = form.default_event_location.data or None
         family.require_member_approval = form.require_member_approval.data
         family.has_lgbtq_options = form.has_lgbtq_options.data
         family.enable_polls = form.enable_polls.data
@@ -2523,8 +2521,6 @@ def event_add():
                        .filter_by(family_id=current_user.active_family_id)
                        .order_by(Location.name).all())
     form = EventForm()
-    if request.method == 'GET' and family.default_event_location:
-        form.location.data = family.default_event_location
     if form.validate_on_submit():
         if not has_paid_access:
             upcoming_count = Event.query.filter(
