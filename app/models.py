@@ -51,6 +51,7 @@ class Family(db.Model):
     require_member_approval = db.Column(db.Boolean, default=False, nullable=False, server_default='false')
     enable_polls = db.Column(db.Boolean, default=True, nullable=False, server_default='true')
     enable_greeting_cards = db.Column(db.Boolean, default=True, nullable=False, server_default='true')
+    enable_chat = db.Column(db.Boolean, default=True, nullable=False, server_default='true')
 
     people = db.relationship('Person', back_populates='family', foreign_keys='Person.family_id')
     users = db.relationship('User', back_populates='family', foreign_keys='User.family_id')
@@ -286,6 +287,7 @@ class User(UserMixin, db.Model):
     # Two-factor authentication
     totp_secret = db.Column(db.String(64), nullable=True)
     totp_enabled = db.Column(db.Boolean, nullable=False, server_default='0')
+    chat_last_seen_at = db.Column(db.DateTime, nullable=True)
     passkeys = db.relationship('UserCredential', backref='user', cascade='all, delete-orphan')
 
     # Multi-pod memberships
@@ -356,6 +358,7 @@ NOTIFICATION_EVENTS = {
     'rsvp_reminder': {'label': 'RSVP reminder',          'default': True,  'in_app': True},
     'assignment':    {'label': 'Task or meal assignment', 'default': True,  'in_app': True},
     'event_comment': {'label': 'New comment on event',   'default': True,  'in_app': True},
+    'chat_message':  {'label': 'New chat message',        'default': True,  'in_app': True},
 }
 
 
@@ -717,6 +720,34 @@ class EventComment(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     person = db.relationship('Person')
+
+
+class ChatMessage(db.Model):
+    __tablename__ = 'chat_messages'
+
+    id         = db.Column(db.Integer, primary_key=True)
+    family_id  = db.Column(db.Integer, db.ForeignKey('families.id'), nullable=False, index=True)
+    author_id  = db.Column(db.Integer, db.ForeignKey('users.id'),    nullable=False, index=True)
+    body       = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    edited_at  = db.Column(db.DateTime, nullable=True)
+
+    author = db.relationship('User', backref=db.backref('chat_messages', lazy='dynamic'))
+
+    EDIT_WINDOW   = 15 * 60  # seconds
+    DELETE_WINDOW =  2 * 60  # seconds; admin has no time limit
+
+    def can_edit(self, user):
+        if self.author_id != user.id:
+            return False
+        return (datetime.utcnow() - self.created_at).total_seconds() < self.EDIT_WINDOW
+
+    def can_delete(self, user):
+        if user.active_is_admin:
+            return True
+        if self.author_id != user.id:
+            return False
+        return (datetime.utcnow() - self.created_at).total_seconds() < self.DELETE_WINDOW
 
 
 class Announcement(db.Model):

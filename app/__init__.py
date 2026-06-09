@@ -139,7 +139,7 @@ def create_app(test_config=None):
     limiter.init_app(app)
     jwt.init_app(app)
 
-    from .models import User, Person, SystemAnnouncement, Notification, ApiTokenBlocklist, SystemConfig
+    from .models import User, Person, SystemAnnouncement, Notification, ApiTokenBlocklist, SystemConfig, ChatMessage
     from .routes import main
     from .billing import billing
     from .two_factor import tf
@@ -195,9 +195,21 @@ def create_app(test_config=None):
                 .limit(8)
                 .all()
             )
-        from .billing import get_stripe_mode
+        from .billing import get_stripe_mode, family_has_paid_access
         from .models import AppVersion
         current_ver = AppVersion.query.filter_by(is_current=True).first()
+        chat_visible = False
+        chat_paid = False
+        unread_chat = 0
+        if current_user.is_authenticated:
+            fam = current_user.active_family
+            if fam and fam.enable_chat:
+                chat_visible = True
+                if family_has_paid_access(fam):
+                    chat_paid = True
+                    last_seen = current_user.chat_last_seen_at
+                    q = ChatMessage.query.filter_by(family_id=current_user.active_family_id)
+                    unread_chat = q.filter(ChatMessage.created_at > last_seen).count() if last_seen else q.count()
         return {
             'now': datetime.utcnow(),
             'system_announcement': active_ann,
@@ -206,6 +218,9 @@ def create_app(test_config=None):
             'unread_notification_count': unread,
             'recent_notifications': recent_notifications,
             'app_version': current_ver.version if current_ver else app.config.get('APP_VERSION', '1.0.0'),
+            'chat_visible': chat_visible,
+            'chat_paid': chat_paid,
+            'unread_chat_count': unread_chat,
         }
 
     @app.template_filter('datetime_format')

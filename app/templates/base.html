@@ -88,6 +88,12 @@
                 <i data-lucide="bar-chart-2"></i> Polls
             </a>
             {% endif %}
+            {% if chat_visible %}
+            <a href="/chat" {% if request.path.startswith('/chat') %}class="active"{% endif %} style="position:relative;">
+                <i data-lucide="message-circle"></i> Chat
+                {% if chat_paid and unread_chat_count %}<span id="chat-badge" style="position:absolute;top:6px;right:10px;background:var(--vine);color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px;line-height:1;">{{ unread_chat_count if unread_chat_count < 100 else '99+' }}</span>{% endif %}
+            </a>
+            {% endif %}
             <a href="/notifications" {% if request.path == '/notifications' %}class="active"{% endif %} id="notif-bell" style="position:relative;" onclick="event.preventDefault();toggleNotifPanel();">
                 <i data-lucide="bell"></i> Notifications
                 <span id="notif-badge" style="position:absolute;top:6px;right:10px;background:var(--vine);color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;border-radius:8px;align-items:center;justify-content:center;padding:0 4px;line-height:1;display:{% if unread_notification_count %}flex{% else %}none{% endif %};">{{ unread_notification_count if unread_notification_count < 100 else '99+' }}</span>

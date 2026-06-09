@@ -118,6 +118,7 @@ class FamilySettingsForm(FlaskForm):
     has_lgbtq_options = BooleanField('Enable expanded gender & pronoun options')
     enable_polls = BooleanField('Enable polls')
     enable_greeting_cards = BooleanField('Enable greeting cards')
+    enable_chat = BooleanField('Enable chat')
     submit = SubmitField('Save')
 
 class AddPersonForm(FlaskForm):
@@ -309,6 +310,11 @@ class ResetPasswordForm(FlaskForm):
         EqualTo('password', message='Passwords must match')
     ])
     submit = SubmitField('Reset Password')
+
+class ChatMessageForm(FlaskForm):
+    body   = TextAreaField('Message', validators=[DataRequired(), Length(min=1, max=2000)])
+    submit = SubmitField('Send')
+
 
 class SupportForm(FlaskForm):
     category = SelectField('What can we help with?', choices=[

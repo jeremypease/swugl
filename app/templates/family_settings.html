@@ -110,6 +110,15 @@
                             </div>
                         </div>
                     </label>
+                    <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:4px 0;margin-top:8px;">
+                        {{ form.enable_chat(style="width:16px;height:16px;margin-top:2px;flex-shrink:0;cursor:pointer;") }}
+                        <div>
+                            <div style="font-weight:600;font-size:14px;">{{ form.enable_chat.label.text }}</div>
+                            <div style="font-size:12px;color:var(--slate);margin-top:2px;">
+                                Show the Chat section in the nav. Paid plan required to send messages.
+                            </div>
+                        </div>
+                    </label>
                 </div>
             </details>
             <script nonce="{{ g.csp_nonce }}">

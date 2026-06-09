@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, send_file, session, abort, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
-from .models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, AssignmentTask, ASSIGNMENT_CATEGORIES, EventRSVP, EventSleepingSpot, SPOT_TYPES, EventComment, Announcement, Album, Photo, Poll, NotificationPreference, NOTIFICATION_EVENTS, UserPodMembership, CalendarToken, EventPaymentConfig, EventPaymentRecord, FamilyPayoutAccount, Location, Document, DOCUMENT_CATEGORIES
-from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm, ForgotPasswordForm, ResetPasswordForm, AddPersonForm, RelativeForm, AddParentForm, FamilySettingsForm, EditPersonForm, EventForm, EventCommentForm, EventMealForm, EventMealFamilyAssignForm, EventMealItemForm, EventMealSelfSignupForm, EventMealAssignForm, EventAssignmentForm, EventAssignmentAdminAssignForm, EventSleepingSpotForm, EventSleepingAssignForm, GENDER_CHOICES_DEFAULT, GENDER_CHOICES_EXPANDED, PRONOUN_CHOICES, AnnouncementForm, AlbumForm, PhotoUploadForm, SupportForm
+from .models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, AssignmentTask, ASSIGNMENT_CATEGORIES, EventRSVP, EventSleepingSpot, SPOT_TYPES, EventComment, Announcement, Album, Photo, Poll, NotificationPreference, NOTIFICATION_EVENTS, UserPodMembership, CalendarToken, EventPaymentConfig, EventPaymentRecord, FamilyPayoutAccount, Location, Document, DOCUMENT_CATEGORIES, ChatMessage
+from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm, ForgotPasswordForm, ResetPasswordForm, AddPersonForm, RelativeForm, AddParentForm, FamilySettingsForm, EditPersonForm, EventForm, EventCommentForm, EventMealForm, EventMealFamilyAssignForm, EventMealItemForm, EventMealSelfSignupForm, EventMealAssignForm, EventAssignmentForm, EventAssignmentAdminAssignForm, EventSleepingSpotForm, EventSleepingAssignForm, GENDER_CHOICES_DEFAULT, GENDER_CHOICES_EXPANDED, PRONOUN_CHOICES, AnnouncementForm, AlbumForm, PhotoUploadForm, SupportForm, ChatMessageForm
 from .email import send_verification_email, send_pending_notification, send_approval_notification, send_spouse_confirmation_email, send_spouse_invitation_email, send_password_reset_email, send_member_invitation_email, send_welcome_email, send_support_email, send_pod_added_email
 from datetime import date, datetime, timedelta
 from functools import wraps
@@ -843,12 +843,14 @@ def family_settings():
         form.has_lgbtq_options.data = family.has_lgbtq_options
         form.enable_polls.data = family.enable_polls
         form.enable_greeting_cards.data = family.enable_greeting_cards
+        form.enable_chat.data = family.enable_chat
     if form.validate_on_submit():
         family.name = form.family_name.data
         family.require_member_approval = form.require_member_approval.data
         family.has_lgbtq_options = form.has_lgbtq_options.data
         family.enable_polls = form.enable_polls.data
         family.enable_greeting_cards = form.enable_greeting_cards.data
+        family.enable_chat = form.enable_chat.data
         db.session.commit()
         flash('Family settings saved.', 'info')
         return redirect(url_for('main.family_settings'))
@@ -4529,6 +4531,131 @@ def pwa_manifest():
     with open(path) as f:
         data = f.read()
     return Response(data, content_type='application/manifest+json')
+
+
+# ── Chat ──────────────────────────────────────────────────────────────────────
+
+def _notify_chat_members(msg):
+    """Send in-app notifications to family members not currently viewing chat."""
+    from .notifications import create_notification
+    from datetime import timedelta
+    cutoff = datetime.utcnow() - timedelta(seconds=10)
+    recipients = User.query.filter(
+        User.family_id == msg.family_id,
+        User.id != msg.author_id,
+        db.or_(User.chat_last_seen_at == None, User.chat_last_seen_at < cutoff),
+    ).all()
+    author_name = msg.author.get_full_name()
+    for recipient in recipients:
+        create_notification(
+            recipient,
+            'chat_message',
+            title=f'New message from {author_name}',
+            body=msg.body[:120],
+            url='/chat',
+        )
+
+
+@main.route('/chat')
+@login_required
+def chat():
+    family = current_user.active_family
+    if not family or not family.enable_chat:
+        abort(404)
+    if not family_has_paid_access(family):
+        return render_template('chat.html', upgrade_required=True)
+    messages = (
+        ChatMessage.query
+        .filter_by(family_id=current_user.active_family_id)
+        .order_by(ChatMessage.created_at.desc())
+        .limit(50)
+        .all()
+    )
+    messages = list(reversed(messages))
+    current_user.chat_last_seen_at = datetime.utcnow()
+    db.session.commit()
+    form = ChatMessageForm()
+    return render_template('chat.html', messages=messages, form=form, upgrade_required=False)
+
+
+@main.route('/chat/send', methods=['POST'])
+@login_required
+@requires_plan
+def chat_send():
+    form = ChatMessageForm()
+    if form.validate_on_submit():
+        msg = ChatMessage(
+            family_id=current_user.active_family_id,
+            author_id=current_user.id,
+            body=form.body.data.strip(),
+        )
+        db.session.add(msg)
+        db.session.commit()
+        _notify_chat_members(msg)
+    return redirect(url_for('main.chat'))
+
+
+@main.route('/chat/poll')
+@login_required
+@requires_plan
+def chat_poll():
+    after_id = request.args.get('after', 0, type=int)
+    msgs = (
+        ChatMessage.query
+        .filter_by(family_id=current_user.active_family_id)
+        .filter(ChatMessage.id > after_id)
+        .order_by(ChatMessage.created_at.asc())
+        .limit(100)
+        .all()
+    )
+    current_user.chat_last_seen_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify({
+        'messages': [
+            {
+                'id': m.id,
+                'body': m.body,
+                'author_name': m.author.get_full_name(),
+                'author_id': m.author_id,
+                'created_at': m.created_at.isoformat(),
+                'edited_at': m.edited_at.isoformat() if m.edited_at else None,
+                'can_edit': m.can_edit(current_user),
+                'edit_url': url_for('main.chat_edit', msg_id=m.id),
+                'can_delete': m.can_delete(current_user),
+                'delete_url': url_for('main.chat_delete', msg_id=m.id),
+            }
+            for m in msgs
+        ],
+        'current_user_id': current_user.id,
+    })
+
+
+@main.route('/chat/<int:msg_id>/edit', methods=['POST'])
+@login_required
+@requires_plan
+def chat_edit(msg_id):
+    msg = ChatMessage.query.filter_by(id=msg_id, family_id=current_user.active_family_id).first_or_404()
+    if not msg.can_edit(current_user):
+        return jsonify({'error': 'Edit window has closed.'}), 403
+    body = (request.form.get('body') or '').strip()
+    if not body:
+        return jsonify({'error': 'Message cannot be empty.'}), 400
+    msg.body = body
+    msg.edited_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify({'ok': True, 'body': msg.body, 'edited_at': msg.edited_at.isoformat()})
+
+
+@main.route('/chat/<int:msg_id>/delete', methods=['POST'])
+@login_required
+@requires_plan
+def chat_delete(msg_id):
+    msg = ChatMessage.query.filter_by(id=msg_id, family_id=current_user.active_family_id).first_or_404()
+    if not msg.can_delete(current_user):
+        abort(403)
+    db.session.delete(msg)
+    db.session.commit()
+    return redirect(url_for('main.chat'))
 
 
 @main.route('/sw.js')

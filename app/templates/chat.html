@@ -1,0 +1,280 @@
+{% extends "base.html" %}
+
+{% block title %}Chat — {{ current_user.active_family.name }}{% endblock %}
+
+{% block head %}
+<style>
+#chat-log {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 680px;
+    padding-bottom: 12px;
+}
+.chat-msg {
+    background: var(--paper);
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-m);
+    padding: 10px 14px;
+}
+.chat-msg-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: var(--slate);
+}
+.chat-msg-author { font-weight: 700; color: var(--ink); font-size: 13px; }
+.chat-msg-body { white-space: pre-wrap; word-break: break-word; font-size: 14px; line-height: 1.5; }
+.chat-msg-edited { font-size: 11px; color: var(--slate); font-style: italic; }
+.chat-msg-actions { display: flex; gap: 8px; margin-top: 6px; }
+.chat-send-wrap {
+    position: sticky;
+    bottom: 0;
+    background: var(--bg);
+    border-top: 1px solid var(--hairline);
+    padding: 12px 0;
+    max-width: 680px;
+}
+#chat-body {
+    width: 100%;
+    resize: none;
+    min-height: 44px;
+    max-height: 160px;
+    overflow-y: auto;
+    padding: 10px 12px;
+    font-size: 14px;
+    border: 1px solid var(--hairline-strong);
+    border-radius: var(--r-m);
+    background: var(--paper);
+    color: var(--ink);
+    font-family: inherit;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <div class="eyebrow">{{ current_user.active_family.name }}</div>
+        <h1>Chat</h1>
+    </div>
+</div>
+
+{% if upgrade_required %}
+
+<div style="max-width:560px;text-align:center;margin:48px auto 0;">
+    <div style="background:var(--paper);border:1px solid var(--hairline);border-radius:var(--r-l);padding:40px 32px;">
+        <i data-lucide="message-circle" style="width:48px;height:48px;color:var(--vine);margin-bottom:16px;"></i>
+        <h2 style="margin:0 0 10px;">Family Chat</h2>
+        <p style="color:var(--slate);margin:0 0 24px;line-height:1.6;">
+            A shared room for your whole family — send messages, edit within 15 minutes,
+            and see who's active. Includes an unread badge in the nav so nothing gets missed.
+        </p>
+        <ul style="text-align:left;color:var(--slate);line-height:2;margin:0 0 28px;padding-left:20px;font-size:14px;">
+            <li>Real-time polling — new messages appear without refreshing</li>
+            <li>Edit your message up to 15 minutes after sending</li>
+            <li>Delete your own message within 2 minutes</li>
+            <li>Unread count badge in the navigation</li>
+            <li>Available on web and mobile</li>
+        </ul>
+        <a href="{{ url_for('billing.billing_page') }}" class="btn btn-primary">
+            <i data-lucide="zap"></i> Upgrade to access Chat
+        </a>
+    </div>
+</div>
+
+{% else %}
+
+<div id="chat-log">
+{% for m in messages %}
+{% set editable = m.can_edit(current_user) %}
+{% set deletable = m.can_delete(current_user) %}
+<div class="chat-msg" id="msg-{{ m.id }}">
+    <div class="chat-msg-meta">
+        <span class="chat-msg-author">{{ m.author.get_full_name() }}</span>
+        <span>·</span>
+        <span>{{ m.created_at | timeago }}</span>
+        {% if m.edited_at %}<span class="chat-msg-edited">(edited)</span>{% endif %}
+    </div>
+    <div class="chat-msg-body">{{ m.body }}</div>
+    {% if editable or deletable %}
+    <div class="chat-msg-actions">
+        {% if editable %}
+        <button class="btn btn-sm btn-ghost" onclick="startEdit({{ m.id }}, {{ m.body | tojson }})">
+            <i data-lucide="pencil" style="width:13px;height:13px;"></i> Edit
+        </button>
+        {% endif %}
+        {% if deletable %}
+        <form method="POST" action="{{ url_for('main.chat_delete', msg_id=m.id) }}" style="display:inline;" onsubmit="return confirm('Delete this message?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-sm btn-ghost" style="color:var(--danger,#c0392b);">
+                <i data-lucide="trash-2" style="width:13px;height:13px;"></i> Delete
+            </button>
+        </form>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endfor %}
+</div>
+<div id="chat-anchor"></div>
+
+<div class="chat-send-wrap">
+    <form id="chat-form" method="POST" action="{{ url_for('main.chat_send') }}">
+        {{ form.hidden_tag() }}
+        <div style="display:flex;gap:10px;align-items:flex-end;">
+            {{ form.body(id='chat-body', placeholder='Message the family…', rows=1) }}
+            <button type="submit" class="btn btn-primary" style="flex-shrink:0;">Send</button>
+        </div>
+    </form>
+</div>
+
+{% endif %}
+
+{% block scripts %}
+{% if not upgrade_required %}
+<script nonce="{{ g.csp_nonce }}">
+(function() {
+    var lastId = {{ (messages[-1].id if messages else 0) }};
+    var currentUserId = {{ current_user.id }};
+
+    function poll() {
+        fetch('/chat/poll?after=' + lastId)
+          .then(function(r) { return r.ok ? r.json() : null; })
+          .then(function(data) {
+              if (!data) return;
+              data.messages.forEach(function(m) {
+                  if (!document.getElementById('msg-' + m.id)) {
+                      appendMessage(m);
+                      lastId = Math.max(lastId, m.id);
+                  }
+              });
+          }).catch(function() {});
+    }
+
+    function appendMessage(m) {
+        var log = document.getElementById('chat-log');
+        var div = document.createElement('div');
+        div.className = 'chat-msg';
+        div.id = 'msg-' + m.id;
+        var editedLabel = m.edited_at ? '<span class="chat-msg-edited">(edited)</span>' : '';
+        var actions = '';
+        if (m.can_edit) {
+            actions += '<button class="btn btn-sm btn-ghost" onclick="startEdit(' + m.id + ',' + JSON.stringify(m.body) + ')"><i data-lucide="pencil" style="width:13px;height:13px;"></i> Edit</button>';
+        }
+        if (m.can_delete) {
+            actions += '<form method="POST" action="' + m.delete_url + '" style="display:inline;" onsubmit="return confirm(\'Delete this message?\');">'
+                + '<input type="hidden" name="csrf_token" value="' + csrfToken() + '">'
+                + '<button type="submit" class="btn btn-sm btn-ghost" style="color:var(--danger,#c0392b);"><i data-lucide="trash-2" style="width:13px;height:13px;"></i> Delete</button>'
+                + '</form>';
+        }
+        div.innerHTML = '<div class="chat-msg-meta"><span class="chat-msg-author">' + escHtml(m.author_name) + '</span>'
+            + '<span>·</span><span>' + escHtml(m.created_at) + '</span>' + editedLabel + '</div>'
+            + '<div class="chat-msg-body">' + escHtml(m.body) + '</div>'
+            + (actions ? '<div class="chat-msg-actions">' + actions + '</div>' : '');
+        log.appendChild(div);
+        lucide.createIcons({ nodes: [div] });
+        document.getElementById('chat-anchor').scrollIntoView({ block: 'end', behavior: 'smooth' });
+    }
+
+    window.startEdit = function(msgId, currentBody) {
+        var msgDiv = document.getElementById('msg-' + msgId);
+        var bodyEl = msgDiv.querySelector('.chat-msg-body');
+        var actionsEl = msgDiv.querySelector('.chat-msg-actions');
+        bodyEl.style.display = 'none';
+        if (actionsEl) actionsEl.style.display = 'none';
+        var wrap = document.createElement('div');
+        wrap.id = 'edit-wrap-' + msgId;
+        var ta = document.createElement('textarea');
+        ta.value = currentBody;
+        ta.style.cssText = 'width:100%;min-height:60px;max-height:200px;resize:vertical;font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--hairline-strong);border-radius:var(--r-m);margin-bottom:6px;';
+        var btnRow = document.createElement('div');
+        btnRow.style.cssText = 'display:flex;gap:8px;';
+        var saveBtn = document.createElement('button');
+        saveBtn.textContent = 'Save';
+        saveBtn.className = 'btn btn-primary btn-sm';
+        saveBtn.onclick = function() { submitEdit(msgId, ta.value); };
+        var cancelBtn = document.createElement('button');
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.className = 'btn btn-sm btn-ghost';
+        cancelBtn.onclick = function() { cancelEdit(msgId); };
+        btnRow.appendChild(saveBtn);
+        btnRow.appendChild(cancelBtn);
+        wrap.appendChild(ta);
+        wrap.appendChild(btnRow);
+        msgDiv.insertBefore(wrap, bodyEl.nextSibling);
+        ta.focus();
+        ta.setSelectionRange(ta.value.length, ta.value.length);
+    };
+
+    window.cancelEdit = function(msgId) {
+        var msgDiv = document.getElementById('msg-' + msgId);
+        var wrap = document.getElementById('edit-wrap-' + msgId);
+        if (wrap) wrap.remove();
+        var bodyEl = msgDiv.querySelector('.chat-msg-body');
+        var actionsEl = msgDiv.querySelector('.chat-msg-actions');
+        if (bodyEl) bodyEl.style.display = '';
+        if (actionsEl) actionsEl.style.display = '';
+    };
+
+    window.submitEdit = function(msgId, newBody) {
+        if (!newBody.trim()) return;
+        var msgDiv = document.getElementById('msg-' + msgId);
+        fetch('/chat/' + msgId + '/edit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'body=' + encodeURIComponent(newBody.trim()) + '&csrf_token=' + encodeURIComponent(csrfToken()),
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.ok) {
+                cancelEdit(msgId);
+                var bodyEl = msgDiv.querySelector('.chat-msg-body');
+                bodyEl.textContent = data.body;
+                var meta = msgDiv.querySelector('.chat-msg-meta');
+                if (!meta.querySelector('.chat-msg-edited')) {
+                    var edited = document.createElement('span');
+                    edited.className = 'chat-msg-edited';
+                    edited.textContent = '(edited)';
+                    meta.appendChild(edited);
+                }
+            } else {
+                alert(data.error || 'Could not save edit.');
+            }
+        }).catch(function() { alert('Network error.'); });
+    };
+
+    function escHtml(s) {
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // Auto-grow textarea
+    var ta = document.getElementById('chat-body');
+    if (ta) {
+        ta.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 160) + 'px';
+        });
+        // Cmd/Ctrl + Enter submits
+        ta.addEventListener('keydown', function(e) {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('chat-form').submit();
+            }
+        });
+    }
+
+    // Scroll to bottom on load
+    var anchor = document.getElementById('chat-anchor');
+    if (anchor) anchor.scrollIntoView({ block: 'end' });
+
+    // Start polling
+    setTimeout(function tick() { poll(); setTimeout(tick, 5000); }, 5000);
+})();
+</script>
+{% endif %}
+{% endblock %}
+
+{% endblock %}
