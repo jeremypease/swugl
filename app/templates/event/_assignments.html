@@ -111,6 +111,37 @@
             </form>
             {% endif %}
         </div>
+        {% set can_manage_tasks = current_user.active_is_admin or (my_person and a.claimed_by_id == my_person.id) %}
+        {% if a.tasks or can_manage_tasks %}
+        <div style="padding:6px 0 6px 28px;display:flex;flex-direction:column;gap:3px;">
+            {% for t in a.tasks %}
+            <div style="display:flex;align-items:center;gap:6px;">
+                <form method="POST" action="/events/{{ event.id }}/assignments/{{ a.id }}/tasks/{{ t.id }}/toggle" style="display:contents;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    {% if can_manage_tasks %}
+                    <button type="submit" class="task-check {% if t.is_done %}task-done{% endif %}" style="width:14px;height:14px;min-width:14px;" title="Toggle"></button>
+                    {% else %}
+                    <span class="task-check {% if t.is_done %}task-done{% endif %}" style="width:14px;height:14px;min-width:14px;cursor:default;"></span>
+                    {% endif %}
+                </form>
+                <span style="font-size:13px;{% if t.is_done %}text-decoration:line-through;color:var(--slate);{% endif %}">{{ t.label }}</span>
+                {% if can_manage_tasks %}
+                <form method="POST" action="/events/{{ event.id }}/assignments/{{ a.id }}/tasks/{{ t.id }}/delete" style="display:contents;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--slate-soft);padding:0 2px;font-size:11px;line-height:1;">×</button>
+                </form>
+                {% endif %}
+            </div>
+            {% endfor %}
+            {% if can_manage_tasks %}
+            <form method="POST" action="/events/{{ event.id }}/assignments/{{ a.id }}/tasks/add" style="display:flex;gap:4px;margin-top:4px;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="text" name="label" placeholder="Add sub-task…" style="font-size:12px;padding:3px 6px;flex:1;min-width:0;">
+                <button type="submit" class="btn btn-ghost btn-sm" style="font-size:12px;">Add</button>
+            </form>
+            {% endif %}
+        </div>
+        {% endif %}
         {% endfor %}
         {% endfor %}
     </div>

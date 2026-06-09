@@ -655,6 +655,18 @@ class EventAssignment(db.Model):
     is_done = db.Column(db.Boolean, default=False)
 
     claimed_by = db.relationship('Person')
+    tasks = db.relationship('AssignmentTask', backref='assignment',
+                            cascade='all, delete-orphan', order_by='AssignmentTask.id')
+
+
+class AssignmentTask(db.Model):
+    __tablename__ = 'assignment_tasks'
+
+    id = db.Column(db.Integer, primary_key=True)
+    assignment_id = db.Column(db.Integer, db.ForeignKey('event_assignments.id'), nullable=False, index=True)
+    label = db.Column(db.String(200), nullable=False)
+    is_done = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
 class EventSleepingSpot(db.Model):

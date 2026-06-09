@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, send_file, session, abort, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
-from .models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, ASSIGNMENT_CATEGORIES, EventRSVP, EventSleepingSpot, SPOT_TYPES, EventComment, Announcement, Album, Photo, Poll, NotificationPreference, NOTIFICATION_EVENTS, UserPodMembership, CalendarToken, EventPaymentConfig, EventPaymentRecord, FamilyPayoutAccount, Location
+from .models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, AssignmentTask, ASSIGNMENT_CATEGORIES, EventRSVP, EventSleepingSpot, SPOT_TYPES, EventComment, Announcement, Album, Photo, Poll, NotificationPreference, NOTIFICATION_EVENTS, UserPodMembership, CalendarToken, EventPaymentConfig, EventPaymentRecord, FamilyPayoutAccount, Location
 from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm, ForgotPasswordForm, ResetPasswordForm, AddPersonForm, RelativeForm, AddParentForm, FamilySettingsForm, EditPersonForm, EventForm, EventCommentForm, EventMealForm, EventMealFamilyAssignForm, EventMealItemForm, EventMealSelfSignupForm, EventMealAssignForm, EventAssignmentForm, EventAssignmentAdminAssignForm, EventSleepingSpotForm, EventSleepingAssignForm, GENDER_CHOICES_DEFAULT, GENDER_CHOICES_EXPANDED, PRONOUN_CHOICES, AnnouncementForm, AlbumForm, PhotoUploadForm, SupportForm
 from .email import send_verification_email, send_pending_notification, send_approval_notification, send_spouse_confirmation_email, send_spouse_invitation_email, send_password_reset_email, send_member_invitation_email, send_welcome_email, send_support_email, send_pod_added_email
 from datetime import date, datetime, timedelta
@@ -3965,6 +3965,57 @@ def event_assignment_admin_assign(event_id, aid):
                                     title=f'Task assigned: {a.title}',
                                     body=f'For {a.event.name}',
                                     url=event_url)
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+@main.route('/events/<int:event_id>/assignments/<int:aid>/tasks/add', methods=['POST'])
+@login_required
+def event_assignment_task_add(event_id, aid):
+    a = db.session.get(EventAssignment, aid)
+    if not a or a.event.family_id != current_user.active_family_id:
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    my_person = Person.query.filter_by(family_id=current_user.active_family_id,
+                                       user_id=current_user.id).first()
+    if not (current_user.active_is_admin or (my_person and a.claimed_by_id == my_person.id)):
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    label = request.form.get('label', '').strip()
+    if label:
+        db.session.add(AssignmentTask(assignment_id=aid, label=label))
+        db.session.commit()
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+@main.route('/events/<int:event_id>/assignments/<int:aid>/tasks/<int:tid>/toggle', methods=['POST'])
+@login_required
+def event_assignment_task_toggle(event_id, aid, tid):
+    a = db.session.get(EventAssignment, aid)
+    if not a or a.event.family_id != current_user.active_family_id:
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    my_person = Person.query.filter_by(family_id=current_user.active_family_id,
+                                       user_id=current_user.id).first()
+    if not (current_user.active_is_admin or (my_person and a.claimed_by_id == my_person.id)):
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    task = db.session.get(AssignmentTask, tid)
+    if task and task.assignment_id == aid:
+        task.is_done = not task.is_done
+        db.session.commit()
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+@main.route('/events/<int:event_id>/assignments/<int:aid>/tasks/<int:tid>/delete', methods=['POST'])
+@login_required
+def event_assignment_task_delete(event_id, aid, tid):
+    a = db.session.get(EventAssignment, aid)
+    if not a or a.event.family_id != current_user.active_family_id:
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    my_person = Person.query.filter_by(family_id=current_user.active_family_id,
+                                       user_id=current_user.id).first()
+    if not (current_user.active_is_admin or (my_person and a.claimed_by_id == my_person.id)):
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    task = db.session.get(AssignmentTask, tid)
+    if task and task.assignment_id == aid:
+        db.session.delete(task)
+        db.session.commit()
     return redirect(url_for('main.event_detail', event_id=event_id))
 
 
