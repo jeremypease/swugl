@@ -69,6 +69,9 @@
             <a href="/members" {% if request.path == '/members' %}class="active"{% endif %}>
                 <i data-lucide="users"></i> Members
             </a>
+            <a href="/timeline" {% if request.path == '/timeline' %}class="active"{% endif %}>
+                <i data-lucide="git-commit-vertical"></i> Timeline
+            </a>
             <a href="/announcements" {% if request.path.startswith('/announcements') %}class="active"{% endif %}>
                 <i data-lucide="megaphone"></i> Announcements
             </a>

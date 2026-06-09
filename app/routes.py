@@ -2420,6 +2420,71 @@ def spouse_end():
     return render_template('spouse_end.html', form=form, spouse=rel.get_spouse_of(person))
 
 
+# ── Timeline ──────────────────────────────────────────────────────────────────
+
+@main.route('/timeline')
+@login_required
+def timeline():
+    fid = current_user.active_family_id
+    people = Person.query.filter_by(family_id=fid).order_by(Person.name).all()
+    events = Event.query.filter_by(family_id=fid).order_by(Event.start_date).all()
+
+    milestones = []
+    for p in people:
+        if p.birthday:
+            milestones.append({
+                'date': p.birthday,
+                'type': 'birth',
+                'title': f'{p.get_display_name()} born',
+                'subtitle': p.birthplace or None,
+                'person_id': p.id,
+            })
+        if p.deathday:
+            milestones.append({
+                'date': p.deathday,
+                'type': 'death',
+                'title': f'{p.get_display_name()} passed away',
+                'subtitle': p.deathplace or None,
+                'person_id': p.id,
+            })
+
+    for rel in SpouseRelationship.query.filter(
+        (SpouseRelationship.person1_id.in_([p.id for p in people])) |
+        (SpouseRelationship.person2_id.in_([p.id for p in people]))
+    ).all():
+        if rel.marriage_date:
+            p1 = db.session.get(Person, rel.person1_id)
+            p2 = db.session.get(Person, rel.person2_id)
+            if p1 and p2:
+                milestones.append({
+                    'date': rel.marriage_date,
+                    'type': 'marriage',
+                    'title': f'{p1.get_display_name()} & {p2.get_display_name()} married',
+                    'subtitle': None,
+                    'person_id': None,
+                })
+
+    for e in events:
+        milestones.append({
+            'date': e.start_date,
+            'type': 'event',
+            'title': e.name,
+            'subtitle': e.location or None,
+            'event_id': e.id,
+        })
+
+    milestones.sort(key=lambda m: m['date'])
+
+    # Group by year
+    from itertools import groupby
+    grouped = []
+    for year, items in groupby(milestones, key=lambda m: m['date'].year):
+        grouped.append({'year': year, 'items': list(items)})
+
+    today = date.today()
+    return render_template('timeline.html', grouped=grouped, today=today)
+
+
 # ── Events ────────────────────────────────────────────────────────────────────
 
 @main.route('/events')
