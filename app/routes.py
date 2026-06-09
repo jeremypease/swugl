@@ -303,6 +303,11 @@ def home():
             ),
         )
     ).order_by(Photo.taken_date.desc().nullslast(), Photo.created_at.desc()).limit(8).all()
+    on_this_day_events = Event.query.filter_by(family_id=current_user.active_family_id).filter(
+        extract('month', Event.start_date) == today.month,
+        extract('day', Event.start_date) == today.day,
+        extract('year', Event.start_date) < today.year,
+    ).order_by(Event.start_date.desc()).limit(5).all()
     # Onboarding checklist — only for admins of new pods (families with account_id)
     onboarding = None
     if current_user.active_is_admin and current_user.family and current_user.active_family.account_id:
@@ -395,6 +400,7 @@ def home():
                            home_announcements=home_announcements,
                            recent_photos=recent_photos,
                            on_this_day=on_this_day,
+                           on_this_day_events=on_this_day_events,
                            onboarding=onboarding,
                            activity_feed=activity_feed,
                            rsvp_map=rsvp_map,
