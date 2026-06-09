@@ -1,0 +1,15 @@
+# Jeffrey owns all visual/design files — changes to these on main require his review.
+# Backend (routes, models, migrations, JS logic, config) is Jeremy's domain.
+#
+# TODO: Replace @jeffrey-github-username with Jeffrey's actual GitHub username
+#       and add him as a repo collaborator (Settings → Collaborators).
+
+# CSS & design tokens
+app/static/css/                     @jeffrey-github-username
+app/static/assets/                  @jeffrey-github-username
+
+# Landing / marketing templates
+app/templates/index.html            @jeffrey-github-username
+app/templates/landing_base.html     @jeffrey-github-username
+app/templates/privacy.html          @jeffrey-github-username
+app/templates/terms.html            @jeffrey-github-username
