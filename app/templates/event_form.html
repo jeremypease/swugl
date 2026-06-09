@@ -114,11 +114,13 @@
                 {{ form.rsvp_deadline.label }}
                 {{ form.rsvp_deadline() }}
             </div>
-            <div class="field" style="flex:1;display:flex;align-items:flex-end;padding-bottom:2px;">
-                <label class="checkbox-row" style="margin:0;">
-                    {{ form.is_annual() }}
-                    <span style="font-size:14px;"><strong>Annual</strong> <span style="color:var(--slate);font-size:12px;">Repeats yearly</span></span>
-                </label>
+            <div class="field" style="flex:0 0 160px;">
+                {{ form.recur_freq.label }}
+                {{ form.recur_freq(style="width:100%;") }}
+            </div>
+            <div class="field" id="recur-until-field" style="flex:0 0 160px;{% if not form.recur_freq.data %}display:none;{% endif %}">
+                {{ form.recur_until.label }}
+                {{ form.recur_until() }}
             </div>
         </div>
 
@@ -721,6 +723,15 @@
                 aiStatus.style.display = 'inline';
             }
         });
+    }
+})();
+(function() {
+    var freq = document.querySelector('[name="recur_freq"]');
+    var until = document.getElementById('recur-until-field');
+    if (freq && until) {
+        function toggle() { until.style.display = freq.value ? '' : 'none'; }
+        freq.addEventListener('change', toggle);
+        toggle();
     }
 })();
 </script>

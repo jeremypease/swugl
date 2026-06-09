@@ -2581,6 +2581,22 @@ def events_list():
     upcoming = [e for e in all_events if e.start_date >= today]
     past = [e for e in all_events if e.start_date < today]
     past.reverse()
+
+    # Virtual future occurrences for recurring past events
+    class _VirtualOccurrence:
+        is_virtual = True
+        def __init__(self, event, display_date):
+            self._event = event
+            self.start_date = display_date
+        def __getattr__(self, name):
+            return getattr(self._event, name)
+
+    for e in list(past):
+        if e.recur_freq or e.is_annual:
+            next_d = e.next_occurrence(today - timedelta(days=1))
+            if next_d:
+                upcoming.append(_VirtualOccurrence(e, next_d))
+    upcoming.sort(key=lambda e: e.start_date)
     has_paid_access = family_has_paid_access(current_user.active_family)
 
     # Current user's RSVP status on each upcoming event
@@ -2810,7 +2826,9 @@ def event_add():
             start_time=form.start_time.data,
             end_time=form.end_time.data,
             rsvp_deadline=form.rsvp_deadline.data,
-            is_annual=form.is_annual.data,
+            recur_freq=form.recur_freq.data or None,
+            recur_until=form.recur_until.data,
+            is_annual=(form.recur_freq.data == 'yearly'),
             has_meals=form.has_meals.data,
             has_assignments=form.has_assignments.data,
             has_sleeping=form.has_sleeping.data,
@@ -3090,7 +3108,9 @@ def event_edit(event_id):
         event.start_time = form.start_time.data
         event.end_time = form.end_time.data
         event.rsvp_deadline = form.rsvp_deadline.data
-        event.is_annual = form.is_annual.data
+        event.recur_freq = form.recur_freq.data or None
+        event.recur_until = form.recur_until.data
+        event.is_annual = (form.recur_freq.data == 'yearly')
         event.has_meals = form.has_meals.data
         event.has_assignments = form.has_assignments.data
         event.has_sleeping = form.has_sleeping.data

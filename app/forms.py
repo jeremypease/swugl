@@ -197,6 +197,11 @@ class EventForm(FlaskForm):
     end_time = TimeField('End Time', validators=[Optional()], format='%H:%M')
     rsvp_deadline = DateField('RSVP Deadline', validators=[Optional()])
     is_annual = BooleanField('Repeats annually')
+    recur_freq = SelectField('Repeats', choices=[
+        ('', 'Does not repeat'), ('weekly', 'Weekly'),
+        ('monthly', 'Monthly'), ('yearly', 'Yearly'),
+    ], validators=[Optional()])
+    recur_until = DateField('Repeat until', validators=[Optional()])
     has_meals = BooleanField('Meals')
     has_assignments = BooleanField('Assignments')
     has_sleeping = BooleanField('Sleeping Arrangements')

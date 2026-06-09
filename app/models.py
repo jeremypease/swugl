@@ -567,6 +567,8 @@ class Event(db.Model):
     kind = db.Column(db.String(50), nullable=True)
     rsvp_deadline = db.Column(db.Date, nullable=True)
     is_annual = db.Column(db.Boolean, default=False, nullable=False, server_default='0')
+    recur_freq = db.Column(db.String(20), nullable=True)   # 'weekly', 'monthly', 'yearly'
+    recur_until = db.Column(db.Date, nullable=True)
     has_meals = db.Column(db.Boolean, default=False)
     has_assignments = db.Column(db.Boolean, default=False)
     has_sleeping = db.Column(db.Boolean, default=False)
@@ -589,6 +591,29 @@ class Event(db.Model):
     survey_responses = db.relationship('EventSurveyResponse', backref='event', cascade='all, delete-orphan')
     payment_config = db.relationship('EventPaymentConfig', uselist=False, back_populates='event', cascade='all, delete-orphan')
     payment_records = db.relationship('EventPaymentRecord', back_populates='event', cascade='all, delete-orphan')
+
+    def next_occurrence(self, after_date):
+        """Return the next occurrence date after `after_date`, or None if expired/not recurring."""
+        freq = self.recur_freq or ('yearly' if self.is_annual else None)
+        if not freq:
+            return None
+        from dateutil.relativedelta import relativedelta
+        from datetime import timedelta as _td
+        d = self.start_date
+        if freq == 'weekly':
+            while d <= after_date:
+                d += _td(weeks=1)
+        elif freq == 'monthly':
+            while d <= after_date:
+                d += relativedelta(months=1)
+        elif freq == 'yearly':
+            while d <= after_date:
+                d += relativedelta(years=1)
+        else:
+            return None
+        if self.recur_until and d > self.recur_until:
+            return None
+        return d
 
     def date_range_display(self):
         if not self.end_date or self.end_date == self.start_date:
