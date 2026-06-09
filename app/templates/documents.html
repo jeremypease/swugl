@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Documents{% endblock %}
+{% block content %}
+<div class="page-head" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+    <div>
+        <h1>Documents</h1>
+        <p style="color:var(--slate);font-size:14px;margin-top:4px;">Family records, recipes, letters, and more.</p>
+    </div>
+    <button class="btn btn-primary btn-sm" data-toggle-form="upload-form">
+        <i data-lucide="upload"></i> Upload
+    </button>
+</div>
+
+{# Upload form #}
+<div id="upload-form" style="display:none;" class="card" style="margin-bottom:24px;">
+    <div class="card-header"><strong>Upload document</strong></div>
+    <form method="POST" action="{{ url_for('main.document_upload') }}" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="field-row">
+            <div class="field" style="flex:1;">
+                <label>Title</label>
+                <input type="text" name="title" placeholder="e.g. Dad's chili recipe" style="width:100%;">
+            </div>
+            <div class="field" style="flex:0 0 160px;">
+                <label>Category</label>
+                <select name="category" style="width:100%;">
+                    <option value="">— None —</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat }}">{{ cat }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="field">
+            <label>File <span style="color:var(--tomato);">*</span> <span style="color:var(--slate);font-size:12px;">PDF, JPG, PNG, TXT, DOC, DOCX</span></label>
+            <input type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.heic,.txt,.doc,.docx" style="width:100%;">
+        </div>
+        <div class="field">
+            <label>Notes</label>
+            <textarea name="notes" rows="2" placeholder="Optional description or context" style="width:100%;"></textarea>
+        </div>
+        <div style="display:flex;gap:8px;">
+            <button type="submit" class="btn btn-primary">Upload</button>
+            <button type="button" class="btn btn-ghost" data-toggle-form="upload-form">Cancel</button>
+        </div>
+    </form>
+</div>
+
+{% if not grouped %}
+<div class="card" style="text-align:center;padding:40px;color:var(--slate);">
+    No documents yet — click Upload to add the first one.
+</div>
+{% else %}
+
+{% for cat, docs in grouped %}
+<div style="margin-bottom:28px;">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);margin-bottom:8px;">{{ cat }}</div>
+    <div style="display:flex;flex-direction:column;gap:6px;">
+        {% for doc in docs %}
+        {% set is_image = doc.file_type in ('jpg','jpeg','png','gif','webp','heic') %}
+        {% set is_pdf = doc.file_type == 'pdf' %}
+        <div class="relation-row" style="align-items:flex-start;gap:12px;">
+            <div style="width:36px;height:36px;border-radius:6px;background:var(--canvas);border:1px solid var(--hairline);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--slate);">
+                {% if is_pdf %}
+                <i data-lucide="file-text" style="width:16px;height:16px;color:#dc2626;"></i>
+                {% elif is_image %}
+                <i data-lucide="image" style="width:16px;height:16px;color:#2563eb;"></i>
+                {% else %}
+                <i data-lucide="file" style="width:16px;height:16px;"></i>
+                {% endif %}
+            </div>
+            <div style="flex:1;min-width:0;">
+                <div style="font-weight:600;font-size:14px;">
+                    <a href="{{ url_for('main.document_view', doc_id=doc.id) }}" target="_blank" style="color:inherit;text-decoration:none;">{{ doc.title }}</a>
+                </div>
+                <div style="font-size:12px;color:var(--slate);margin-top:1px;">
+                    {{ doc.original_filename }}
+                    {% if doc.file_size %} · {{ (doc.file_size / 1024)|round(0)|int }} KB{% endif %}
+                    {% if doc.uploader %} · {{ doc.uploader.get_display_name() }}{% endif %}
+                    · {{ doc.uploaded_at.strftime('%b %-d, %Y') }}
+                </div>
+                {% if doc.notes %}
+                <div style="font-size:13px;color:var(--ink-soft);margin-top:3px;">{{ doc.notes }}</div>
+                {% endif %}
+            </div>
+            <a href="{{ url_for('main.document_view', doc_id=doc.id) }}" target="_blank" class="btn btn-ghost btn-sm" title="View / Download">
+                <i data-lucide="external-link" style="width:14px;height:14px;"></i>
+            </a>
+            {% if current_user.active_is_admin %}
+            <form method="POST" action="{{ url_for('main.document_delete', doc_id=doc.id) }}"
+                  onsubmit="return confirm('Delete {{ doc.title }}?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);">×</button>
+            </form>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endfor %}
+{% endif %}
+{% endblock %}

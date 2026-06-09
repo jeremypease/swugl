@@ -72,6 +72,9 @@
             <a href="/timeline" {% if request.path == '/timeline' %}class="active"{% endif %}>
                 <i data-lucide="git-commit-vertical"></i> Timeline
             </a>
+            <a href="/documents" {% if request.path.startswith('/documents') %}class="active"{% endif %}>
+                <i data-lucide="folder"></i> Docs
+            </a>
             <a href="/announcements" {% if request.path.startswith('/announcements') %}class="active"{% endif %}>
                 <i data-lucide="megaphone"></i> Announcements
             </a>

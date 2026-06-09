@@ -5,6 +5,7 @@ from botocore.config import Config
 from flask import current_app, url_for
 
 ALLOWED_EXTS = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic'}
+ALLOWED_DOC_EXTS = {'pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'txt', 'doc', 'docx'}
 
 def _r2_enabled():
     return bool(current_app.config.get('R2_ACCOUNT_ID'))
@@ -24,6 +25,10 @@ def _content_type(ext):
         'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
         'png': 'image/png', 'gif': 'image/gif',
         'webp': 'image/webp', 'heic': 'image/heic',
+        'pdf': 'application/pdf',
+        'txt': 'text/plain',
+        'doc': 'application/msword',
+        'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     }.get(ext, 'application/octet-stream')
 
 def upload_photo(file, folder='photos'):
@@ -46,6 +51,31 @@ def upload_photo(file, folder='photos'):
         file.save(os.path.join(local_dir, filename))
         key = f"uploads/{folder}/{filename}"
     return key
+
+def upload_document(file, folder='documents'):
+    """Upload a document file; returns (storage_key, file_type, file_size) or None on bad extension."""
+    ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else ''
+    if ext not in ALLOWED_DOC_EXTS:
+        return None
+    filename = f"{uuid.uuid4().hex}.{ext}"
+    file.seek(0, 2)
+    file_size = file.tell()
+    file.seek(0)
+    if _r2_enabled():
+        key = f"{folder}/{filename}"
+        _client().upload_fileobj(
+            file,
+            current_app.config['R2_BUCKET_NAME'],
+            key,
+            ExtraArgs={'ContentType': _content_type(ext)},
+        )
+    else:
+        local_dir = os.path.join(current_app.root_path, 'static', 'uploads', folder)
+        os.makedirs(local_dir, exist_ok=True)
+        file.save(os.path.join(local_dir, filename))
+        key = f"uploads/{folder}/{filename}"
+    return key, ext, file_size
+
 
 def delete_object(key):
     """Delete a stored object by key. Silently ignores errors."""

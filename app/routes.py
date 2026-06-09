@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, send_file, session, abort, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
-from .models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, AssignmentTask, ASSIGNMENT_CATEGORIES, EventRSVP, EventSleepingSpot, SPOT_TYPES, EventComment, Announcement, Album, Photo, Poll, NotificationPreference, NOTIFICATION_EVENTS, UserPodMembership, CalendarToken, EventPaymentConfig, EventPaymentRecord, FamilyPayoutAccount, Location
+from .models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, AssignmentTask, ASSIGNMENT_CATEGORIES, EventRSVP, EventSleepingSpot, SPOT_TYPES, EventComment, Announcement, Album, Photo, Poll, NotificationPreference, NOTIFICATION_EVENTS, UserPodMembership, CalendarToken, EventPaymentConfig, EventPaymentRecord, FamilyPayoutAccount, Location, Document, DOCUMENT_CATEGORIES
 from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm, ForgotPasswordForm, ResetPasswordForm, AddPersonForm, RelativeForm, AddParentForm, FamilySettingsForm, EditPersonForm, EventForm, EventCommentForm, EventMealForm, EventMealFamilyAssignForm, EventMealItemForm, EventMealSelfSignupForm, EventMealAssignForm, EventAssignmentForm, EventAssignmentAdminAssignForm, EventSleepingSpotForm, EventSleepingAssignForm, GENDER_CHOICES_DEFAULT, GENDER_CHOICES_EXPANDED, PRONOUN_CHOICES, AnnouncementForm, AlbumForm, PhotoUploadForm, SupportForm
 from .email import send_verification_email, send_pending_notification, send_approval_notification, send_spouse_confirmation_email, send_spouse_invitation_email, send_password_reset_email, send_member_invitation_email, send_welcome_email, send_support_email, send_pod_added_email
 from datetime import date, datetime, timedelta
@@ -2483,6 +2483,85 @@ def timeline():
 
     today = date.today()
     return render_template('timeline.html', grouped=grouped, today=today)
+
+
+# ── Documents ─────────────────────────────────────────────────────────────────
+
+@main.route('/documents')
+@login_required
+def documents_list():
+    fid = current_user.active_family_id
+    docs = Document.query.filter_by(family_id=fid).order_by(Document.uploaded_at.desc()).all()
+    from itertools import groupby as _groupby
+    grouped = {}
+    for d in docs:
+        cat = d.category or 'Other'
+        grouped.setdefault(cat, []).append(d)
+    ordered = [(cat, grouped[cat]) for cat in DOCUMENT_CATEGORIES if cat in grouped]
+    return render_template('documents.html', grouped=ordered, categories=DOCUMENT_CATEGORIES)
+
+
+@main.route('/documents/upload', methods=['POST'])
+@login_required
+def document_upload():
+    from .storage import upload_document
+    fid = current_user.active_family_id
+    f = request.files.get('file')
+    if not f or not f.filename:
+        flash('No file selected.', 'error')
+        return redirect(url_for('main.documents_list'))
+    result = upload_document(f)
+    if result is None:
+        flash('Unsupported file type. Allowed: pdf, jpg, png, gif, webp, heic, txt, doc, docx', 'error')
+        return redirect(url_for('main.documents_list'))
+    key, ext, size = result
+    title = request.form.get('title', '').strip() or f.filename.rsplit('.', 1)[0]
+    my_person = Person.query.filter_by(family_id=fid, user_id=current_user.id).first()
+    doc = Document(
+        family_id=fid,
+        uploader_id=my_person.id if my_person else None,
+        title=title,
+        category=request.form.get('category') or None,
+        storage_key=key,
+        original_filename=f.filename,
+        file_type=ext,
+        file_size=size,
+        notes=request.form.get('notes', '').strip() or None,
+    )
+    db.session.add(doc)
+    db.session.commit()
+    flash('Document uploaded.', 'success')
+    return redirect(url_for('main.documents_list'))
+
+
+@main.route('/documents/<int:doc_id>/view')
+@login_required
+def document_view(doc_id):
+    from .storage import get_object_bytes
+    from flask import Response
+    doc = db.session.get(Document, doc_id)
+    if not doc or doc.family_id != current_user.active_family_id:
+        abort(404)
+    data, content_type = get_object_bytes(doc.storage_key)
+    inline_types = {'application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'text/plain'}
+    disposition = 'inline' if content_type in inline_types else f'attachment; filename="{doc.original_filename}"'
+    return Response(data, content_type=content_type,
+                    headers={'Content-Disposition': disposition})
+
+
+@main.route('/documents/<int:doc_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def document_delete(doc_id):
+    from .storage import delete_object
+    doc = db.session.get(Document, doc_id)
+    if not doc or doc.family_id != current_user.active_family_id:
+        abort(404)
+    delete_object(doc.storage_key)
+    db.session.delete(doc)
+    db.session.commit()
+    flash('Document deleted.', 'success')
+    return redirect(url_for('main.documents_list'))
 
 
 # ── Events ────────────────────────────────────────────────────────────────────

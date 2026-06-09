@@ -908,6 +908,28 @@ class CarpoolOffer(db.Model):
     person = db.relationship('Person', foreign_keys=[person_id])
 
 
+# ── Documents ────────────────────────────────────────────────────────────────
+
+DOCUMENT_CATEGORIES = ['Legal', 'Recipes', 'Letters', 'Certificates', 'Other']
+
+class Document(db.Model):
+    __tablename__ = 'documents'
+
+    id = db.Column(db.Integer, primary_key=True)
+    family_id = db.Column(db.Integer, db.ForeignKey('families.id'), nullable=False, index=True)
+    uploader_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=True)
+    title = db.Column(db.String(200), nullable=False)
+    category = db.Column(db.String(50), nullable=True)
+    storage_key = db.Column(db.String(300), nullable=False)
+    original_filename = db.Column(db.String(200), nullable=False)
+    file_type = db.Column(db.String(20), nullable=False)
+    file_size = db.Column(db.Integer, nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    uploader = db.relationship('Person')
+
+
 # ── Checklists ────────────────────────────────────────────────────────────────
 
 class Checklist(db.Model):
