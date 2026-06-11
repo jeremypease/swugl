@@ -74,3 +74,34 @@ Four test files: `test_smoke.py` (core paths + isolation), `test_billing.py` (St
 Railway auto-deploys on push to `main`. Migrations run automatically before gunicorn starts. Env vars set in Railway dashboard. Domain: swugl.com (Cloudflare DNS → Railway).
 
 Registration currently closed (`REGISTRATION_OPEN=false` in Railway env vars). Flip to `true` when ready for real users.
+
+## Code review checklist (after every change)
+
+After every code change — no matter how small — review it as a senior engineer would in a pull request. Check for:
+
+- **Security**: Is any user data, file path, or input being trusted without validation? Are secrets or API keys ever hardcoded or logged?
+- **Simplicity**: Is this the simplest way to solve the problem? Would a future version of me understand this in 6 months?
+- **Error handling**: What happens if this fails? Are errors caught and handled gracefully?
+- **Data integrity**: Could this corrupt or lose data? (Especially anything touching the DB or file storage.)
+- **Readability**: Are variable and function names clear? Is anything that needs a comment missing one?
+
+## Red flags — stop and flag these immediately
+
+- Any code that writes to or deletes data without a safety check or rollback path
+- Hardcoded file paths that will break outside local development
+- Missing input validation on anything coming from the user or a form
+- Anything that exposes internal file structure or data through the web front-end
+- Secrets or API keys anywhere in code or logs
+
+## Code style
+
+- Keep functions small and single-purpose
+- Prefer clear over clever
+- Add a short comment only when the "why" isn't obvious from the code
+- Don't introduce new dependencies without a good reason — check if the standard library covers it first
+
+## End-of-task summary
+
+Before saying a task is done, briefly summarize:
+1. What changed
+2. Anything noticed during review that could be a future issue (even if outside the current task scope)
