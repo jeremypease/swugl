@@ -2,14 +2,30 @@
 
 Private family hub SaaS. Live at swugl.com. Flask + SQLAlchemy + PostgreSQL (Railway) / SQLite (local).
 
-## Before starting new feature work
+## Working on this codebase
 
-Check the roadmap memory (`project_roadmap.md`) before implementing anything new. Verify:
+**Before starting any task**, check `project_roadmap.md` and verify:
 1. Is the feature free-tier or paid-only? Apply `@requires_plan` or a plan gate if it's paid.
 2. Does it conflict with a planned architecture decision (e.g. billing gating, access tiers)?
 3. Is it already marked ✅ done or in-progress somewhere?
 
-Flag any conflicts to the user before implementing rather than discovering them after.
+Flag any conflicts before implementing rather than discovering them after.
+
+**After every change**, review it as a senior engineer would in a PR. Check for:
+- **Security**: Is any user input, file path, or data trusted without validation? Are secrets hardcoded or logged?
+- **Simplicity**: Is this the simplest solution? Would a future reader understand it in 6 months?
+- **Error handling**: What happens if this fails? Are errors caught and handled gracefully?
+- **Data integrity**: Could this corrupt or lose data? (Especially anything touching the DB or file storage.)
+- **Readability**: Are names clear? Is anything that needs a comment missing one?
+
+**Stop and flag immediately** if you see:
+- Writes or deletes without a safety check or rollback path
+- Hardcoded file paths that will break outside local development
+- Missing input validation on anything from a user or form
+- Anything that exposes internal file structure or data through the front-end
+- Secrets or API keys in code or logs
+
+**Before saying a task is done**, briefly summarize: (1) what changed, and (2) anything noticed during review that could be a future issue.
 
 ## Commands
 
@@ -75,33 +91,9 @@ Railway auto-deploys on push to `main`. Migrations run automatically before guni
 
 Registration currently closed (`REGISTRATION_OPEN=false` in Railway env vars). Flip to `true` when ready for real users.
 
-## Code review checklist (after every change)
-
-After every code change — no matter how small — review it as a senior engineer would in a pull request. Check for:
-
-- **Security**: Is any user data, file path, or input being trusted without validation? Are secrets or API keys ever hardcoded or logged?
-- **Simplicity**: Is this the simplest way to solve the problem? Would a future version of me understand this in 6 months?
-- **Error handling**: What happens if this fails? Are errors caught and handled gracefully?
-- **Data integrity**: Could this corrupt or lose data? (Especially anything touching the DB or file storage.)
-- **Readability**: Are variable and function names clear? Is anything that needs a comment missing one?
-
-## Red flags — stop and flag these immediately
-
-- Any code that writes to or deletes data without a safety check or rollback path
-- Hardcoded file paths that will break outside local development
-- Missing input validation on anything coming from the user or a form
-- Anything that exposes internal file structure or data through the web front-end
-- Secrets or API keys anywhere in code or logs
-
 ## Code style
 
 - Keep functions small and single-purpose
 - Prefer clear over clever
 - Add a short comment only when the "why" isn't obvious from the code
 - Don't introduce new dependencies without a good reason — check if the standard library covers it first
-
-## End-of-task summary
-
-Before saying a task is done, briefly summarize:
-1. What changed
-2. Anything noticed during review that could be a future issue (even if outside the current task scope)
