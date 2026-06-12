@@ -2473,6 +2473,8 @@ def timeline():
                 })
 
     for e in events:
+        if not e.start_date:
+            continue
         milestones.append({
             'date': e.start_date,
             'type': 'event',
