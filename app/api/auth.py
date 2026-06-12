@@ -197,3 +197,27 @@ def me():
     data = serialize_user(user)
     data['family_name'] = user.family.name if user.family else None
     return jsonify(data), 200
+
+
+@api.route('/auth/account', methods=['DELETE'])
+@jwt_required()
+def delete_account():
+    """Permanently delete the authenticated user's account (App Store 5.1.1(v)).
+
+    Requires {"confirm": "DELETE"} in the JSON body. Purges the whole family
+    when this is its last account. Returns 409 when the user is the only
+    admin of a family that still has other members.
+    """
+    from ..account import delete_user_account, LastAdminError
+    data = request.get_json(silent=True) or {}
+    if data.get('confirm') != 'DELETE':
+        return error_response(400, 'Pass {"confirm": "DELETE"} to delete the account.', 'confirm_required')
+    user_id = get_jwt_identity()
+    user = User.query.get(int(user_id))
+    if not user:
+        return error_response(401, 'User not found.', 'invalid_credentials')
+    try:
+        result = delete_user_account(user)
+    except LastAdminError:
+        return error_response(409, 'You are the only admin — promote another member to admin first.', 'last_admin')
+    return jsonify({'ok': True, 'result': result}), 200

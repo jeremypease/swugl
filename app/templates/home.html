@@ -277,7 +277,7 @@
         <div class="photo-grid-sm">
             {% for photo in recent_photos %}
             <a href="/albums/{{ photo.album_id }}">
-                <img src="{{ photo_url(photo.path) }}" alt="" loading="lazy">
+                <img src="{{ photo_url(photo.thumb_path or photo.path) }}" alt="" loading="lazy">
             </a>
             {% endfor %}
         </div>
@@ -311,7 +311,7 @@
         <div class="photo-grid-sm">
             {% for photo in on_this_day %}
             <a href="/albums/{{ photo.album_id }}" title="{{ photo.caption or '' }}">
-                <img src="{{ photo_url(photo.path) }}" alt="{{ photo.caption or '' }}" loading="lazy">
+                <img src="{{ photo_url(photo.thumb_path or photo.path) }}" alt="{{ photo.caption or '' }}" loading="lazy">
             </a>
             {% endfor %}
         </div>

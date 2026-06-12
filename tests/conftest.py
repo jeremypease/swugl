@@ -21,6 +21,10 @@ def app():
         'SQLALCHEMY_DATABASE_URI': f'sqlite:///{db_path}',
         'SQLALCHEMY_ENGINE_OPTIONS': {'poolclass': NullPool},
         'WTF_CSRF_ENABLED': False,
+        # Never touch the real R2 bucket or send email from tests, even with
+        # a developer .env loaded
+        'R2_ACCOUNT_ID': None,
+        'MAIL_ENABLED': False,
     })
     with application.app_context():
         _db.create_all()

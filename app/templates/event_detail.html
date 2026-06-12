@@ -312,7 +312,7 @@ details[open] .details-chevron { transform: rotate(180deg); }
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
             {% for photo in event_photos %}
             <a href="/albums/{{ photo.album_id }}" style="display:block;flex-shrink:0;">
-                <img src="{{ photo_url(photo.path) }}"
+                <img src="{{ photo_url(photo.thumb_path or photo.path) }}"
                      style="width:80px;height:80px;object-fit:cover;border-radius:var(--r-s);border:1px solid var(--hairline);"
                      loading="lazy" alt="">
             </a>

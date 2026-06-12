@@ -114,6 +114,10 @@ def create_app(test_config=None):
     app.config['ANTHROPIC_API_KEY'] = os.environ.get('ANTHROPIC_API_KEY', '')
     app.config['APP_VERSION'] = os.environ.get('APP_VERSION', '1.0.0')
 
+    # Request body cap — bulk album uploads send many photos in one multipart
+    # POST, so this is well above the 25 MB per-file cap enforced in storage.py.
+    app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
+
     # Session lifetime
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=14)
     app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=30)
@@ -129,6 +133,12 @@ def create_app(test_config=None):
         # doesn't, Apple's form_post returns over http:// and the Secure session
         # cookie is never sent, breaking state verification.
         app.config['PREFERRED_URL_SCHEME'] = 'https'
+
+    # Re-apply test overrides: the env-based assignments above clobber any
+    # overlapping keys passed in test_config (e.g. R2_ACCOUNT_ID=None so the
+    # test suite never touches the real bucket).
+    if test_config:
+        app.config.update(test_config)
 
     db.init_app(app)
     migrate.init_app(app, db)
@@ -293,6 +303,10 @@ def create_app(test_config=None):
     @app.errorhandler(404)
     def not_found(e):
         return render_template('errors/404.html'), 404
+
+    @app.errorhandler(413)
+    def request_too_large(e):
+        return render_template('errors/413.html'), 413
 
     @app.errorhandler(500)
     def server_error(e):

@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Too Large — Swugl{% endblock %}
+
+{% block content %}
+<div style="text-align:center;padding:80px 20px;">
+    <div style="font-size:64px;font-weight:300;color:var(--slate-soft);line-height:1;margin-bottom:16px;">413</div>
+    <h1 style="margin-bottom:8px;">That upload is too large</h1>
+    <p style="color:var(--slate);margin-bottom:28px;">Uploads are limited to 100 MB per request and 25 MB per file. Try uploading fewer or smaller files at a time.</p>
+    <a href="/" class="btn btn-primary">Go home</a>
+</div>
+{% endblock %}

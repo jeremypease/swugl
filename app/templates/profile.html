@@ -290,7 +290,7 @@
         <div class="photo-grid-sm">
             {% for photo in tagged_photos %}
             <a href="/albums/{{ photo.album_id }}">
-                <img src="{{ photo_url(photo.path) }}" alt="" loading="lazy">
+                <img src="{{ photo_url(photo.thumb_path or photo.path) }}" alt="" loading="lazy">
             </a>
             {% endfor %}
         </div>

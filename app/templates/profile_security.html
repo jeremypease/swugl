@@ -149,6 +149,27 @@
         </div>
     </div>
 
+    <div class="card" style="border-color:#fecaca;">
+        <div class="card-body">
+            <h2 style="font-size:16px;margin-bottom:4px;color:#b91c1c;">Delete account</h2>
+            <p style="font-size:13px;color:var(--slate);margin-bottom:12px;">
+                Permanently deletes your account, sign-in methods, notifications, and chat messages.
+                Your profile stays in the family tree — ask an admin to remove it if you want it gone too.
+                If you're the only member, your entire family pod and all its photos, events, and data are deleted.
+                This cannot be undone.
+            </p>
+            <form method="POST" action="{{ url_for('main.delete_account') }}" style="max-width:360px;"
+                  data-confirm="Permanently delete your account? This cannot be undone.">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="field">
+                    <label for="confirm-delete">Type <strong>DELETE</strong> to confirm</label>
+                    <input type="text" id="confirm-delete" name="confirm" autocomplete="off" required>
+                </div>
+                <button type="submit" class="btn" style="background:#b91c1c;color:#fff;">Delete my account</button>
+            </form>
+        </div>
+    </div>
+
     <a href="{{ url_for('main.profile') }}" style="font-size:14px;color:var(--slate);">← Back to profile</a>
 </div>
 <script nonce="{{ g.csp_nonce }}">

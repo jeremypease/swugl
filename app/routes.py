@@ -902,7 +902,9 @@ def reset_password(token):
 ALLOWED_PHOTO_EXTS = {'jpg', 'jpeg', 'png', 'webp', 'gif', 'heic'}
 
 def _save_photo_file(file, album_id):
-    return upload_photo(file, folder=f'albums/{album_id}')
+    """Returns (key, thumb_key) or None on rejected file."""
+    result = upload_photo(file, folder=f'albums/{album_id}', with_thumb=True)
+    return result if result else None
 
 @main.route('/albums')
 @login_required
@@ -955,6 +957,7 @@ def album_detail(album_id):
 @main.route('/albums/<int:album_id>/upload', methods=['POST'])
 @login_required
 @contributor_or_admin_required
+@requires_plan
 def upload_photos(album_id):
     album = db.session.get(Album, album_id)
     if not album or album.family_id != current_user.active_family_id:
@@ -964,13 +967,15 @@ def upload_photos(album_id):
     count = 0
     for file in files:
         if file and file.filename:
-            path = _save_photo_file(file, album_id)
-            if path:
+            result = _save_photo_file(file, album_id)
+            if result:
+                path, thumb_path = result
                 photo = Photo(
                     album_id=album_id,
                     family_id=current_user.active_family_id,
                     uploaded_by_id=current_user.person.id if current_user.person else None,
                     path=path,
+                    thumb_path=thumb_path,
                     caption=caption,
                 )
                 db.session.add(photo)
@@ -1004,13 +1009,15 @@ def event_upload_photos(event_id):
         if file and file.filename:
             ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else ''
             if ext in ALLOWED_PHOTO_EXTS:
-                path = _save_photo_file(file, album.id)
-                if path:
+                result = _save_photo_file(file, album.id)
+                if result:
+                    path, thumb_path = result
                     db.session.add(Photo(
                         album_id=album.id,
                         family_id=current_user.active_family_id,
                         uploaded_by_id=current_user.person.id if current_user.person else None,
                         path=path,
+                        thumb_path=thumb_path,
                     ))
                     count += 1
     if count:
@@ -1049,6 +1056,7 @@ def delete_photo(album_id, photo_id):
     can_delete = current_user.active_is_admin or (current_user.person and photo.uploaded_by_id == current_user.person.id)
     if can_delete:
         delete_object(photo.path)
+        delete_object(photo.thumb_path)
         db.session.delete(photo)
         db.session.commit()
         flash('Photo deleted.', 'info')
@@ -1153,6 +1161,7 @@ def delete_album(album_id):
         return redirect(url_for('main.albums'))
     for photo in album.photos:
         delete_object(photo.path)
+        delete_object(photo.thumb_path)
     db.session.delete(album)
     db.session.commit()
     flash('Album deleted.', 'info')
@@ -2024,6 +2033,29 @@ def profile():
         return redirect(url_for('main.home'))
     return render_template('profile.html', person=person, relationship=None, parent_roles=PARENT_ROLES, spouse_roles=SPOUSE_ROLES)
 
+@main.route('/profile/delete-account', methods=['POST'])
+@login_required
+@limiter.limit('5 per hour')
+def delete_account():
+    from .account import delete_user_account, LastAdminError
+    if request.form.get('confirm', '').strip() != 'DELETE':
+        flash('Type DELETE in the confirmation box to delete your account.', 'error')
+        return redirect(url_for('tf.security'))
+    user = User.query.get(current_user.id)
+    try:
+        result = delete_user_account(user)
+    except LastAdminError:
+        flash('You are the only admin. Promote another member to admin first '
+              '(Members & invites → role), then delete your account.', 'error')
+        return redirect(url_for('tf.security'))
+    logout_user()
+    session.clear()
+    if result == 'purged':
+        flash('Your account and family pod have been permanently deleted.', 'info')
+    else:
+        flash('Your account has been permanently deleted.', 'info')
+    return redirect(url_for('main.index'))
+
 @main.route('/profile/edit', methods=['GET', 'POST'])
 @login_required
 def profile_edit():
@@ -2309,6 +2341,12 @@ def spouse_invite():
             return redirect(url_for('main.spouse_add'))
         full_name = f"{invite_form.first_name.data} {invite_form.last_name.data}"
         spouse_person = Person.query.filter_by(name=full_name, family_id=current_user.active_family_id).first()
+        if not spouse_person and not family_has_paid_access(current_user.active_family):
+            person_count = Person.query.filter_by(family_id=current_user.active_family_id).count()
+            if person_count >= FREE_MEMBER_LIMIT:
+                flash(f'Free plan is limited to {FREE_MEMBER_LIMIT} family members. '
+                      'Upgrade to add unlimited members.', 'warning')
+                return redirect(url_for('billing.billing_page'))
         if not spouse_person:
             spouse_person = Person(
                 name=full_name,
@@ -2526,7 +2564,7 @@ def document_upload():
         return redirect(url_for('main.documents_list'))
     key, ext, size = result
     title = request.form.get('title', '').strip() or f.filename.rsplit('.', 1)[0]
-    my_person = Person.query.filter_by(family_id=fid, user_id=current_user.id).first()
+    my_person = current_user.person if current_user.person and current_user.person.family_id == fid else None
     doc = Document(
         family_id=fid,
         uploader_id=my_person.id if my_person else None,
@@ -4683,7 +4721,10 @@ def pwa_offline():
 def serve_photo(key):
     """Proxy route: serves R2 photos through Flask when no R2_PUBLIC_URL is set."""
     from flask import Response, abort
-    photo = Photo.query.filter_by(family_id=current_user.active_family_id, path=key).first()
+    photo = Photo.query.filter(
+        Photo.family_id == current_user.active_family_id,
+        db.or_(Photo.path == key, Photo.thumb_path == key),
+    ).first()
     person = None if photo else Person.query.filter_by(family_id=current_user.active_family_id, photo_path=key).first()
     if not photo and not person:
         abort(403)

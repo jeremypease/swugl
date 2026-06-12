@@ -90,7 +90,7 @@
         <a href="/albums/{{ album.id }}" class="album-tile">
             <div class="album-tile-cover">
                 {% if album.cover %}
-                <img src="{{ photo_url(album.cover.path) }}" loading="lazy">
+                <img src="{{ photo_url(album.cover.thumb_path or album.cover.path) }}" loading="lazy">
                 {% else %}
                 <div class="empty-icon"><i data-lucide="image" style="width:32px;height:32px;opacity:.25;"></i></div>
                 {% endif %}
@@ -131,7 +131,7 @@
         <a href="/albums/{{ album.id }}" class="album-tile">
             <div class="album-tile-cover">
                 {% if album.cover %}
-                <img src="{{ photo_url(album.cover.path) }}" loading="lazy">
+                <img src="{{ photo_url(album.cover.thumb_path or album.cover.path) }}" loading="lazy">
                 {% else %}
                 <div class="empty-icon"><i data-lucide="image" style="width:32px;height:32px;opacity:.25;"></i></div>
                 {% endif %}

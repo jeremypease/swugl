@@ -915,6 +915,7 @@ class Photo(db.Model):
     family_id = db.Column(db.Integer, db.ForeignKey('families.id'), nullable=False, index=True)
     uploaded_by_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=True)
     path = db.Column(db.String(300), nullable=False)
+    thumb_path = db.Column(db.String(300), nullable=True)
     caption = db.Column(db.String(300), nullable=True)
     taken_date = db.Column(db.Date, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -1087,7 +1088,9 @@ class EventPaymentRecord(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     event_id = db.Column(db.Integer, db.ForeignKey('events.id'), nullable=False, index=True)
-    payer_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    # Nullable: set to NULL when the payer deletes their account (the family
+    # keeps the financial record, the person link is erased).
+    payer_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
     amount_cents = db.Column(db.Integer, nullable=False)
     net_cents = db.Column(db.Integer, nullable=True)  # actual net after Stripe fees; populated by webhook
     stripe_checkout_session_id = db.Column(db.String(200), nullable=True, unique=True, index=True)
