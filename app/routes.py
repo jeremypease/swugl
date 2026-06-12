@@ -2109,7 +2109,15 @@ def notifications():
         .limit(60)
         .all()
     )
-    return render_template('notifications.html', notifications=items)
+    # Viewing the full list counts as reading it (the slide-over panel does
+    # not — there only clicked items are marked read)
+    now = datetime.utcnow()
+    unread = [n for n in items if n.read_at is None]
+    if unread:
+        for n in unread:
+            n.read_at = now
+        db.session.commit()
+    return render_template('notifications.html', notifications=items, just_read_ids={n.id for n in unread})
 
 
 @main.route('/notifications/<int:nid>/read', methods=['POST'])

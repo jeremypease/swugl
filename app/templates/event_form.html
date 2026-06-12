@@ -3,7 +3,7 @@
 {% block title %}{% if event %}Edit {{ event.name }}{% else %}New Event{% endif %} — Swugl{% endblock %}
 
 {% block head %}
-<link rel="stylesheet" href="https://unpkg.com/flatpickr/dist/flatpickr.min.css">
+<link rel="stylesheet" href="https://unpkg.com/flatpickr@4.6.13/dist/flatpickr.min.css">
 <style>
 .ac-item { padding:9px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--hairline); }
 .ac-item:last-child { border-bottom:none; }
@@ -260,7 +260,7 @@
 </div>
 </div>
 
-<script src="https://unpkg.com/flatpickr"></script>
+<script src="https://unpkg.com/flatpickr@4.6.13"></script>
 <script nonce="{{ g.csp_nonce }}">
 (function () {
     // ── Flatpickr date pickers ──────────────────────────────────────

@@ -15,7 +15,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/swugl.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="{{ url_for('static', filename='js/lucide.min.js') }}"></script>
     {% block head %}{% endblock %}
 </head>
 <body class="landing-body">

@@ -6,7 +6,7 @@
     <title>{% block title %}Platform Admin{% endblock %} — Swugl</title>
     <link rel="icon" href="{{ url_for('static', filename='assets/favicon.svg') }}" type="image/svg+xml">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/swugl.css') }}">
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="{{ url_for('static', filename='js/lucide.min.js') }}"></script>
     <style>
     .pa-shell { display: grid; grid-template-columns: 200px 1fr; min-height: 100vh; }
     .pa-sidebar {

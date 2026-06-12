@@ -7,13 +7,6 @@
         <div class="eyebrow">{{ current_user.active_family.name }}</div>
         <h1>Notifications</h1>
     </div>
-    {% set unread = notifications | selectattr('is_read', 'equalto', false) | list %}
-    {% if unread %}
-    <form method="POST" action="{{ url_for('main.notifications_read_all') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="btn btn-secondary btn-sm">Mark all as read</button>
-    </form>
-    {% endif %}
 </div>
 
 <div style="max-width:640px;">
@@ -31,21 +24,22 @@
     {% elif n.event_type == 'digest' %}{% set _ni = 'mail' %}
     {% else %}{% set _ni = 'bell' %}{% endif %}
 
+    {% set is_new = not n.is_read or n.id in just_read_ids %}
     {% if n.url %}
     <a href="{{ n.url }}" onclick="markRead({{ n.id }}, this);"
     {% else %}
     <div
     {% endif %}
-       style="display:flex;align-items:flex-start;gap:14px;padding:14px 16px;border-bottom:1px solid var(--hairline);text-decoration:none;color:inherit;{% if not n.is_read %}background:var(--leaf-mist);{% endif %}">
-        <div style="width:36px;height:36px;border-radius:50%;background:{% if not n.is_read %}var(--vine){% else %}var(--cream-warm){% endif %};display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">
-            <i data-lucide="{{ _ni }}" style="width:16px;height:16px;color:{% if not n.is_read %}#fff{% else %}var(--slate){% endif %};"></i>
+       style="display:flex;align-items:flex-start;gap:14px;padding:14px 16px;border-bottom:1px solid var(--hairline);text-decoration:none;color:inherit;{% if is_new %}background:var(--leaf-mist);{% endif %}">
+        <div style="width:36px;height:36px;border-radius:50%;background:{% if is_new %}var(--vine){% else %}var(--cream-warm){% endif %};display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">
+            <i data-lucide="{{ _ni }}" style="width:16px;height:16px;color:{% if is_new %}#fff{% else %}var(--slate){% endif %};"></i>
         </div>
         <div style="flex:1;min-width:0;">
-            <div style="font-weight:{% if not n.is_read %}600{% else %}400{% endif %};font-size:14px;line-height:1.35;margin-bottom:3px;">{{ n.title }}</div>
+            <div style="font-weight:{% if is_new %}600{% else %}400{% endif %};font-size:14px;line-height:1.35;margin-bottom:3px;">{{ n.title }}</div>
             {% if n.body %}<div style="font-size:13px;color:var(--slate);margin-bottom:3px;">{{ n.body }}</div>{% endif %}
             <div style="font-size:12px;color:var(--slate-soft);">{{ n.created_at | timeago }}</div>
         </div>
-        {% if not n.is_read %}
+        {% if is_new %}
         <div style="width:8px;height:8px;border-radius:50%;background:var(--vine);flex-shrink:0;margin-top:6px;"></div>
         {% endif %}
     {% if n.url %}</a>{% else %}</div>{% endif %}
