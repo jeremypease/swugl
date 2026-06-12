@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Family Settings — {{ current_user.active_family.name }}{% endblock %}
+{% block title %}Circle Settings — {{ current_user.active_family.name }}{% endblock %}
 
 {% block head %}
 <style>
@@ -46,7 +46,7 @@
 <div class="settings-nav">
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-soft);padding:4px 10px 8px;">Circle Settings</div>
     <a href="/admin/users">Members &amp; invites</a>
-    <a href="/admin/family" class="active">Family settings</a>
+    <a href="/admin/family" class="active">Circle settings</a>
     <a href="{{ url_for('billing.billing_page') }}">Billing</a>
     <a href="{{ url_for('main.admin_locations') }}">Locations</a>
 </div>
@@ -55,7 +55,7 @@
 <div>
     <div style="margin-bottom:20px;">
         <div class="eyebrow">{{ current_user.active_family.name }}</div>
-        <h1 style="margin-bottom:4px;">Family Settings</h1>
+        <h1 style="margin-bottom:4px;">Circle Settings</h1>
     </div>
 
     <div class="card">

@@ -106,8 +106,8 @@
             </a>
             {% if current_user.active_is_admin %}
             <div class="nav-section">Admin</div>
-            <a href="/admin/users" {% if request.path.startswith('/admin') and request.path != '/admin/family' %}class="active"{% endif %}>
-                <i data-lucide="shield"></i> Settings
+            <a href="/admin/users" {% if request.path.startswith('/admin') %}class="active"{% endif %}>
+                <i data-lucide="shield"></i> Members &amp; invites
             </a>
             <a href="/billing" {% if request.path.startswith('/billing') %}class="active"{% endif %}>
                 <i data-lucide="credit-card"></i> Billing

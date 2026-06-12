@@ -2051,7 +2051,7 @@ def delete_account():
     logout_user()
     session.clear()
     if result == 'purged':
-        flash('Your account and family pod have been permanently deleted.', 'info')
+        flash('Your account and circle have been permanently deleted.', 'info')
     else:
         flash('Your account has been permanently deleted.', 'info')
     return redirect(url_for('main.index'))
