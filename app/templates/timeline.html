@@ -28,7 +28,7 @@
         </div>
 
         <div style="display:flex;flex-direction:column;gap:8px;">
-        {% for m in group.items %}
+        {% for m in group['items'] %}
         {% if m.type == 'birth' %}
         {% set icon = 'star' %}{% set color = '#059669' %}{% set bg = '#ecfdf5' %}
         {% elif m.type == 'death' %}
