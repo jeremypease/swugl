@@ -8,6 +8,7 @@ from . import main, admin_required, contributor_or_admin_required
 from ..forms import AlbumForm, PhotoUploadForm
 import zipfile
 import io
+import os
 
 ALLOWED_PHOTO_EXTS = {'jpg', 'jpeg', 'png', 'webp', 'gif', 'heic'}
 
