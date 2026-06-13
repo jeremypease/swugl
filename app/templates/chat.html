@@ -88,6 +88,12 @@
 {% else %}
 
 <div id="chat-log">
+{% if not messages %}
+<div style="text-align:center;padding:48px 0 24px;color:var(--slate);">
+    <i data-lucide="message-circle" style="width:36px;height:36px;opacity:.4;margin-bottom:12px;"></i>
+    <div style="font-size:14px;">No messages yet — say hello!</div>
+</div>
+{% endif %}
 {% for m in messages %}
 {% set editable = m.can_edit(current_user) %}
 {% set deletable = m.can_delete(current_user) %}
@@ -125,7 +131,7 @@
     <form id="chat-form" method="POST" action="{{ url_for('main.chat_send') }}">
         {{ form.hidden_tag() }}
         <div style="display:flex;gap:10px;align-items:flex-end;">
-            {{ form.body(id='chat-body', placeholder='Message the family…', rows=1) }}
+            {{ form.body(id='chat-body', placeholder='Message the family… (Shift+Enter for new line)', rows=1) }}
             <button type="submit" class="btn btn-primary" style="flex-shrink:0;">Send</button>
         </div>
     </form>
@@ -154,6 +160,24 @@
           }).catch(function() {});
     }
 
+    function timeago(isoStr) {
+        // Server timestamps are UTC without timezone suffix; add Z so the browser parses them correctly
+        var dt = new Date(/[Z+]/.test(isoStr) ? isoStr : isoStr + 'Z');
+        var s = (Date.now() - dt.getTime()) / 1000;
+        if (s < 60) return 'just now';
+        if (s < 3600) return Math.floor(s / 60) + 'm ago';
+        if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+        if (s < 172800) return 'yesterday';
+        if (s < 604800) return Math.floor(s / 86400) + ' days ago';
+        return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+
+    function isNearBottom() {
+        var anchor = document.getElementById('chat-anchor');
+        if (!anchor) return true;
+        return anchor.getBoundingClientRect().bottom <= window.innerHeight + 120;
+    }
+
     function appendMessage(m) {
         var log = document.getElementById('chat-log');
         var div = document.createElement('div');
@@ -171,12 +195,14 @@
                 + '</form>';
         }
         div.innerHTML = '<div class="chat-msg-meta"><span class="chat-msg-author">' + escHtml(m.author_name) + '</span>'
-            + '<span>·</span><span>' + escHtml(m.created_at) + '</span>' + editedLabel + '</div>'
+            + '<span>·</span><span>' + timeago(m.created_at) + '</span>' + editedLabel + '</div>'
             + '<div class="chat-msg-body">' + escHtml(m.body) + '</div>'
             + (actions ? '<div class="chat-msg-actions">' + actions + '</div>' : '');
         log.appendChild(div);
         lucide.createIcons({ nodes: [div] });
-        document.getElementById('chat-anchor').scrollIntoView({ block: 'end', behavior: 'smooth' });
+        if (isNearBottom()) {
+            document.getElementById('chat-anchor').scrollIntoView({ block: 'end', behavior: 'smooth' });
+        }
     }
 
     window.startEdit = function(msgId, currentBody) {
@@ -257,9 +283,9 @@
             this.style.height = 'auto';
             this.style.height = Math.min(this.scrollHeight, 160) + 'px';
         });
-        // Cmd/Ctrl + Enter submits
+        // Enter submits; Shift+Enter inserts a newline
         ta.addEventListener('keydown', function(e) {
-            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+            if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 document.getElementById('chat-form').submit();
             }
