@@ -432,17 +432,16 @@ def login():
         login_user(user, remember=form.remember_me.data)
         session['active_family_id'] = user.family_id
         next_page = request.args.get('next')
-        # Only allow same-site relative paths to prevent open redirect.
-        # Reject: any URL with a scheme (javascript:, data:, etc.), a netloc
-        # (//evil.com), non-absolute paths, or backslash tricks (/\evil.com).
         if next_page:
             _p = urlparse(next_page)
-            if (_p.scheme or _p.netloc
-                    or not next_page.startswith('/')
-                    or next_page.startswith('//')
-                    or next_page.startswith('/\\')):
-                next_page = None
-        return redirect(next_page or url_for('main.home'))
+            # Accept only scheme-less, host-less, absolute-path URLs (/path...).
+            # Positive guard: all conditions must hold before we trust the value.
+            if (not _p.scheme and not _p.netloc
+                    and next_page.startswith('/')
+                    and not next_page.startswith('//')
+                    and not next_page.startswith('/\\')):
+                return redirect(next_page)
+        return redirect(url_for('main.home'))
     return render_template('login.html', form=form)
 
 @main.route('/logout', methods=['POST'])
