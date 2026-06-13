@@ -687,9 +687,12 @@ def event_payment_checkout(event_id):
 
     try:
         session_obj = s.checkout.Session.create(**kwargs)
+        checkout_url = session_obj.url or ''
+        if not checkout_url.startswith('https://checkout.stripe.com/'):
+            raise ValueError('Unexpected Stripe checkout URL')
         record.stripe_checkout_session_id = session_obj.id
         db.session.commit()
-        return redirect(session_obj.url, code=303)
+        return redirect(checkout_url, code=303)
     except Exception:
         flash('Could not start checkout. Please try again.', 'error')
         current_app.logger.exception('Stripe event checkout error')
@@ -1639,10 +1642,14 @@ def event_sleeping_bulk_add(event_id):
         if not line:
             continue
         # Try to extract trailing capacity: "Master bedroom 2" or "Bunk room (4)"
-        # Use re.search anchored to $ to avoid catastrophic backtracking on long lines.
-        m = re.search(r'\s*[\(\[]?(\d+)[\)\]]?\s*$', line)
-        if m and m.start() > 0:
-            name, cap = line[:m.start()].strip(), int(m.group(1))
+        # Use rsplit+isdigit to avoid any regex backtracking on user-provided text.
+        parts = line.rsplit(None, 1)
+        if len(parts) == 2:
+            last = parts[1].strip('()[]')
+            if last.isdigit():
+                name, cap = parts[0].strip(), int(last)
+            else:
+                name, cap = line, None
         else:
             name, cap = line, None
         if name:
