@@ -387,6 +387,17 @@ def home():
     _activity.sort(key=lambda x: x['ts'], reverse=True)
     activity_feed = _activity[:15]
 
+    # Mark feed items that arrived since the viewer last loaded home, then
+    # advance their marker. Excludes the viewer's own actions so "New" reflects
+    # what others did. First-ever visit (prev_seen is None) shows nothing new.
+    prev_seen = current_user.home_last_seen_at
+    for item in activity_feed:
+        actor = item.get('actor')
+        is_own = actor is not None and getattr(actor, 'user', None) and actor.user.id == current_user.id
+        item['is_new'] = bool(prev_seen and item['ts'] > prev_seen and not is_own)
+    current_user.home_last_seen_at = datetime.utcnow()
+    db.session.commit()
+
     # RSVP status map for upcoming events (current user's person)
     rsvp_map = {}
     if me:
@@ -608,6 +619,7 @@ def register_invited(token):
             NotificationPreference.seed_defaults(invited_user.id)
             _ensure_membership(invited_user)
             db.session.commit()
+            _notify_new_member(invited_user)
             flash('Account created! You can now log in.', 'info')
         return redirect(url_for('main.login'))
 
@@ -990,6 +1002,14 @@ def upload_photos(album_id):
     if count:
         db.session.commit()
         flash(f'{count} photo{"s" if count != 1 else ""} uploaded.', 'info')
+        from .notifications import notify_family
+        actor = current_user.person.get_display_name() if current_user.person else 'Someone'
+        notify_family(
+            current_user.active_family_id, 'new_photos',
+            title=f'{actor} added {count} photo{"s" if count != 1 else ""} to {album.name}',
+            url=url_for('main.album_detail', album_id=album_id),
+            exclude_user_id=current_user.id,
+        )
     return redirect(url_for('main.album_detail', album_id=album_id))
 
 @main.route('/events/<int:event_id>/photos/upload', methods=['POST'])
@@ -1378,6 +1398,15 @@ def create_poll():
     for label in options:
         db.session.add(PollOption(poll_id=poll.id, label=label))
     db.session.commit()
+    from .notifications import notify_family
+    actor = current_user.person.get_display_name() if current_user.person else 'Someone'
+    notify_family(
+        current_user.active_family_id, 'new_poll',
+        title=f'{actor} added a poll',
+        body=question,
+        url=url_for('main.polls'),
+        exclude_user_id=current_user.id,
+    )
     return redirect(url_for('main.poll_detail', poll_id=poll.id))
 
 
@@ -1502,6 +1531,18 @@ def create_card():
     )
     db.session.add(card)
     db.session.commit()
+    from .notifications import notify_family
+    actor = current_user.person.get_display_name() if current_user.person else 'Someone'
+    # Exclude the recipient's own account — it's a surprise card.
+    recipient_user_id = recipient.user.id if recipient.user else None
+    notify_family(
+        current_user.active_family_id, 'new_card',
+        title=f'{actor} started a card for {recipient.get_display_name()}',
+        body='Add your signature before it’s sent.',
+        url=url_for('main.card_detail', card_id=card.id),
+        exclude_user_id=current_user.id,
+        exclude_user_ids=[recipient_user_id] if recipient_user_id else None,
+    )
     flash(f'Card created! Invite the family to sign it.', 'success')
     return redirect(url_for('main.card_detail', card_id=card.id))
 
@@ -1729,6 +1770,20 @@ def edit_announcement(ann_id):
         db.session.commit()
     return redirect(url_for('main.announcements'))
 
+def _notify_new_member(new_user):
+    """Tell the rest of the family that someone just joined."""
+    from .notifications import notify_family
+    name = new_user.get_full_name()
+    fam = new_user.family
+    url = url_for('main.person_detail', person_id=new_user.person_id) if new_user.person_id else None
+    notify_family(
+        new_user.family_id, 'new_member',
+        title=f'{name} joined {fam.name if fam else "the family"}',
+        url=url,
+        exclude_user_id=new_user.id,
+    )
+
+
 @main.route('/admin/users')
 @login_required
 @admin_required
@@ -1752,6 +1807,7 @@ def approve_user(user_id):
     NotificationPreference.seed_defaults(user.id)
     _ensure_membership(user)
     db.session.commit()
+    _notify_new_member(user)
     if current_app.config.get('MAIL_ENABLED'):
         send_approval_notification(user, url_for('main.login', _external=True))
     flash(f'{user.get_full_name()} has been approved.', 'info')

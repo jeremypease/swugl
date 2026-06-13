@@ -30,6 +30,24 @@ def create_notification(user, event_type, title, body=None, url=None):
     send_push_notification(user, title, body=body, url=url)
 
 
+def notify_family(family_id, event_type, title, body=None, url=None,
+                  exclude_user_id=None, exclude_user_ids=None):
+    """Send an in-app notification to every approved member of a family.
+
+    Skips exclude_user_id (the actor) and any ids in exclude_user_ids (e.g. a
+    greeting-card recipient who must not be told about their own surprise).
+    Each recipient is gated by their own preference via create_notification.
+    """
+    skip = set(exclude_user_ids or [])
+    if exclude_user_id is not None:
+        skip.add(exclude_user_id)
+    members = User.query.filter_by(family_id=family_id, status='approved').all()
+    for user in members:
+        if user.id in skip:
+            continue
+        create_notification(user, event_type, title, body=body, url=url)
+
+
 def send_push_notification(user, title, body=None, url=None):
     """Dispatch a push notification to all registered devices for the user.
 

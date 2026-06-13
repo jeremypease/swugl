@@ -215,7 +215,9 @@
                 <div class="activity-label" style="font-size:13px;line-height:1.4;">
                     {% if item.actor %}<span style="font-weight:600;">{{ item.actor.get_display_name() }}</span> {% endif %}{{ item.label }}
                 </div>
-                <div style="font-size:11px;color:var(--slate);margin-top:2px;">{{ item.ts | timeago }}</div>
+                <div style="font-size:11px;color:var(--slate);margin-top:2px;">
+                    {{ item.ts | timeago }}{% if item.is_new %} · <span style="color:var(--vine);font-weight:700;">New</span>{% endif %}
+                </div>
             </div>
         </a>
         {% endfor %}

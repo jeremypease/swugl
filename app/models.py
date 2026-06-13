@@ -288,6 +288,7 @@ class User(UserMixin, db.Model):
     totp_secret = db.Column(db.String(64), nullable=True)
     totp_enabled = db.Column(db.Boolean, nullable=False, server_default='0')
     chat_last_seen_at = db.Column(db.DateTime, nullable=True)
+    home_last_seen_at = db.Column(db.DateTime, nullable=True)
     passkeys = db.relationship('UserCredential', backref='user', cascade='all, delete-orphan')
 
     # Multi-pod memberships
@@ -354,11 +355,17 @@ NOTIFICATION_EVENTS = {
     'digest':        {'label': 'Weekly digest',          'default': True,  'in_app': False},
     'new_event':     {'label': 'New event created',      'default': True,  'in_app': True},
     'announcement':  {'label': 'New announcement',       'default': True,  'in_app': True},
-    'new_member':    {'label': 'New member joins',        'default': False, 'in_app': True},
+    'new_member':    {'label': 'New member joins',        'default': True,  'in_app': True},
     'rsvp_reminder': {'label': 'RSVP reminder',          'default': True,  'in_app': True},
     'assignment':    {'label': 'Task or meal assignment', 'default': True,  'in_app': True},
     'event_comment': {'label': 'New comment on event',   'default': True,  'in_app': True},
     'chat_message':  {'label': 'New chat message',        'default': True,  'in_app': True},
+    # Engagement notifications — in-app/bell only (email default False to avoid
+    # inbox fatigue). is_enabled() falls back to these defaults, so existing
+    # users get them with no pref re-seed.
+    'new_poll':      {'label': 'New poll',               'default': True,  'in_app': True},
+    'new_card':      {'label': 'New greeting card',      'default': True,  'in_app': True},
+    'new_photos':    {'label': 'New photos added',       'default': True,  'in_app': True},
 }
 
 
