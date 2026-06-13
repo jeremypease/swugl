@@ -5,7 +5,6 @@ from ..forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpo
 from ..email import send_verification_email, send_pending_notification, send_approval_notification, send_spouse_confirmation_email, send_spouse_invitation_email, send_password_reset_email, send_member_invitation_email, send_welcome_email, send_support_email, send_pod_added_email
 from datetime import date, datetime, timedelta
 from functools import wraps
-from urllib.parse import urlparse
 from .. import db, limiter
 from ..billing import requires_plan, family_has_paid_access, FREE_MEMBER_LIMIT, FREE_EVENT_LIMIT
 from ..storage import upload_photo, delete_object, get_object_bytes
@@ -431,19 +430,8 @@ def login():
             return redirect(url_for('tf.login_2fa'))
         login_user(user, remember=form.remember_me.data)
         session['active_family_id'] = user.family_id
-        next_page = request.args.get('next')
-        if next_page:
-            _p = urlparse(next_page)
-            # Accept only scheme-less, host-less, absolute-path URLs (/path...).
-            # Reconstruct from parsed path/query so the raw user string never
-            # reaches redirect() — _p.path is guaranteed scheme- and host-free.
-            if (not _p.scheme and not _p.netloc
-                    and _p.path.startswith('/')
-                    and not _p.path.startswith('//')
-                    and not _p.path.startswith('/\\')):
-                _safe = _p.path + ('?' + _p.query if _p.query else '')
-                return redirect(_safe)  # lgtm[py/url-redirection]
-        return redirect(url_for('main.home'))
+        next_url = session.pop('next', None)
+        return redirect(next_url or url_for('main.home'))
     return render_template('login.html', form=form)
 
 @main.route('/logout', methods=['POST'])

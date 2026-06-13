@@ -149,6 +149,7 @@ def create_app(test_config=None):
     login_manager.init_app(app)
     login_manager.login_view = 'main.login'
     login_manager.login_message_category = 'error'
+    app.config['USE_SESSION_FOR_NEXT'] = True
     csrf.init_app(app)
     limiter.init_app(app)
     jwt.init_app(app)
