@@ -49,6 +49,20 @@ flask merge-persons --keep-id X --remove-id Y  # merge duplicate Person records
 
 **CLI commands need request context** for `url_for(_external=True)` — wrap with `with _request_ctx():` (see commands.py).
 
+## Security & code quality
+
+Security is always a priority — never deprioritize it in favor of speed. Key rules:
+- Validate and sanitize all user input at system boundaries; never trust client-supplied data
+- Use parameterized queries / ORM only — no raw string interpolation in SQL
+- Escape output in templates (Jinja2 autoescaping is on; never use `| safe` on user content)
+- Check `@login_required`, `@admin_required`, and family-scoping on every route that touches data; a user must never access another family's data
+- Secrets stay in env vars — never hardcode or log them
+- CSRF protection is on (Flask-WTF); keep it enabled on all state-changing forms
+- Rate limiting via Flask-Limiter is in place for auth endpoints; don't bypass it
+- Keep dependencies up to date — Dependabot PRs should be reviewed promptly
+
+**Modern web standards:** keep the UX and codebase current. Prefer modern browser APIs (Fetch, Web Push, WebAuthn) over legacy patterns. When adding UI, match the existing design system and use progressive enhancement. Avoid shipping code that feels dated or inconsistent with the rest of the app.
+
 ## Key conventions
 
 - User role: `is_admin=True` — NOT `role='admin'` (there is no `role` column on User)
