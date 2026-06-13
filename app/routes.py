@@ -4604,9 +4604,14 @@ def pwa_manifest():
 # ── Chat ──────────────────────────────────────────────────────────────────────
 
 def _notify_chat_members(msg):
-    """Send in-app notifications to family members not currently viewing chat."""
+    """Notify family members not currently viewing chat.
+
+    Collapses into one unread notification per user — if an unread chat
+    notification already exists it is updated in place rather than a new row
+    created, so a burst of messages doesn't flood the bell.
+    """
     from .notifications import create_notification
-    from datetime import timedelta
+    from .models import Notification
     cutoff = datetime.utcnow() - timedelta(seconds=10)
     recipients = User.query.filter(
         User.family_id == msg.family_id,
@@ -4615,13 +4620,24 @@ def _notify_chat_members(msg):
     ).all()
     author_name = msg.author.get_full_name()
     for recipient in recipients:
-        create_notification(
-            recipient,
-            'chat_message',
-            title=f'New message from {author_name}',
-            body=msg.body[:120],
-            url='/chat',
-        )
+        existing = Notification.query.filter_by(
+            user_id=recipient.id,
+            event_type='chat_message',
+            read_at=None,
+        ).first()
+        if existing:
+            existing.title = f'New message from {author_name}'
+            existing.body = msg.body[:120]
+            existing.created_at = datetime.utcnow()
+            db.session.commit()
+        else:
+            create_notification(
+                recipient,
+                'chat_message',
+                title=f'New message from {author_name}',
+                body=msg.body[:120],
+                url='/chat',
+            )
 
 
 @main.route('/chat')
@@ -4676,8 +4692,10 @@ def chat_poll():
         .limit(100)
         .all()
     )
-    current_user.chat_last_seen_at = datetime.utcnow()
-    db.session.commit()
+    threshold = datetime.utcnow() - timedelta(seconds=30)
+    if current_user.chat_last_seen_at is None or current_user.chat_last_seen_at < threshold:
+        current_user.chat_last_seen_at = datetime.utcnow()
+        db.session.commit()
     return jsonify({
         'messages': [
             {
