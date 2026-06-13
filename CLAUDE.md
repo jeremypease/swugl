@@ -27,6 +27,7 @@ flask digest --dry-run           # preview weekly digest
 flask rsvp-reminders --dry-run   # preview RSVP reminder emails
 flask annual-events --dry-run    # preview annual event cloning
 flask merge-persons --keep-id X --remove-id Y  # merge duplicate Person records
+flask prune-chat --dry-run       # delete messages older than each family's retention period
 ```
 
 ## Branches

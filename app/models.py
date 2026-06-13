@@ -52,6 +52,7 @@ class Family(db.Model):
     enable_polls = db.Column(db.Boolean, default=True, nullable=False, server_default='true')
     enable_greeting_cards = db.Column(db.Boolean, default=True, nullable=False, server_default='true')
     enable_chat = db.Column(db.Boolean, default=True, nullable=False, server_default='true')
+    chat_retention_days = db.Column(db.Integer, nullable=True)  # None = keep forever
 
     people = db.relationship('Person', back_populates='family', foreign_keys='Person.family_id')
     users = db.relationship('User', back_populates='family', foreign_keys='User.family_id')

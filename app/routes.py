@@ -851,6 +851,7 @@ def family_settings():
         form.enable_polls.data = family.enable_polls
         form.enable_greeting_cards.data = family.enable_greeting_cards
         form.enable_chat.data = family.enable_chat
+        form.chat_retention_days.data = str(family.chat_retention_days) if family.chat_retention_days else ''
     if form.validate_on_submit():
         family.name = form.family_name.data
         family.require_member_approval = form.require_member_approval.data
@@ -858,6 +859,8 @@ def family_settings():
         family.enable_polls = form.enable_polls.data
         family.enable_greeting_cards = form.enable_greeting_cards.data
         family.enable_chat = form.enable_chat.data
+        retention = form.chat_retention_days.data
+        family.chat_retention_days = int(retention) if retention else None
         db.session.commit()
         flash('Family settings saved.', 'info')
         return redirect(url_for('main.family_settings'))
@@ -4742,6 +4745,40 @@ def chat_delete(msg_id):
     db.session.delete(msg)
     db.session.commit()
     return redirect(url_for('main.chat'))
+
+
+@main.route('/chat/export')
+@login_required
+@admin_required
+def chat_export():
+    """Download all chat messages for this family as a CSV."""
+    import csv, io
+    family = current_user.active_family
+    if not family or not family.enable_chat:
+        abort(404)
+    msgs = (
+        ChatMessage.query
+        .filter_by(family_id=current_user.active_family_id)
+        .order_by(ChatMessage.created_at.asc())
+        .all()
+    )
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Date (UTC)', 'Time (UTC)', 'Author', 'Message', 'Edited'])
+    for m in msgs:
+        writer.writerow([
+            m.created_at.strftime('%Y-%m-%d'),
+            m.created_at.strftime('%H:%M:%S'),
+            m.author.get_full_name(),
+            m.body,
+            'yes' if m.edited_at else '',
+        ])
+    slug = family.name.lower().replace(' ', '-')
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename="chat-{slug}.csv"'},
+    )
 
 
 @main.route('/sw.js')

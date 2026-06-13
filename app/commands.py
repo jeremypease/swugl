@@ -16,7 +16,7 @@ from .models import (Family, User, Event, EventMeal, EventMealItem, EventAssignm
                      EventSleepingSpot, EventRSVP, NotificationPreference,
                      Person, SpouseRelationship, ParentRelationship,
                      PollVote, CardSignature, AnnouncementReaction,
-                     PhotoTag, CarpoolOffer, EventSurveyResponse)
+                     PhotoTag, CarpoolOffer, EventSurveyResponse, ChatMessage)
 from .notifications import send_family_digest, create_notification
 from .email import (
     send_nudge_day3_email,
@@ -519,3 +519,29 @@ def merge_persons(keep_id, remove_id, dry_run):
         click.echo('Done.')
     else:
         click.echo('[DRY RUN] No changes committed.')
+
+
+@click.command('prune-chat')
+@click.option('--dry-run', is_flag=True, help='Print what would be deleted without deleting.')
+@with_appcontext
+def prune_chat(dry_run):
+    """Delete chat messages older than each family's configured retention period.
+
+    Schedule: daily alongside email-sequence (0 8 * * *).
+    """
+    now = datetime.utcnow()
+    families = Family.query.filter(Family.chat_retention_days.isnot(None)).all()
+    total = 0
+    for family in families:
+        cutoff = now - timedelta(days=family.chat_retention_days)
+        q = ChatMessage.query.filter_by(family_id=family.id).filter(ChatMessage.created_at < cutoff)
+        count = q.count()
+        if count:
+            label = '[DRY RUN] ' if dry_run else ''
+            click.echo(f'{label}Pruning {count} messages from "{family.name}" (older than {family.chat_retention_days}d)')
+            if not dry_run:
+                q.delete(synchronize_session=False)
+                db.session.commit()
+            total += count
+    verb = 'Would remove' if dry_run else 'Removed'
+    click.echo(f'Done. {verb} {total} message(s) across {len(families)} family/families with retention set.')
