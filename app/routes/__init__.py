@@ -435,12 +435,14 @@ def login():
         if next_page:
             _p = urlparse(next_page)
             # Accept only scheme-less, host-less, absolute-path URLs (/path...).
-            # Positive guard: all conditions must hold before we trust the value.
+            # Reconstruct from parsed path/query so the raw user string never
+            # reaches redirect() — _p.path is guaranteed scheme- and host-free.
             if (not _p.scheme and not _p.netloc
-                    and next_page.startswith('/')
-                    and not next_page.startswith('//')
-                    and not next_page.startswith('/\\')):
-                return redirect(next_page)
+                    and _p.path.startswith('/')
+                    and not _p.path.startswith('//')
+                    and not _p.path.startswith('/\\')):
+                _safe = _p.path + ('?' + _p.query if _p.query else '')
+                return redirect(_safe)  # lgtm[py/url-redirection]
         return redirect(url_for('main.home'))
     return render_template('login.html', form=form)
 
