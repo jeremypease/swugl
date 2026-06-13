@@ -74,6 +74,8 @@
     <div style="color:var(--slate);font-size:14px;margin-bottom:20px;">Plan a reunion, holiday gathering, or any get-together.</div>
     {% if current_user.active_is_admin %}
     <a href="/events/add" class="btn btn-primary"><i data-lucide="plus"></i> Create first event</a>
+    {% else %}
+    <div style="color:var(--slate-soft);font-size:13px;">Your family hasn't added any events yet — check back soon.</div>
     {% endif %}
 </div>
 {% endif %}

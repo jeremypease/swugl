@@ -311,14 +311,22 @@ def home():
     # Onboarding checklist — only for admins of new pods (families with account_id)
     onboarding = None
     if current_user.active_is_admin and current_user.family and current_user.active_family.account_id:
-        has_members = member_count > 1
-        has_photo = len(recent_photos) > 0
-        steps = [
-            ('members', 'Add your first family member', url_for('main.members'), has_members),
-            ('photo',   'Upload a photo', url_for('main.albums'), has_photo),
+        event_count = Event.query.filter_by(family_id=current_user.active_family_id).count()
+        location_count = Location.query.filter_by(family_id=current_user.active_family_id).count()
+        core = [
+            ('members',  'Add your first family member', url_for('main.members'),         member_count > 1),
+            ('profile',  'Complete your profile',        url_for('main.profile_edit'),    bool(me and me.birthday)),
+            ('event',    'Create your first event',      url_for('main.events_list'),     event_count > 0),
+            ('photo',    'Upload a photo',               url_for('main.albums'),          len(recent_photos) > 0),
+            ('location', 'Add a family location',        url_for('main.admin_locations'), location_count > 0),
         ]
-        incomplete = [s for s in steps if not s[3]]
-        if incomplete:
+        steps = list(core)
+        # Optional suggestion — does not gate the checklist, so it never nags
+        # members who aren't adding a spouse/partner.
+        if me and not me.get_active_spouse():
+            steps.append(('spouse', 'Add your spouse or partner', url_for('main.spouse_add'), False))
+        # Show the checklist until every CORE step is done.
+        if any(not s[3] for s in core):
             onboarding = steps
     # Activity feed — last 30 days across all content types
     # Announcements are excluded here because they have their own card on the home page.
@@ -700,6 +708,11 @@ def add_member():
             db.session.add(ParentRelationship(parent_id=parent2.id, child_id=person.id, role=_default_parent_role(parent2)))
         db.session.commit()
         flash(f'{person.name} has been added to the family.', 'info')
+        # One-step invite: if requested and we have an email, send the invitation
+        # now instead of making the admin open the profile and click Invite.
+        if request.form.get('invite_now') and person.email and not person.deathday:
+            msg, category = _send_member_invite(person, person.email)
+            flash(msg, category)
         link_spouse_for = request.form.get('link_spouse_for', type=int) or request.args.get('link_spouse_for', type=int)
         if link_spouse_for:
             return redirect(url_for('main.admin_link_spouse', person_id=link_spouse_for))
@@ -2019,24 +2032,17 @@ def location_spot_delete(loc_id, spot_id):
     return redirect(url_for('main.admin_locations'))
 
 
-@main.route('/person/<int:person_id>/invite', methods=['POST'])
-@login_required
-@contributor_or_admin_required
-def invite_person(person_id):
-    person = db.session.get(Person, person_id)
-    if not person or person.family_id != current_user.active_family_id:
-        flash('Person not found.', 'error')
-        return redirect(url_for('main.home'))
-    if person.user:
-        flash(f'{person.get_display_name()} already has an account.', 'error')
-        return redirect(url_for('main.person_detail', person_id=person_id))
-    if person.deathday:
-        flash('Cannot invite a deceased person.', 'error')
-        return redirect(url_for('main.person_detail', person_id=person_id))
-    email = (person.email or request.form.get('email', '')).strip()
+def _send_member_invite(person, email):
+    """Invite `person` to join the active family via `email`.
+
+    Either links an existing account into this pod, or creates an invited User
+    and emails a registration link. Returns (message, flash_category) for the
+    caller to flash. Caller must have verified `person` is in the active family
+    and has no account yet.
+    """
+    email = (email or '').strip()
     if not email:
-        flash('Add an email address to this person before sending an invitation.', 'error')
-        return redirect(url_for('main.person_edit', person_id=person_id))
+        return ('Add an email address to this person before sending an invitation.', 'error')
     existing_user = User.query.filter_by(email=email).first()
     if existing_user:
         # User already has an account — add them to this pod if not already a member.
@@ -2044,23 +2050,21 @@ def invite_person(person_id):
             user_id=existing_user.id, family_id=current_user.active_family_id
         ).first()
         if already:
-            flash(f'{person.get_display_name()} is already a member of this circle.', 'error')
-        else:
-            db.session.add(UserPodMembership(
-                user_id=existing_user.id,
-                family_id=current_user.active_family_id,
-                role='member',
-            ))
-            person.user = existing_user
-            db.session.commit()
-            if current_app.config.get('MAIL_ENABLED'):
-                send_pod_added_email(
-                    existing_user,
-                    current_user.active_family.name,
-                    url_for('main.home', _external=True),
-                )
-            flash(f'{person.get_display_name()} has been added to this circle.', 'info')
-        return redirect(url_for('main.person_detail', person_id=person_id))
+            return (f'{person.get_display_name()} is already a member of this circle.', 'error')
+        db.session.add(UserPodMembership(
+            user_id=existing_user.id,
+            family_id=current_user.active_family_id,
+            role='member',
+        ))
+        person.user = existing_user
+        db.session.commit()
+        if current_app.config.get('MAIL_ENABLED'):
+            send_pod_added_email(
+                existing_user,
+                current_user.active_family.name,
+                url_for('main.home', _external=True),
+            )
+        return (f'{person.get_display_name()} has been added to this circle.', 'info')
     names = person.name.strip().split()
     first = names[0]
     last = ' '.join(names[1:]) if len(names) > 1 else ''
@@ -2084,7 +2088,29 @@ def invite_person(person_id):
             inviting_name, first, current_user.active_family.name,
             email, url_for('main.register_invited', token=token, _external=True)
         )
-    flash(f'Invitation sent to {email}.', 'info')
+    return (f'Invitation sent to {email}.', 'info')
+
+
+@main.route('/person/<int:person_id>/invite', methods=['POST'])
+@login_required
+@contributor_or_admin_required
+def invite_person(person_id):
+    person = db.session.get(Person, person_id)
+    if not person or person.family_id != current_user.active_family_id:
+        flash('Person not found.', 'error')
+        return redirect(url_for('main.home'))
+    if person.user:
+        flash(f'{person.get_display_name()} already has an account.', 'error')
+        return redirect(url_for('main.person_detail', person_id=person_id))
+    if person.deathday:
+        flash('Cannot invite a deceased person.', 'error')
+        return redirect(url_for('main.person_detail', person_id=person_id))
+    email = (person.email or request.form.get('email', '')).strip()
+    if not email:
+        flash('Add an email address to this person before sending an invitation.', 'error')
+        return redirect(url_for('main.person_edit', person_id=person_id))
+    msg, category = _send_member_invite(person, email)
+    flash(msg, category)
     return redirect(url_for('main.person_detail', person_id=person_id))
 
 @main.route('/profile')

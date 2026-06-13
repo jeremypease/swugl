@@ -48,7 +48,9 @@
 
 {% if not grouped %}
 <div class="card" style="text-align:center;padding:40px;color:var(--slate);">
-    No documents yet — click Upload to add the first one.
+    <div style="font-weight:600;font-size:16px;margin-bottom:6px;color:var(--ink);">No documents yet</div>
+    <div style="font-size:14px;margin-bottom:20px;">Keep shared family files in one place — forms, recipes, insurance, anything worth keeping.</div>
+    <button type="button" class="btn btn-primary" data-toggle-form="upload-form"><i data-lucide="upload"></i> Upload the first document</button>
 </div>
 {% else %}
 
