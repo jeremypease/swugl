@@ -86,6 +86,10 @@ def create_app(test_config=None):
     app.config['R2_SECRET_ACCESS_KEY'] = os.environ.get('R2_SECRET_ACCESS_KEY')
     app.config['R2_BUCKET_NAME'] = os.environ.get('R2_BUCKET_NAME')
     app.config['R2_PUBLIC_URL'] = os.environ.get('R2_PUBLIC_URL', '')
+    # Photos are served via short-lived presigned URLs (see storage.photo_url).
+    _r2_ttl = os.environ.get('R2_SIGNED_URL_TTL')
+    if _r2_ttl:
+        app.config['R2_SIGNED_URL_TTL'] = int(_r2_ttl)
 
     app.config['WEBAUTHN_RP_ID'] = os.environ.get('WEBAUTHN_RP_ID', 'localhost')
     app.config['WEBAUTHN_RP_NAME'] = os.environ.get('WEBAUTHN_RP_NAME', 'Swugl')
@@ -292,8 +296,16 @@ def create_app(test_config=None):
         if os.environ.get('FLASK_ENV') == 'production':
             response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains'
         nonce = getattr(g, 'csp_nonce', '')
+        # Photos load from presigned R2 URLs on the S3 endpoint; allow that
+        # origin (plus the legacy public URL if one is still configured).
+        img_origins = ["'self'", 'data:']
+        acct = app.config.get('R2_ACCOUNT_ID')
+        if acct:
+            img_origins.append(f"https://{acct}.r2.cloudflarestorage.com")
         r2_url = app.config.get('R2_PUBLIC_URL', '').rstrip('/')
-        img_src = f"'self' data: {r2_url}" if r2_url else "'self' data:"
+        if r2_url:
+            img_origins.append(r2_url)
+        img_src = ' '.join(img_origins)
         response.headers['Content-Security-Policy'] = (
             "default-src 'self'; "
             f"script-src 'self' https://unpkg.com 'nonce-{nonce}'; "

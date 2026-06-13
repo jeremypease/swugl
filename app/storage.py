@@ -1,5 +1,6 @@
 import io
 import os
+import time
 import uuid
 import boto3
 from botocore.config import Config
@@ -20,6 +21,15 @@ MAX_PHOTO_BYTES = 25 * 1024 * 1024   # per-file cap, checked before processing
 DISPLAY_MAX_PX = 2000                # longest side of the stored display image
 THUMB_MAX_PX = 400                   # longest side of grid thumbnails
 JPEG_QUALITY = 85
+
+DEFAULT_SIGNED_URL_TTL = 6 * 3600    # presigned photo URL lifetime (seconds)
+
+# Cache of presigned URLs keyed by (bucket, key, window). Signed URLs embed a
+# timestamp, so a freshly-signed URL on every render would defeat browser image
+# caching. We instead keep each URL stable for half its TTL: a URL minted at the
+# start of its window is still valid for TTL/2 after the window ends, so it never
+# expires mid-use, and the browser can cache the image across page loads.
+_signed_url_cache = {}
 
 # Formats run through the Pillow pipeline (orient, strip EXIF, resize).
 # GIFs are stored as-is to preserve animation.
@@ -202,13 +212,38 @@ def get_object_bytes(key):
     resp = _client().get_object(Bucket=current_app.config['R2_BUCKET_NAME'], Key=key)
     return resp['Body'].read(), resp.get('ContentType', 'application/octet-stream')
 
+def _signed_url(key):
+    """Presigned GET URL for an R2 object, stable within a time window so the
+    browser can cache the image and the URL never expires while a page is open."""
+    bucket = current_app.config['R2_BUCKET_NAME']
+    ttl = current_app.config.get('R2_SIGNED_URL_TTL', DEFAULT_SIGNED_URL_TTL)
+    window = int(time.time() // (ttl // 2))
+    ck = (bucket, key, window)
+    url = _signed_url_cache.get(ck)
+    if url is None:
+        url = _client().generate_presigned_url(
+            'get_object',
+            Params={'Bucket': bucket, 'Key': key},
+            ExpiresIn=ttl,
+        )
+        if len(_signed_url_cache) > 5000:   # bound growth across windows
+            _signed_url_cache.clear()
+        _signed_url_cache[ck] = url
+    return url
+
+
 def photo_url(key):
-    """Return a displayable URL for a stored photo key."""
+    """Return a displayable URL for a stored photo key.
+
+    R2-backed keys get a short-lived presigned URL so photos are never publicly
+    accessible — a leaked URL stops working after the TTL, and removed members
+    lose access on their next stale link. Local-dev uploads use the static path.
+    """
     if not key:
         return None
     if key.startswith('uploads/'):
         return url_for('static', filename=key)
-    public_url = current_app.config.get('R2_PUBLIC_URL', '').rstrip('/')
-    if public_url:
-        return f"{public_url}/{key}"
+    if _r2_enabled():
+        return _signed_url(key)
+    # No R2 configured and not a local upload: fall back to the auth'd proxy.
     return url_for('main.serve_photo', key=key)

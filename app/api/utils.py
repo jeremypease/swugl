@@ -1,6 +1,8 @@
 from flask import jsonify
 from flask_jwt_extended import get_jwt
 
+from ..storage import photo_url
+
 
 def error_response(status, message, code=None):
     return jsonify({'error': message, 'code': code or message}), status
@@ -59,7 +61,7 @@ def serialize_meal_item(item):
         'quantity': item.quantity,
         'is_cleanup': item.is_cleanup,
         'assigned_to_id': item.assigned_to_id,
-        'assigned_to_name': item.assigned_to.display_name() if item.assigned_to else None,
+        'assigned_to_name': item.assigned_to.get_display_name() if item.assigned_to else None,
     }
 
 
@@ -72,20 +74,28 @@ def serialize_assignment(a):
         'due_date': a.due_date.isoformat() if a.due_date else None,
         'is_done': a.is_done,
         'claimed_by_id': a.claimed_by_id,
-        'claimed_by_name': a.claimed_by.display_name() if a.claimed_by else None,
+        'claimed_by_name': a.claimed_by.get_display_name() if a.claimed_by else None,
     }
 
 
 def serialize_person(person):
+    # Person stores a single full `name`; first/last are derived from it
+    # (first_name/last_name and display_name() live on User, not Person).
+    parts = (person.name or '').split()
+    first_name = parts[0] if parts else ''
+    last_name = parts[-1] if len(parts) > 1 else ''
     return {
         'id': person.id,
-        'name': person.display_name(),
-        'first_name': person.first_name,
-        'last_name': person.last_name,
+        'name': person.get_display_name(),
+        'first_name': first_name,
+        'last_name': last_name,
         'nickname': person.nickname,
         'gender': person.gender,
         'birthday': person.birthday.isoformat() if person.birthday else None,
         'photo_path': person.photo_path,
+        # Short-lived signed URL the app can load directly; re-fetch the member
+        # to refresh it once it expires. photo_path is kept for compatibility.
+        'photo_url': photo_url(person.photo_path) if person.photo_path else None,
         'in_directory': person.in_directory,
     }
 

@@ -13,7 +13,7 @@ def members_list():
     people = (
         Person.query
         .filter_by(family_id=fid, in_directory=True)
-        .order_by(Person.last_name, Person.first_name)
+        .order_by(Person.name)
         .all()
     )
     return jsonify({'members': [serialize_person(p) for p in people]}), 200
