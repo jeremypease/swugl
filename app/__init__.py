@@ -211,16 +211,20 @@ def create_app(test_config=None):
         chat_visible = False
         chat_paid = False
         unread_chat = 0
+        paid_access = False
         if current_user.is_authenticated:
             fam = current_user.active_family
+            if fam:
+                paid_access = family_has_paid_access(fam)
             if fam and fam.enable_chat:
                 chat_visible = True
-                if family_has_paid_access(fam):
+                if paid_access:
                     chat_paid = True
                     last_seen = current_user.chat_last_seen_at
                     q = ChatMessage.query.filter_by(family_id=current_user.active_family_id)
                     unread_chat = q.filter(ChatMessage.created_at > last_seen).count() if last_seen else q.count()
         return {
+            'has_paid_access': paid_access,
             'now': datetime.utcnow(),
             'system_announcement': active_ann,
             'support_mode': s.get('support_mode', False),

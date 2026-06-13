@@ -165,12 +165,18 @@
             {{ form.description(rows=3, id="f-description") }}
         </div>
 
-        {# Sections #}
+        {# Sections — meals/assignments/sleeping are paid; carpool is free #}
         <div class="field">
             <label>Sections</label>
+            {% if not has_paid_access %}
+            <div style="font-size:13px;color:var(--slate);margin:2px 0 4px;">
+                Meal planning, assignments &amp; sleeping arrangements are paid features.
+                <a href="{{ url_for('billing.billing_page') }}" style="color:var(--vine);font-weight:600;">Upgrade →</a>
+            </div>
+            {% endif %}
             <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
-                <label class="checkbox-row">
-                    {{ form.has_meals(id="f-has-meals") }}
+                <label class="checkbox-row" {% if not has_paid_access and not (event and event.has_meals) %}style="opacity:.55;"{% endif %}>
+                    {{ form.has_meals(id="f-has-meals", disabled=(not has_paid_access and not (event and event.has_meals))) }}
                     <span><strong>Meals</strong> <span style="color:var(--slate);font-size:13px;margin-left:6px;">Sign-up sheet for who's bringing what</span></span>
                 </label>
                 {% if not event %}
@@ -178,8 +184,8 @@
                     <div id="meals-grid-container"></div>
                 </div>
                 {% endif %}
-                <label class="checkbox-row">
-                    {{ form.has_assignments(id="f-has-assignments") }}
+                <label class="checkbox-row" {% if not has_paid_access and not (event and event.has_assignments) %}style="opacity:.55;"{% endif %}>
+                    {{ form.has_assignments(id="f-has-assignments", disabled=(not has_paid_access and not (event and event.has_assignments))) }}
                     <span><strong>Assignments</strong> <span style="color:var(--slate);font-size:13px;margin-left:6px;">Task list members can claim</span></span>
                 </label>
                 {% if not event %}
@@ -190,8 +196,8 @@
                     </button>
                 </div>
                 {% endif %}
-                <label class="checkbox-row">
-                    {{ form.has_sleeping(id="f-has-sleeping") }}
+                <label class="checkbox-row" {% if not has_paid_access and not (event and event.has_sleeping) %}style="opacity:.55;"{% endif %}>
+                    {{ form.has_sleeping(id="f-has-sleeping", disabled=(not has_paid_access and not (event and event.has_sleeping))) }}
                     <span><strong>Sleeping Arrangements</strong> <span style="color:var(--slate);font-size:13px;margin-left:6px;">Rooms and spots assigned by admin</span></span>
                 </label>
                 <label class="checkbox-row">

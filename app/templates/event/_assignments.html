@@ -150,6 +150,7 @@
     {% endif %}
 </div>
 {% elif current_user.active_is_admin %}
+{% if has_paid_access %}
 <form method="POST" action="/events/{{ event.id }}/enable-section">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="section" value="assignments">
@@ -157,4 +158,9 @@
         <i data-lucide="plus" style="width:13px;height:13px;"></i> Enable Assignments
     </button>
 </form>
+{% else %}
+<a href="{{ url_for('billing.billing_page') }}" class="btn btn-ghost btn-sm" style="font-size:13px;color:var(--slate);padding:0;">
+    <i data-lucide="lock" style="width:13px;height:13px;"></i> Assignments are a paid feature — Upgrade
+</a>
+{% endif %}
 {% endif %}

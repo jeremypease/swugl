@@ -2862,6 +2862,7 @@ def event_add():
             loc_id = None
             location = form.location.data or None
             lat, lng = _geocode_location(location)
+        _paid = family_has_paid_access(current_user.active_family)
         event = Event(
             family_id=current_user.active_family_id,
             name=form.name.data,
@@ -2879,9 +2880,11 @@ def event_add():
             recur_freq=form.recur_freq.data or None,
             recur_until=form.recur_until.data,
             is_annual=(form.recur_freq.data == 'yearly'),
-            has_meals=form.has_meals.data,
-            has_assignments=form.has_assignments.data,
-            has_sleeping=form.has_sleeping.data,
+            # Paid sections silently drop to off on the free plan (the form
+            # shows them disabled with an upgrade hint)
+            has_meals=form.has_meals.data and _paid,
+            has_assignments=form.has_assignments.data and _paid,
+            has_sleeping=form.has_sleeping.data and _paid,
             has_carpool=form.has_carpool.data,
         )
         db.session.add(event)
@@ -3161,9 +3164,12 @@ def event_edit(event_id):
         event.recur_freq = form.recur_freq.data or None
         event.recur_until = form.recur_until.data
         event.is_annual = (form.recur_freq.data == 'yearly')
-        event.has_meals = form.has_meals.data
-        event.has_assignments = form.has_assignments.data
-        event.has_sleeping = form.has_sleeping.data
+        # Free plan can turn paid sections off but not on; already-enabled
+        # sections survive a downgrade untouched
+        _paid = family_has_paid_access(current_user.active_family)
+        event.has_meals = form.has_meals.data if _paid else (event.has_meals and form.has_meals.data)
+        event.has_assignments = form.has_assignments.data if _paid else (event.has_assignments and form.has_assignments.data)
+        event.has_sleeping = form.has_sleeping.data if _paid else (event.has_sleeping and form.has_sleeping.data)
         event.has_carpool = form.has_carpool.data
         if form.remove_cover.data and event.cover_image_path:
             delete_object(event.cover_image_path)
@@ -3402,6 +3408,13 @@ def event_enable_section(event_id):
     if not event or event.family_id != current_user.active_family_id:
         return redirect(url_for('main.events_list'))
     section = request.form.get('section')
+    # Meals/assignments/sleeping are organizer power tools — paid plan only.
+    # Carpool stays free. Already-enabled sections keep working after a
+    # downgrade; only turning new ones on is gated.
+    if section in ('meals', 'assignments', 'sleeping') and not family_has_paid_access(current_user.active_family):
+        flash('Meal planning, assignments, and sleeping arrangements are paid features. '
+              'Upgrade to enable them.', 'warning')
+        return redirect(url_for('billing.billing_page'))
     if section == 'meals':
         event.has_meals = True
     elif section == 'assignments':
