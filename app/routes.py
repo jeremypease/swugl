@@ -432,8 +432,15 @@ def login():
         login_user(user, remember=form.remember_me.data)
         session['active_family_id'] = user.family_id
         next_page = request.args.get('next')
-        # Reject absolute URLs to prevent open redirect
-        if next_page and urlparse(next_page).netloc != '':
+        # Only allow same-site relative paths to prevent open redirect. The bare
+        # netloc check misses protocol-relative ("//evil.com") and backslash
+        # ("/\\evil.com") tricks that browsers resolve to an external host.
+        if next_page and (
+            urlparse(next_page).netloc
+            or not next_page.startswith('/')
+            or next_page.startswith('//')
+            or next_page.startswith('/\\')
+        ):
             next_page = None
         return redirect(next_page or url_for('main.home'))
     return render_template('login.html', form=form)

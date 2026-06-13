@@ -44,11 +44,12 @@ def test_r2_key_returns_signed_url(r2_app):
 
 
 def test_signed_url_is_public_url_free(r2_app):
-    # The legacy permanent public URL must not leak through
+    # The legacy permanent public URL must not leak through: the signed URL
+    # points at the S3 endpoint host, not the public bucket host.
     r2_app.config['R2_PUBLIC_URL'] = 'https://pub.example.com'
-    url = photo_url('photos/abc.jpg')
-    assert 'pub.example.com' not in url
-    assert 'X-Amz-Signature=' in url
+    from urllib.parse import urlparse
+    host = urlparse(photo_url('photos/abc.jpg')).netloc
+    assert host == 'testacct.r2.cloudflarestorage.com'
 
 
 def test_signed_url_stable_within_window(r2_app):

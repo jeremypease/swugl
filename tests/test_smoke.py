@@ -39,6 +39,33 @@ def test_login_valid(client):
     assert r.status_code == 200
     assert b'login' not in r.data.lower() or b'sign in' not in r.data.lower()
 
+@pytest.mark.parametrize('bad_next', [
+    'https://evil.com',     # absolute URL
+    '//evil.com',           # protocol-relative
+    '/\\evil.com',          # backslash trick browsers resolve to //evil.com
+    'http:evil.com',        # scheme without netloc
+])
+def test_login_rejects_open_redirect(app, bad_next):
+    """A malicious ?next must not redirect off-site; falls back to home."""
+    with app.test_client() as c:
+        r = c.post(f'/login?next={bad_next}', data={
+            'email': 'admin@pease-family.com',
+            'password': 'Password1!',
+        })
+        assert r.status_code == 302
+        assert r.headers['Location'] in ('/home', 'http://localhost/home')
+
+
+def test_login_allows_safe_next(app):
+    with app.test_client() as c:
+        r = c.post('/login?next=/events', data={
+            'email': 'admin@pease-family.com',
+            'password': 'Password1!',
+        })
+        assert r.status_code == 302
+        assert r.headers['Location'].endswith('/events')
+
+
 def test_login_wrong_password(app):
     """Wrong password on a logged-out client should stay on the login page."""
     with app.test_client() as c:

@@ -1,3 +1,4 @@
+import os
 from app import create_app, db
 from app.models import Family, User, Person
 from datetime import date
@@ -41,4 +42,6 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
         seed_admin()
-    app.run(debug=True)
+    # Debug mode (Werkzeug interactive debugger) only when explicitly opted in;
+    # never on by default. Production runs under gunicorn, not this entrypoint.
+    app.run(debug=os.environ.get('FLASK_DEBUG') == '1')
