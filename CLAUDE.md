@@ -15,6 +15,10 @@ Also check for context:
 
 Flag any conflicts to the user before implementing rather than discovering them after.
 
+## GitHub efficiency
+
+Use MCP GitHub tools (`mcp__github__*`) for all GitHub interactions — never shell `gh` or `curl`. Batch reads where possible: fetch issue + comments in one pass, check CI check runs alongside review threads. When opening a PR, subscribe to it immediately (`mcp__github__subscribe_pr_activity`) so CI and review events arrive automatically. Close issues that are fully resolved by work in a PR (reference them in the PR body with `Closes #N`). Keep PR titles under 70 chars; put detail in the body. Post review replies only when genuinely necessary — don't narrate every fix.
+
 ## Commands
 
 ```bash
