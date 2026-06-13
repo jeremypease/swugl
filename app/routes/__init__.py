@@ -4693,7 +4693,7 @@ def stories_generate():
         try:
             send_story_prompt_email(user, family, prompt_obj.question, respond_url)
         except Exception:
-            pass
+            current_app.logger.exception('Failed to send story prompt email to user %s', user.id)
 
     prompt_obj.sent_at = datetime.utcnow()
     db.session.commit()
