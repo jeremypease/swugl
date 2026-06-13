@@ -82,6 +82,26 @@ def narrate_digest(content, family_name):
     return _haiku([{'role': 'user', 'content': prompt}], max_tokens=120)
 
 
+def generate_story_prompt(family, recent_questions=None):
+    """Generate a weekly story prompt question for the family via Claude Haiku."""
+    avoid = ''
+    if recent_questions:
+        bullets = '\n'.join(f'- {q}' for q in recent_questions[:6])
+        avoid = f'\n\nRecent questions already asked (do not repeat these topics):\n{bullets}'
+    prompt = (
+        f"You are helping the {family.name} family preserve their history through guided storytelling.\n\n"
+        "Generate ONE thoughtful, open-ended question that will prompt a family member to share a meaningful "
+        "personal story or memory. Requirements:\n"
+        "- Warm and specific — invite a particular memory, not a general opinion\n"
+        "- Answerable by anyone, young or old\n"
+        "- Covers childhood, traditions, milestones, relationships, career, or wisdom\n"
+        "- 1-2 sentences maximum"
+        f"{avoid}\n\n"
+        "Return ONLY the question, nothing else."
+    )
+    return _haiku([{'role': 'user', 'content': prompt}], max_tokens=150)
+
+
 def suggest_photo_caption(photo_bytes, content_type='image/jpeg'):
     """Return a suggested caption for a photo, or None."""
     client = _client()

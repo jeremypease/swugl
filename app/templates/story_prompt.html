@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Story — {{ current_user.active_family.name }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <div class="eyebrow"><a href="{{ url_for('main.stories') }}">Stories</a></div>
+        <h1>This Week's Question</h1>
+    </div>
+</div>
+
+<div style="max-width:720px;">
+
+    <div style="background:var(--paper);border:1px solid var(--hairline);border-radius:var(--r-l);
+                padding:28px 32px;margin-bottom:24px;">
+        <div style="font-size:12px;color:var(--slate);margin-bottom:10px;">
+            Week of {{ prompt.week_of.strftime('%B %-d, %Y') }}
+        </div>
+        <p style="font-size:20px;font-style:italic;line-height:1.5;margin:0;color:var(--ink);">
+            "{{ prompt.question }}"
+        </p>
+    </div>
+
+    {# Response form #}
+    {% if current_user.person %}
+    <div style="background:var(--paper);border:1px solid var(--hairline);border-radius:var(--r-m);
+                padding:20px 24px;margin-bottom:28px;">
+        <h3 style="margin:0 0 12px;font-size:15px;">
+            {% if my_response %}Edit your story{% else %}Share your story{% endif %}
+        </h3>
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <textarea name="body" rows="6" style="width:100%;font:inherit;font-size:14px;
+                      padding:10px 12px;border:1px solid var(--hairline-strong);
+                      border-radius:var(--r-m);resize:vertical;min-height:120px;
+                      background:var(--bg);color:var(--ink);"
+                      placeholder="Share your memory or story…">{{ my_response.body if my_response else '' }}</textarea>
+            <div style="margin-top:10px;">
+                <button type="submit" class="btn btn-primary">
+                    {% if my_response %}Save changes{% else %}Post story{% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+    {% else %}
+    <div style="background:var(--paper);border:1px solid var(--hairline);border-radius:var(--r-m);
+                padding:16px 20px;margin-bottom:28px;font-size:14px;color:var(--slate);">
+        <a href="{{ url_for('main.profile') }}">Link your profile</a> to share a story.
+    </div>
+    {% endif %}
+
+    {# All responses #}
+    {% if responses %}
+    <h2 style="font-size:16px;margin:0 0 14px;">
+        {{ responses|length }} {% if responses|length == 1 %}Story{% else %}Stories{% endif %}
+    </h2>
+    <div style="display:flex;flex-direction:column;gap:16px;">
+    {% for resp in responses %}
+    <div style="background:var(--paper);border:1px solid var(--hairline);border-radius:var(--r-m);
+                padding:18px 22px;">
+        <div style="font-weight:600;font-size:14px;margin-bottom:8px;display:flex;
+                    justify-content:space-between;align-items:center;">
+            <span>{{ resp.person.get_display_name() }}</span>
+            <span style="font-size:12px;font-weight:400;color:var(--slate);">
+                {{ resp.submitted_at | timeago }}
+                {% if resp.updated_at %}<span style="font-style:italic;"> · edited</span>{% endif %}
+            </span>
+        </div>
+        <div style="font-size:14px;line-height:1.7;white-space:pre-wrap;">{{ resp.body }}</div>
+    </div>
+    {% endfor %}
+    </div>
+    {% else %}
+    <p style="color:var(--slate);font-size:14px;">No responses yet — be the first to share.</p>
+    {% endif %}
+
+</div>
+{% endblock %}

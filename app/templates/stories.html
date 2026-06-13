@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Stories — {{ current_user.active_family.name }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <div class="eyebrow">{{ current_user.active_family.name }}</div>
+        <h1>Family Stories</h1>
+    </div>
+    {% if current_user.active_is_admin %}
+    <div class="page-head-actions">
+        <form method="POST" action="{{ url_for('main.stories_generate') }}" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-primary">
+                <i data-lucide="sparkles"></i> Send this week's prompt
+            </button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+
+{% if not prompts %}
+<div style="max-width:560px;text-align:center;margin:48px auto 0;">
+    <div style="background:var(--paper);border:1px solid var(--hairline);border-radius:var(--r-l);padding:40px 32px;">
+        <i data-lucide="book-open" style="width:48px;height:48px;color:var(--vine);margin-bottom:16px;"></i>
+        <h2 style="margin:0 0 10px;">No stories yet</h2>
+        <p style="color:var(--slate);margin:0 0 24px;line-height:1.6;">
+            Each week, a question is sent to your family to capture memories and stories.
+            {% if current_user.active_is_admin %}
+            Send the first prompt to get started.
+            {% else %}
+            Check back after an admin sends the first weekly prompt.
+            {% endif %}
+        </p>
+        {% if current_user.active_is_admin %}
+        <form method="POST" action="{{ url_for('main.stories_generate') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-primary">
+                <i data-lucide="sparkles"></i> Generate &amp; send first prompt
+            </button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+{% else %}
+
+<div style="max-width:720px;display:flex;flex-direction:column;gap:16px;">
+{% for prompt in prompts %}
+{% set response_count = prompt.responses.count() %}
+<a href="{{ url_for('main.story_prompt_view', prompt_id=prompt.id) }}"
+   style="display:block;text-decoration:none;background:var(--paper);border:1px solid var(--hairline);
+          border-radius:var(--r-m);padding:20px 24px;color:inherit;">
+    <div style="font-size:12px;color:var(--slate);margin-bottom:8px;">
+        Week of {{ prompt.week_of.strftime('%B %-d, %Y') }}
+    </div>
+    <div style="font-size:17px;font-style:italic;line-height:1.5;color:var(--ink);margin-bottom:10px;">
+        "{{ prompt.question }}"
+    </div>
+    <div style="font-size:13px;color:var(--slate);">
+        {% if response_count == 0 %}
+            No responses yet — be the first
+        {% elif response_count == 1 %}
+            1 response
+        {% else %}
+            {{ response_count }} responses
+        {% endif %}
+    </div>
+</a>
+{% endfor %}
+</div>
+
+{% endif %}
+{% endblock %}

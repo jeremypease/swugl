@@ -1,14 +1,14 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, send_file, session, abort, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
-from .models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, AssignmentTask, ASSIGNMENT_CATEGORIES, EventRSVP, EventSleepingSpot, SPOT_TYPES, EventComment, Announcement, Album, Photo, Poll, NotificationPreference, NOTIFICATION_EVENTS, UserPodMembership, CalendarToken, EventPaymentConfig, EventPaymentRecord, FamilyPayoutAccount, Location, Document, DOCUMENT_CATEGORIES, ChatMessage
-from .forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm, ForgotPasswordForm, ResetPasswordForm, AddPersonForm, RelativeForm, AddParentForm, FamilySettingsForm, EditPersonForm, EventForm, EventCommentForm, EventMealForm, EventMealFamilyAssignForm, EventMealItemForm, EventMealSelfSignupForm, EventMealAssignForm, EventAssignmentForm, EventAssignmentAdminAssignForm, EventSleepingSpotForm, EventSleepingAssignForm, GENDER_CHOICES_DEFAULT, GENDER_CHOICES_EXPANDED, PRONOUN_CHOICES, AnnouncementForm, AlbumForm, PhotoUploadForm, SupportForm, ChatMessageForm
-from .email import send_verification_email, send_pending_notification, send_approval_notification, send_spouse_confirmation_email, send_spouse_invitation_email, send_password_reset_email, send_member_invitation_email, send_welcome_email, send_support_email, send_pod_added_email
+from ..models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, AssignmentTask, ASSIGNMENT_CATEGORIES, EventRSVP, EventSleepingSpot, SPOT_TYPES, EventComment, Announcement, Album, Photo, Poll, NotificationPreference, NOTIFICATION_EVENTS, UserPodMembership, CalendarToken, EventPaymentConfig, EventPaymentRecord, FamilyPayoutAccount, Location, Document, DOCUMENT_CATEGORIES, ChatMessage, StoryPrompt, StoryResponse
+from ..forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm, ForgotPasswordForm, ResetPasswordForm, AddPersonForm, RelativeForm, AddParentForm, FamilySettingsForm, EditPersonForm, EventForm, EventCommentForm, EventMealForm, EventMealFamilyAssignForm, EventMealItemForm, EventMealSelfSignupForm, EventMealAssignForm, EventAssignmentForm, EventAssignmentAdminAssignForm, EventSleepingSpotForm, EventSleepingAssignForm, GENDER_CHOICES_DEFAULT, GENDER_CHOICES_EXPANDED, PRONOUN_CHOICES, AnnouncementForm, AlbumForm, PhotoUploadForm, SupportForm, ChatMessageForm
+from ..email import send_verification_email, send_pending_notification, send_approval_notification, send_spouse_confirmation_email, send_spouse_invitation_email, send_password_reset_email, send_member_invitation_email, send_welcome_email, send_support_email, send_pod_added_email
 from datetime import date, datetime, timedelta
 from functools import wraps
 from urllib.parse import urlparse
-from . import db, limiter
-from .billing import requires_plan, family_has_paid_access, FREE_MEMBER_LIMIT, FREE_EVENT_LIMIT
-from .storage import upload_photo, delete_object, get_object_bytes
+from .. import db, limiter
+from ..billing import requires_plan, family_has_paid_access, FREE_MEMBER_LIMIT, FREE_EVENT_LIMIT
+from ..storage import upload_photo, delete_object, get_object_bytes
 import secrets
 import hashlib
 import re
@@ -1075,7 +1075,7 @@ def delete_photo(album_id, photo_id):
 @main.route('/photos/<int:photo_id>/tag', methods=['POST'])
 @login_required
 def photo_tag(photo_id):
-    from .models import PhotoTag
+    from ..models import PhotoTag
     photo = db.session.get(Photo, photo_id)
     if not photo or photo.family_id != current_user.active_family_id:
         abort(404)
@@ -1098,7 +1098,7 @@ def photo_tag(photo_id):
 @main.route('/photos/<int:photo_id>/tags/<int:tag_id>/remove', methods=['POST'])
 @login_required
 def photo_untag(photo_id, tag_id):
-    from .models import PhotoTag
+    from ..models import PhotoTag
     tag = db.session.get(PhotoTag, tag_id)
     if not tag or tag.photo.family_id != current_user.active_family_id:
         abort(404)
@@ -1117,7 +1117,7 @@ def photo_untag(photo_id, tag_id):
 @main.route('/members/<int:person_id>/photos')
 @login_required
 def person_photos(person_id):
-    from .models import PhotoTag
+    from ..models import PhotoTag
     person = db.session.get(Person, person_id)
     if not person or person.family_id != current_user.active_family_id:
         abort(404)
@@ -1182,7 +1182,7 @@ def delete_album(album_id):
 @main.route('/checklists')
 @login_required
 def checklists():
-    from .models import Checklist
+    from ..models import Checklist
     all_lists = Checklist.query.filter_by(family_id=current_user.active_family_id)\
         .order_by(Checklist.created_at.desc()).all()
     upcoming_events = Event.query.filter_by(family_id=current_user.active_family_id)\
@@ -1196,7 +1196,7 @@ def checklists():
 @main.route('/checklists/new', methods=['POST'])
 @login_required
 def create_checklist():
-    from .models import Checklist
+    from ..models import Checklist
     title = request.form.get('title', '').strip()
     list_type = request.form.get('list_type', 'general')
     event_id = request.form.get('event_id', type=int)
@@ -1218,7 +1218,7 @@ def create_checklist():
 @main.route('/checklists/<int:checklist_id>')
 @login_required
 def checklist_detail(checklist_id):
-    from .models import Checklist
+    from ..models import Checklist
     cl = db.session.get(Checklist, checklist_id)
     if not cl or cl.family_id != current_user.active_family_id:
         abort(404)
@@ -1228,7 +1228,7 @@ def checklist_detail(checklist_id):
 @main.route('/checklists/<int:checklist_id>/items/add', methods=['POST'])
 @login_required
 def checklist_add_item(checklist_id):
-    from .models import Checklist, ChecklistItem
+    from ..models import Checklist, ChecklistItem
     cl = db.session.get(Checklist, checklist_id)
     if not cl or cl.family_id != current_user.active_family_id:
         abort(404)
@@ -1242,7 +1242,7 @@ def checklist_add_item(checklist_id):
 @main.route('/checklists/<int:checklist_id>/items/<int:item_id>/toggle', methods=['POST'])
 @login_required
 def checklist_toggle_item(checklist_id, item_id):
-    from .models import ChecklistItem
+    from ..models import ChecklistItem
     wants_json = 'application/json' in request.headers.get('Accept', '')
     item = db.session.get(ChecklistItem, item_id)
     if not item or item.checklist.family_id != current_user.active_family_id:
@@ -1261,7 +1261,7 @@ def checklist_toggle_item(checklist_id, item_id):
 @main.route('/checklists/<int:checklist_id>/items/<int:item_id>/delete', methods=['POST'])
 @login_required
 def checklist_delete_item(checklist_id, item_id):
-    from .models import ChecklistItem
+    from ..models import ChecklistItem
     item = db.session.get(ChecklistItem, item_id)
     if not item or item.checklist.family_id != current_user.active_family_id:
         abort(404)
@@ -1275,7 +1275,7 @@ def checklist_delete_item(checklist_id, item_id):
 @main.route('/checklists/<int:checklist_id>/delete', methods=['POST'])
 @login_required
 def checklist_delete(checklist_id):
-    from .models import Checklist
+    from ..models import Checklist
     cl = db.session.get(Checklist, checklist_id)
     if not cl or cl.family_id != current_user.active_family_id:
         abort(404)
@@ -1291,7 +1291,7 @@ def checklist_delete(checklist_id):
 @main.route('/checklists/<int:checklist_id>/rename', methods=['POST'])
 @login_required
 def checklist_rename(checklist_id):
-    from .models import Checklist
+    from ..models import Checklist
     cl = db.session.get(Checklist, checklist_id)
     if not cl or cl.family_id != current_user.active_family_id:
         abort(404)
@@ -1308,7 +1308,7 @@ def checklist_rename(checklist_id):
 @main.route('/checklists/<int:checklist_id>/clear-done', methods=['POST'])
 @login_required
 def checklist_clear_done(checklist_id):
-    from .models import Checklist, ChecklistItem
+    from ..models import Checklist, ChecklistItem
     cl = db.session.get(Checklist, checklist_id)
     if not cl or cl.family_id != current_user.active_family_id:
         abort(404)
@@ -1328,7 +1328,7 @@ def polls():
     if not current_user.active_family.enable_polls:
         flash('Polls are disabled for this family.', 'error')
         return redirect(url_for('main.home'))
-    from .models import Poll, PollVote
+    from ..models import Poll, PollVote
     from sqlalchemy import func as _func
     all_polls = Poll.query.filter_by(family_id=current_user.active_family_id)\
         .order_by(Poll.created_at.desc()).all()
@@ -1356,7 +1356,7 @@ def polls():
 @main.route('/polls/new', methods=['POST'])
 @login_required
 def create_poll():
-    from .models import Poll, PollOption
+    from ..models import Poll, PollOption
     question = request.form.get('question', '').strip()
     closes_at_str = request.form.get('closes_at', '').strip()
     options = [o.strip() for o in request.form.getlist('options') if o.strip()]
@@ -1387,7 +1387,7 @@ def create_poll():
 @main.route('/polls/<int:poll_id>')
 @login_required
 def poll_detail(poll_id):
-    from .models import Poll, PollVote
+    from ..models import Poll, PollVote
     poll = db.session.get(Poll, poll_id)
     if not poll or poll.family_id != current_user.active_family_id:
         abort(404)
@@ -1402,7 +1402,7 @@ def poll_detail(poll_id):
 @main.route('/polls/<int:poll_id>/vote', methods=['POST'])
 @login_required
 def vote_poll(poll_id):
-    from .models import Poll, PollVote
+    from ..models import Poll, PollVote
     poll = db.session.get(Poll, poll_id)
     if not poll or poll.family_id != current_user.active_family_id or poll.is_closed:
         abort(404)
@@ -1424,7 +1424,7 @@ def vote_poll(poll_id):
 @main.route('/polls/<int:poll_id>/delete', methods=['POST'])
 @login_required
 def delete_poll(poll_id):
-    from .models import Poll
+    from ..models import Poll
     poll = db.session.get(Poll, poll_id)
     if not poll or poll.family_id != current_user.active_family_id:
         abort(404)
@@ -1452,7 +1452,7 @@ def cards():
     if not current_user.active_family.enable_greeting_cards:
         flash('Greeting cards are disabled for this family.', 'error')
         return redirect(url_for('main.home'))
-    from .models import GreetingCard, CardSignature
+    from ..models import GreetingCard, CardSignature
     all_cards = GreetingCard.query.filter_by(family_id=current_user.active_family_id)\
         .order_by(GreetingCard.created_at.desc()).all()
     people = Person.query.filter_by(
@@ -1477,7 +1477,7 @@ def cards():
 @main.route('/cards/new', methods=['POST'])
 @login_required
 def create_card():
-    from .models import GreetingCard
+    from ..models import GreetingCard
     recipient_id = request.form.get('recipient_id', type=int)
     occasion = request.form.get('occasion', 'custom')
     title = request.form.get('title', '').strip()
@@ -1512,7 +1512,7 @@ def create_card():
 @main.route('/cards/<int:card_id>')
 @login_required
 def card_detail(card_id):
-    from .models import GreetingCard, CardSignature
+    from ..models import GreetingCard, CardSignature
     card = db.session.get(GreetingCard, card_id)
     if not card or card.family_id != current_user.active_family_id:
         abort(404)
@@ -1543,7 +1543,7 @@ def card_detail(card_id):
 @main.route('/cards/<int:card_id>/sign', methods=['POST'])
 @login_required
 def sign_card(card_id):
-    from .models import GreetingCard, CardSignature
+    from ..models import GreetingCard, CardSignature
     card = db.session.get(GreetingCard, card_id)
     if not card or card.family_id != current_user.active_family_id:
         abort(404)
@@ -1573,7 +1573,7 @@ def sign_card(card_id):
 @main.route('/cards/<int:card_id>/delete', methods=['POST'])
 @login_required
 def delete_card(card_id):
-    from .models import GreetingCard
+    from ..models import GreetingCard
     card = db.session.get(GreetingCard, card_id)
     if not card or card.family_id != current_user.active_family_id:
         abort(404)
@@ -1589,7 +1589,7 @@ def delete_card(card_id):
 @main.route('/cards/<int:card_id>/mark-sent', methods=['POST'])
 @login_required
 def mark_card_sent(card_id):
-    from .models import GreetingCard
+    from ..models import GreetingCard
     card = db.session.get(GreetingCard, card_id)
     if not card or card.family_id != current_user.active_family_id:
         abort(404)
@@ -1655,7 +1655,7 @@ def add_announcement():
         db.session.add(a)
         db.session.commit()
         flash('Announcement posted.', 'info')
-        from .notifications import notify
+        from ..notifications import notify
         recipients = User.query.filter_by(
             family_id=current_user.active_family_id, status='approved'
         ).filter(User.id != current_user.id).all()
@@ -1676,7 +1676,7 @@ def pin_announcement(ann_id):
 @main.route('/announcements/<int:ann_id>/react', methods=['POST'])
 @login_required
 def react_announcement(ann_id):
-    from .models import AnnouncementReaction
+    from ..models import AnnouncementReaction
     wants_json = 'application/json' in request.headers.get('Accept', '')
     a = db.session.get(Announcement, ann_id)
     if not a or a.family_id != current_user.active_family_id:
@@ -1926,7 +1926,7 @@ def location_delete(loc_id):
 @login_required
 @admin_required
 def location_spot_add(loc_id):
-    from .models import LocationSleepingSpot
+    from ..models import LocationSleepingSpot
     loc = db.session.get(Location, loc_id)
     if not loc or loc.family_id != current_user.active_family_id:
         flash('Location not found.', 'error')
@@ -1955,7 +1955,7 @@ def location_spot_add(loc_id):
 @login_required
 @admin_required
 def location_spot_delete(loc_id, spot_id):
-    from .models import LocationSleepingSpot
+    from ..models import LocationSleepingSpot
     loc = db.session.get(Location, loc_id)
     spot = db.session.get(LocationSleepingSpot, spot_id)
     if not loc or loc.family_id != current_user.active_family_id or not spot or spot.location_id != loc_id:
@@ -2047,7 +2047,7 @@ def profile():
 @login_required
 @limiter.limit('5 per hour')
 def delete_account():
-    from .account import delete_user_account, LastAdminError
+    from ..account import delete_user_account, LastAdminError
     if request.form.get('confirm', '').strip() != 'DELETE':
         flash('Type DELETE in the confirmation box to delete your account.', 'error')
         return redirect(url_for('tf.security'))
@@ -2111,7 +2111,7 @@ def profile_photo():
 @main.route('/notifications')
 @login_required
 def notifications():
-    from .models import Notification
+    from ..models import Notification
     items = (
         Notification.query
         .filter_by(user_id=current_user.id)
@@ -2133,7 +2133,7 @@ def notifications():
 @main.route('/notifications/<int:nid>/read', methods=['POST'])
 @login_required
 def notification_mark_read(nid):
-    from .models import Notification
+    from ..models import Notification
     n = db.session.get(Notification, nid)
     if n and n.user_id == current_user.id and not n.read_at:
         n.read_at = datetime.utcnow()
@@ -2144,7 +2144,7 @@ def notification_mark_read(nid):
 @main.route('/notifications/read-all', methods=['POST'])
 @login_required
 def notifications_read_all():
-    from .models import Notification
+    from ..models import Notification
     (
         Notification.query
         .filter_by(user_id=current_user.id, read_at=None)
@@ -2192,7 +2192,7 @@ def person_detail(person_id):
         flash('Person not found.', 'error')
         return redirect(url_for('main.home'))
     relationship = get_relationship(current_user.person, person) if current_user.person else None
-    from .models import PhotoTag
+    from ..models import PhotoTag
     tagged_photos = PhotoTag.query.filter_by(person_id=person_id)\
         .join(Photo).filter(Photo.family_id == current_user.active_family_id)\
         .order_by(Photo.created_at.desc()).limit(6).all()
@@ -2570,7 +2570,7 @@ def documents_list():
 @main.route('/documents/upload', methods=['POST'])
 @login_required
 def document_upload():
-    from .storage import upload_document
+    from ..storage import upload_document
     fid = current_user.active_family_id
     f = request.files.get('file')
     if not f or not f.filename:
@@ -2603,7 +2603,7 @@ def document_upload():
 @main.route('/documents/<int:doc_id>/view')
 @login_required
 def document_view(doc_id):
-    from .storage import get_object_bytes
+    from ..storage import get_object_bytes
     from flask import Response
     doc = db.session.get(Document, doc_id)
     if not doc or doc.family_id != current_user.active_family_id:
@@ -2619,7 +2619,7 @@ def document_view(doc_id):
 @login_required
 @admin_required
 def document_delete(doc_id):
-    from .storage import delete_object
+    from ..storage import delete_object
     doc = db.session.get(Document, doc_id)
     if not doc or doc.family_id != current_user.active_family_id:
         abort(404)
@@ -2765,7 +2765,7 @@ Description: {description}"""
 @login_required
 def card_ai_draft():
     from flask import jsonify
-    from .ai import draft_card_message
+    from ..ai import draft_card_message
     data = request.json or {}
     recipient_name = data.get('recipient_name', '').strip()
     occasion = data.get('occasion', '').strip()
@@ -2785,7 +2785,7 @@ def card_ai_draft():
 @login_required
 def poll_ai_suggest():
     from flask import jsonify
-    from .ai import suggest_poll
+    from ..ai import suggest_poll
     data = request.json or {}
     topic = data.get('topic', '').strip()
     if not topic:
@@ -2804,8 +2804,8 @@ def poll_ai_suggest():
 @login_required
 def photo_ai_caption(photo_id):
     from flask import jsonify
-    from .ai import suggest_photo_caption
-    from .storage import get_object_bytes
+    from ..ai import suggest_photo_caption
+    from ..storage import get_object_bytes
     photo = db.session.get(Photo, photo_id)
     if not photo or photo.family_id != current_user.active_family_id:
         return jsonify({'error': 'Not found'}), 404
@@ -2901,7 +2901,7 @@ def event_add():
         db.session.flush()
 
         # Create sleeping spots submitted with the form
-        from .models import EventSleepingSpot
+        from ..models import EventSleepingSpot
         room_index = 0
         while True:
             room_name = request.form.get(f'rooms[{room_index}][name]', '').strip()
@@ -2958,7 +2958,7 @@ def event_add():
                 event.cover_image_path = key
         db.session.commit()
         flash(f'{event.name} has been created.', 'info')
-        from .notifications import notify
+        from ..notifications import notify
         recipients = User.query.filter_by(
             family_id=current_user.active_family_id, status='approved'
         ).filter(User.id != current_user.id).all()
@@ -3062,7 +3062,7 @@ def event_detail(event_id):
         if all(s is None for _, s in g['adults'] + g['children'])
     ]
 
-    from .weather import get_event_weather
+    from ..weather import get_event_weather
     try:
         weather = get_event_weather(event)
     except Exception:
@@ -3279,7 +3279,7 @@ def event_payment_disable(event_id):
 @main.route('/events/<int:event_id>/payment/checkout', methods=['POST'])
 @login_required
 def event_payment_checkout(event_id):
-    from .billing import _stripe
+    from ..billing import _stripe
     event = db.session.get(Event, event_id)
     if not event or event.family_id != current_user.active_family_id:
         flash('Event not found.', 'error')
@@ -3462,7 +3462,7 @@ def event_disable_section(event_id):
 @main.route('/events/<int:event_id>/carpool/offer', methods=['POST'])
 @login_required
 def carpool_offer(event_id):
-    from .models import CarpoolOffer
+    from ..models import CarpoolOffer
     event = db.session.get(Event, event_id)
     if not event or event.family_id != current_user.active_family_id or not current_user.person:
         return redirect(url_for('main.events_list'))
@@ -3495,7 +3495,7 @@ def carpool_offer(event_id):
 @main.route('/events/<int:event_id>/carpool/remove', methods=['POST'])
 @login_required
 def carpool_remove(event_id):
-    from .models import CarpoolOffer
+    from ..models import CarpoolOffer
     if current_user.person:
         # Clear any passengers assigned to this person's driver offer first
         offer = CarpoolOffer.query.filter_by(event_id=event_id, person_id=current_user.person.id).first()
@@ -3509,7 +3509,7 @@ def carpool_remove(event_id):
 @main.route('/events/<int:event_id>/carpool/<int:offer_id>/claim', methods=['POST'])
 @login_required
 def carpool_claim_seat(event_id, offer_id):
-    from .models import CarpoolOffer
+    from ..models import CarpoolOffer
     event = db.session.get(Event, event_id)
     if not event or event.family_id != current_user.active_family_id or not current_user.person:
         return redirect(url_for('main.events_list'))
@@ -3542,7 +3542,7 @@ def carpool_claim_seat(event_id, offer_id):
 @main.route('/events/<int:event_id>/carpool/unclaim', methods=['POST'])
 @login_required
 def carpool_unclaim(event_id):
-    from .models import CarpoolOffer
+    from ..models import CarpoolOffer
     if current_user.person:
         offer = CarpoolOffer.query.filter_by(event_id=event_id, person_id=current_user.person.id).first()
         if offer:
@@ -3555,7 +3555,7 @@ def carpool_unclaim(event_id):
 @login_required
 @admin_required
 def carpool_assign_rider(event_id, offer_id):
-    from .models import CarpoolOffer
+    from ..models import CarpoolOffer
     event = db.session.get(Event, event_id)
     if not event or event.family_id != current_user.active_family_id:
         return redirect(url_for('main.events_list'))
@@ -3587,7 +3587,7 @@ def carpool_assign_rider(event_id, offer_id):
 @main.route('/events/<int:event_id>/survey', methods=['GET', 'POST'])
 @login_required
 def event_survey(event_id):
-    from .models import EventSurveyResponse
+    from ..models import EventSurveyResponse
     event = db.session.get(Event, event_id)
     if not event or event.family_id != current_user.active_family_id:
         abort(404)
@@ -3629,7 +3629,7 @@ def event_survey(event_id):
 @login_required
 @admin_required
 def event_survey_results(event_id):
-    from .models import EventSurveyResponse
+    from ..models import EventSurveyResponse
     event = db.session.get(Event, event_id)
     if not event or event.family_id != current_user.active_family_id:
         abort(404)
@@ -3661,9 +3661,9 @@ def event_comment_add(event_id):
         db.session.add(comment)
         db.session.commit()
 
-        from .notifications import create_notification
-        from .models import NotificationPreference, EventRSVP, Person
-        from .email import send_event_comment_notification
+        from ..notifications import create_notification
+        from ..models import NotificationPreference, EventRSVP, Person
+        from ..email import send_event_comment_notification
         commenter_name = current_user.person.get_display_name()
         commenter_person_id = current_user.person.id
         attendee_person_ids = {
@@ -4019,9 +4019,9 @@ def event_meal_item_assign(event_id, meal_id, item_id):
                 event_url = url_for('main.event_detail', event_id=event_id, _external=True)
                 if (current_app.config.get('MAIL_ENABLED')
                         and NotificationPreference.is_enabled(person.user.id, 'assignment')):
-                    from .email import send_meal_item_assignment_email
+                    from ..email import send_meal_item_assignment_email
                     send_meal_item_assignment_email(person.user, item, item.meal.event, event_url)
-                from .notifications import create_notification
+                from ..notifications import create_notification
                 create_notification(person.user, 'assignment',
                                     title=f'Meal assignment: {item.label}',
                                     body=f'For {item.meal.name} at {item.meal.event.name}',
@@ -4201,9 +4201,9 @@ def event_assignment_admin_assign(event_id, aid):
                 event_url = url_for('main.event_detail', event_id=event_id, _external=True)
                 if (current_app.config.get('MAIL_ENABLED')
                         and NotificationPreference.is_enabled(person.user.id, 'assignment')):
-                    from .email import send_assignment_notification_email
+                    from ..email import send_assignment_notification_email
                     send_assignment_notification_email(person.user, a, a.event, event_url)
-                from .notifications import create_notification
+                from ..notifications import create_notification
                 create_notification(person.user, 'assignment',
                                     title=f'Task assigned: {a.title}',
                                     body=f'For {a.event.name}',
@@ -4487,7 +4487,7 @@ def support():
                 'Support form submitted but RESEND_API_KEY is not set — email not sent. '
                 f'User: {current_user.email}, family: {current_user.active_family_id}'
             )
-        from .models import Notification
+        from ..models import Notification
         db.session.add(Notification(
             user_id=current_user.id,
             event_type='support_sent',
@@ -4592,6 +4592,115 @@ def regenerate_calendar_token():
     return redirect(url_for('main.profile_calendar'))
 
 
+# ── Story Prompts ─────────────────────────────────────────────────────────────
+
+@main.route('/stories')
+@login_required
+@requires_plan
+def stories():
+    prompts = (
+        StoryPrompt.query
+        .filter_by(family_id=current_user.active_family_id)
+        .filter(StoryPrompt.sent_at.isnot(None))
+        .order_by(StoryPrompt.week_of.desc())
+        .limit(24)
+        .all()
+    )
+    return render_template('stories.html', prompts=prompts)
+
+
+@main.route('/stories/<int:prompt_id>', methods=['GET', 'POST'])
+@login_required
+@requires_plan
+def story_prompt_view(prompt_id):
+    prompt = StoryPrompt.query.filter_by(
+        id=prompt_id, family_id=current_user.active_family_id
+    ).first_or_404()
+
+    person = current_user.person
+    my_response = (
+        StoryResponse.query.filter_by(prompt_id=prompt_id, person_id=person.id).first()
+        if person else None
+    )
+
+    if request.method == 'POST':
+        if not person:
+            flash('You need a linked profile to share a story.', 'error')
+            return redirect(url_for('main.story_prompt_view', prompt_id=prompt_id))
+        body = (request.form.get('body') or '').strip()
+        if not body:
+            flash('Your story cannot be empty.', 'error')
+            return redirect(url_for('main.story_prompt_view', prompt_id=prompt_id))
+        if my_response:
+            my_response.body = body
+            my_response.updated_at = datetime.utcnow()
+        else:
+            db.session.add(StoryResponse(prompt_id=prompt_id, person_id=person.id, body=body))
+        db.session.commit()
+        flash('Your story has been saved.', 'success')
+        return redirect(url_for('main.story_prompt_view', prompt_id=prompt_id))
+
+    responses = (
+        StoryResponse.query
+        .filter_by(prompt_id=prompt_id)
+        .order_by(StoryResponse.submitted_at.asc())
+        .all()
+    )
+    return render_template('story_prompt.html', prompt=prompt, responses=responses,
+                           my_response=my_response)
+
+
+@main.route('/admin/stories/generate', methods=['POST'])
+@login_required
+@admin_required
+@requires_plan
+def stories_generate():
+    """Manually generate and send this week's story prompt."""
+    from ..ai import generate_story_prompt
+    from ..email import send_story_prompt_email
+
+    family = current_user.active_family
+    today = date.today()
+    week_of = today - timedelta(days=today.weekday())
+
+    existing = StoryPrompt.query.filter_by(family_id=family.id, week_of=week_of).first()
+    if existing and existing.sent_at:
+        flash('A story prompt was already sent this week.', 'info')
+        return redirect(url_for('main.stories'))
+
+    recent_qs = [
+        p.question for p in
+        StoryPrompt.query.filter_by(family_id=family.id)
+        .order_by(StoryPrompt.created_at.desc()).limit(8).all()
+    ]
+
+    if existing:
+        prompt_obj = existing
+    else:
+        question = generate_story_prompt(family, recent_qs)
+        if not question:
+            flash('Could not generate a prompt — check the ANTHROPIC_API_KEY setting.', 'error')
+            return redirect(url_for('main.stories'))
+        prompt_obj = StoryPrompt(family_id=family.id, question=question, week_of=week_of)
+        db.session.add(prompt_obj)
+        db.session.flush()
+
+    members = User.query.filter_by(
+        family_id=family.id, status='approved', email_verified=True
+    ).all()
+    respond_url = url_for('main.story_prompt_view', prompt_id=prompt_obj.id, _external=True)
+    for user in members:
+        try:
+            send_story_prompt_email(user, family, prompt_obj.question, respond_url)
+        except Exception:
+            pass
+
+    prompt_obj.sent_at = datetime.utcnow()
+    db.session.commit()
+    flash(f'Story prompt sent to {len(members)} member(s).', 'success')
+    return redirect(url_for('main.stories'))
+
+
 # ── PWA ─────────────────────────────────────────────────────────────────────────
 
 @main.route('/manifest.json')
@@ -4613,8 +4722,8 @@ def _notify_chat_members(msg):
     notification already exists it is updated in place rather than a new row
     created, so a burst of messages doesn't flood the bell.
     """
-    from .notifications import create_notification
-    from .models import Notification
+    from ..notifications import create_notification
+    from ..models import Notification
     cutoff = datetime.utcnow() - timedelta(seconds=10)
     recipients = User.query.filter(
         User.family_id == msg.family_id,

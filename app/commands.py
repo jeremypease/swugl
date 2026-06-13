@@ -5,6 +5,8 @@ Railway cron jobs:
     flask digest           — weekly (0 8 * * 1)
     flask rsvp-reminders   — daily  (0 8 * * *)
     flask annual-events    — weekly (0 9 * * 1)
+    flask story-prompts    — weekly (0 9 * * 2)  Tuesday, after Monday digest
+    flask prune-chat       — daily  (0 8 * * *)
 """
 import click
 from datetime import datetime, timedelta, date
@@ -16,7 +18,8 @@ from .models import (Family, User, Event, EventMeal, EventMealItem, EventAssignm
                      EventSleepingSpot, EventRSVP, NotificationPreference,
                      Person, SpouseRelationship, ParentRelationship,
                      PollVote, CardSignature, AnnouncementReaction,
-                     PhotoTag, CarpoolOffer, EventSurveyResponse, ChatMessage)
+                     PhotoTag, CarpoolOffer, EventSurveyResponse, ChatMessage,
+                     StoryPrompt)
 from .notifications import send_family_digest, create_notification
 from .email import (
     send_nudge_day3_email,
@@ -545,3 +548,81 @@ def prune_chat(dry_run):
             total += count
     verb = 'Would remove' if dry_run else 'Removed'
     click.echo(f'Done. {verb} {total} message(s) across {len(families)} family/families with retention set.')
+
+
+@click.command('story-prompts')
+@click.option('--dry-run', is_flag=True, help='Preview without generating or sending.')
+@with_appcontext
+def story_prompts_cmd(dry_run):
+    """Generate and email weekly story prompts to paid families.
+
+    Schedule: weekly (0 9 * * 2) — Tuesday morning, after Monday digest.
+    """
+    from .ai import generate_story_prompt
+    from .email import send_story_prompt_email
+
+    today = date.today()
+    week_of = today - timedelta(days=today.weekday())  # Monday of current week
+
+    paid_plans = {'paid', 'trial'}
+    families = Family.query.filter(Family.plan.in_(paid_plans)).all()
+    sent = 0
+
+    with _request_ctx():
+        for family in families:
+            existing = StoryPrompt.query.filter_by(
+                family_id=family.id, week_of=week_of
+            ).first()
+            if existing and existing.sent_at:
+                click.echo(f'Skipping {family.name} — already sent for week of {week_of}')
+                continue
+
+            # Get recent questions to avoid topic repetition
+            recent_qs = [
+                p.question for p in
+                StoryPrompt.query.filter_by(family_id=family.id)
+                .order_by(StoryPrompt.created_at.desc()).limit(8).all()
+            ]
+
+            if existing:
+                prompt_obj = existing
+            else:
+                if dry_run:
+                    click.echo(f'[DRY RUN] Would generate prompt for "{family.name}"')
+                    continue
+                question = generate_story_prompt(family, recent_qs)
+                if not question:
+                    click.echo(f'Skipping {family.name} — AI generation failed')
+                    continue
+                prompt_obj = StoryPrompt(
+                    family_id=family.id,
+                    question=question,
+                    week_of=week_of,
+                )
+                db.session.add(prompt_obj)
+                db.session.flush()
+
+            members = User.query.filter_by(
+                family_id=family.id, status='approved', email_verified=True
+            ).all()
+            respond_url = url_for('main.story_prompt_view', prompt_id=prompt_obj.id, _external=True)
+
+            for user in members:
+                if dry_run:
+                    click.echo(
+                        f'[DRY RUN] story-prompt → {user.email} ({family.name}): '
+                        f'"{prompt_obj.question[:60]}..."'
+                    )
+                else:
+                    try:
+                        send_story_prompt_email(user, family, prompt_obj.question, respond_url)
+                        sent += 1
+                    except Exception as e:
+                        click.echo(f'Error sending to {user.email}: {e}')
+
+            if not dry_run:
+                prompt_obj.sent_at = datetime.utcnow()
+                db.session.commit()
+
+    verb = 'Would send' if dry_run else 'Sent'
+    click.echo(f'Done. {verb} story prompts to {sent} member(s).')

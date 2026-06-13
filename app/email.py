@@ -513,3 +513,31 @@ def send_support_email(user, family, category, message, support_email):
     <p style="white-space:pre-wrap;">{message}</p>
     """
     return send_email(support_email, subject, html_content, reply_to=user.email)
+
+
+def send_story_prompt_email(user, family, question, respond_url):
+    """Send the weekly story prompt to a family member."""
+    return send_email(
+        user.email,
+        f"This week's question for {family.name}",
+        f"""
+        <p style="font-family:sans-serif;">Hi {user.first_name},</p>
+        <p style="font-family:sans-serif;">This week's question for {family.name}:</p>
+        <blockquote style="border-left:4px solid #4a7c59;margin:20px 0;padding:12px 20px;
+                           font-size:18px;font-style:italic;color:#333;background:#f9f9f7;
+                           border-radius:0 6px 6px 0;">
+            {question}
+        </blockquote>
+        <p style="font-family:sans-serif;">
+            Share your story — it's saved to your family's collection for everyone to read.
+        </p>
+        <p>
+            <a href="{respond_url}" style="background:#4a7c59;color:#fff;padding:12px 24px;
+               text-decoration:none;border-radius:6px;display:inline-block;font-family:sans-serif;
+               font-weight:600;">Share Your Story</a>
+        </p>
+        <p style="font-family:sans-serif;color:#888;font-size:12px;margin-top:32px;">
+            You're receiving this as a member of {family.name} on Swugl.
+        </p>
+        """,
+    )

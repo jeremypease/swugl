@@ -28,6 +28,7 @@ flask rsvp-reminders --dry-run   # preview RSVP reminder emails
 flask annual-events --dry-run    # preview annual event cloning
 flask merge-persons --keep-id X --remove-id Y  # merge duplicate Person records
 flask prune-chat --dry-run       # delete messages older than each family's retention period
+flask story-prompts --dry-run    # generate & email weekly AI story prompts (paid families)
 ```
 
 ## Branches
@@ -144,7 +145,7 @@ JWT tokens use `Flask-JWT-Extended`. Revocation via `ApiTokenBlocklist`.
 
 | File | Purpose |
 |------|---------|
-| `routes.py` | ~4760 lines, ~180 routes, main blueprint |
+| `routes/` | `__init__.py` ~4900 lines, ~185 routes, main blueprint (package) |
 | `models.py` | ~1115 lines, all SQLAlchemy models |
 | `forms.py` | WTForms (registration, events, billing) |
 | `commands.py` | 5 Flask CLI scheduled commands |

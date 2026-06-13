@@ -1114,3 +1114,39 @@ class EventPaymentRecord(db.Model):
         if self.net_cents is not None:
             return self.net_cents / 100
         return None
+
+
+# ── Story Prompts ──────────────────────────────────────────────────────────────
+
+class StoryPrompt(db.Model):
+    """A weekly AI-generated question sent to all family members."""
+    __tablename__ = 'story_prompts'
+
+    id = db.Column(db.Integer, primary_key=True)
+    family_id = db.Column(db.Integer, db.ForeignKey('families.id'), nullable=False, index=True)
+    question = db.Column(db.Text, nullable=False)
+    category = db.Column(db.String(50), nullable=True)
+    week_of = db.Column(db.Date, nullable=False)  # Monday of the prompt week
+    sent_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    family = db.relationship('Family', backref=db.backref('story_prompts', lazy='dynamic'))
+    responses = db.relationship('StoryResponse', back_populates='prompt',
+                                cascade='all, delete-orphan', lazy='dynamic')
+
+
+class StoryResponse(db.Model):
+    """A family member's written answer to a StoryPrompt."""
+    __tablename__ = 'story_responses'
+
+    id = db.Column(db.Integer, primary_key=True)
+    prompt_id = db.Column(db.Integer, db.ForeignKey('story_prompts.id'), nullable=False, index=True)
+    person_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=False, index=True)
+    body = db.Column(db.Text, nullable=False)
+    submitted_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=True)
+
+    __table_args__ = (db.UniqueConstraint('prompt_id', 'person_id', name='uq_story_response'),)
+
+    prompt = db.relationship('StoryPrompt', back_populates='responses')
+    person = db.relationship('Person', backref=db.backref('story_responses', lazy='dynamic'))
