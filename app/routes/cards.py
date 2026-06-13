@@ -61,7 +61,7 @@ def create_card():
             from datetime import date as dt_date
             send_date = dt_date.fromisoformat(send_date_str)
         except ValueError:
-            pass
+            pass  # keep send_date=None when form value is malformed
     card = GreetingCard(
         family_id=current_user.active_family_id,
         recipient_id=recipient_id,
@@ -185,7 +185,7 @@ def card_ai_draft():
     try:
         message = draft_card_message(recipient_name, occasion, current_user.active_family.name)
         return jsonify({'message': message})
-    except Exception as e:
-        current_app.logger.error(f'AI card draft error: {e}')
+    except Exception:
+        current_app.logger.exception('AI card draft error')
         return jsonify({'error': 'AI draft failed'}), 500
 

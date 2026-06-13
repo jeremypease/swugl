@@ -144,8 +144,8 @@ Description: {description}"""
             text = text.split('\n', 1)[1].rsplit('```', 1)[0].strip()
         data = _json.loads(text)
         return jsonify(data)
-    except Exception as e:
-        current_app.logger.error(f'AI event parse error: {e}')
+    except Exception:
+        current_app.logger.exception('AI event parse error')
         return jsonify({'error': 'AI parsing failed'}), 500
 
 
@@ -165,7 +165,7 @@ def _geocode_location(location_str):
         if results:
             return float(results[0]['lat']), float(results[0]['lon'])
     except Exception:
-        pass
+        current_app.logger.debug('Geocode failed for %r', location_str)
     return None, None
 
 
@@ -561,7 +561,7 @@ def event_payment_setup(event_id):
                 if cap_val > amount_cents:
                     family_cap_cents = cap_val
             except (ValueError, TypeError):
-                pass
+                pass  # ignore malformed cap input; cap remains unset
 
     deadline_str = request.form.get('deadline', '').strip()
     deadline = datetime.strptime(deadline_str, '%Y-%m-%d').date() if deadline_str else None
@@ -693,9 +693,9 @@ def event_payment_checkout(event_id):
         record.stripe_checkout_session_id = session_obj.id
         db.session.commit()
         return redirect(session_obj.url, code=303)
-    except Exception as e:
+    except Exception:
         flash('Could not start checkout. Please try again.', 'error')
-        current_app.logger.error(f'Stripe event checkout error: {e}')
+        current_app.logger.exception('Stripe event checkout error')
         return redirect(url_for('main.event_detail', event_id=event_id))
 
 

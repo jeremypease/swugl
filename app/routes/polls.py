@@ -54,7 +54,7 @@ def create_poll():
             from datetime import date as dt_date
             closes_at = dt_date.fromisoformat(closes_at_str)
         except ValueError:
-            pass
+            pass  # keep closes_at=None when form value is malformed
     poll = Poll(
         family_id=current_user.active_family_id,
         created_by_id=current_user.person.id if current_user.person else None,
@@ -136,6 +136,6 @@ def poll_ai_suggest():
     try:
         result = suggest_poll(topic, current_user.active_family.name)
         return jsonify(result)
-    except Exception as e:
-        current_app.logger.error(f'AI poll suggest error: {e}')
+    except Exception:
+        current_app.logger.exception('AI poll suggest error')
         return jsonify({'error': 'AI suggest failed'}), 500

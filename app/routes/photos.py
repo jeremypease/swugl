@@ -151,7 +151,7 @@ def download_album(album_id):
                 data, _ = get_object_bytes(photo.path)
                 zf.writestr(os.path.basename(photo.path), data)
             except Exception:
-                pass
+                current_app.logger.warning('Skipping photo %s from zip: fetch failed', photo.id)
     buf.seek(0)
     safe_name = ''.join(c if c.isalnum() or c in ' -_' else '_' for c in album.name)
     return send_file(buf, mimetype='application/zip',
@@ -293,8 +293,8 @@ def photo_ai_caption(photo_id):
         image_bytes, content_type = get_object_bytes(photo.path)
         caption = suggest_photo_caption(image_bytes, content_type)
         return jsonify({'caption': caption})
-    except Exception as e:
-        current_app.logger.error(f'AI photo caption error: {e}')
+    except Exception:
+        current_app.logger.exception('AI photo caption error')
         return jsonify({'error': 'AI caption failed'}), 500
 
 
