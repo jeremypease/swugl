@@ -1,14 +1,11 @@
-from flask import render_template, redirect, url_for, flash, request, current_app, jsonify, abort, Response
+from flask import render_template, redirect, url_for, request, jsonify, abort, Response
 from flask_login import login_required, current_user
-from ..models import ChatMessage, User, Notification, Family
+from ..models import ChatMessage, User
 from .. import db, limiter
-from ..notifications import create_notification
 from . import main, admin_required
 from ..billing import requires_plan, family_has_paid_access
 from ..forms import ChatMessageForm
 from datetime import datetime, timedelta
-import csv
-import io
 
 # ── Chat ──────────────────────────────────────────────────────────────────────
 
@@ -25,7 +22,7 @@ def _notify_chat_members(msg):
     recipients = User.query.filter(
         User.family_id == msg.family_id,
         User.id != msg.author_id,
-        db.or_(User.chat_last_seen_at == None, User.chat_last_seen_at < cutoff),
+        db.or_(User.chat_last_seen_at.is_(None), User.chat_last_seen_at < cutoff),
     ).all()
     author_name = msg.author.get_full_name()
     for recipient in recipients:

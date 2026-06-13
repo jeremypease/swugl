@@ -1,7 +1,7 @@
-from flask import render_template, redirect, url_for, flash, request, current_app, abort, jsonify
+from flask import render_template, redirect, url_for, flash, request, current_app, abort
 from flask_login import login_required, current_user
 from .. import db
-from . import main, admin_required
+from . import main
 from datetime import date
 
 # ── Greeting Cards ────────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
-from flask import render_template, redirect, url_for, flash, request, current_app, send_file, abort, jsonify, Response
+from flask import render_template, redirect, url_for, flash, request, current_app, send_file, abort, jsonify
 from flask_login import login_required, current_user
-from ..models import Photo, Album, Person, User, Event, EventRSVP
+from ..models import Photo, Album, Person, Event
 from .. import db
 from ..storage import upload_photo, delete_object, get_object_bytes
 from ..billing import requires_plan, family_has_paid_access
@@ -204,14 +204,14 @@ def photo_untag(photo_id, tag_id):
         abort(404)
     is_tagger = current_user.person and tag.tagged_by_id == current_user.person.id
     is_tagged = current_user.person and tag.person_id == current_user.person.id
-    if current_user.active_is_admin or is_tagger or is_tagged:
-        photo = tag.photo
-        db.session.delete(tag)
-        db.session.commit()
-        open_idx = request.form.get('open_idx', '')
-        return redirect(url_for('main.album_detail', album_id=photo.album_id)
-                        + (f'?open={open_idx}' if open_idx else ''))
-    abort(403)
+    if not (current_user.active_is_admin or is_tagger or is_tagged):
+        abort(403)
+    photo = tag.photo
+    db.session.delete(tag)
+    db.session.commit()
+    open_idx = request.form.get('open_idx', '')
+    return redirect(url_for('main.album_detail', album_id=photo.album_id)
+                    + (f'?open={open_idx}' if open_idx else ''))
 
 
 @main.route('/members/<int:person_id>/photos')

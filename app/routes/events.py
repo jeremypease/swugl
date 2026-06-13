@@ -1,9 +1,8 @@
-from flask import render_template, redirect, url_for, flash, request, current_app, abort, jsonify, Response
+from flask import render_template, redirect, url_for, flash, request, current_app, abort
 from flask_login import login_required, current_user
 from ..models import (Event, EventMeal, EventMealItem, EventAssignment, AssignmentTask, ASSIGNMENT_CATEGORIES,
                       EventRSVP, EventSleepingSpot, SPOT_TYPES, EventComment, EventPaymentConfig,
-                      EventPaymentRecord, FamilyPayoutAccount, Location, LocationSleepingSpot,
-                      Person, User, Photo, Album, Family)
+                      EventPaymentRecord, Location, Person, User, Photo, Album)
 from ..forms import (EventForm, EventCommentForm, EventMealForm, EventMealFamilyAssignForm,
                      EventMealItemForm, EventMealSelfSignupForm, EventMealAssignForm,
                      EventAssignmentForm, EventAssignmentAdminAssignForm,
@@ -12,11 +11,9 @@ from .. import db
 from ..billing import requires_plan, family_has_paid_access, FREE_EVENT_LIMIT
 import re
 from ..storage import upload_photo, delete_object
-from . import main, admin_required, contributor_or_admin_required
+from . import main, admin_required
 from datetime import date, datetime, timedelta
 from collections import defaultdict
-import secrets
-import os
 
 # ── Events ────────────────────────────────────────────────────────────────────
 
@@ -1641,11 +1638,11 @@ def event_sleeping_bulk_add(event_id):
         line = line.strip()
         if not line:
             continue
-        # Try to parse trailing number as capacity: "Master bedroom 2" or "Bunk room (4)"
-        import re as _re
-        m = _re.match(r'^(.+?)\s*[\(\[]?(\d+)[\)\]]?\s*$', line)
-        if m:
-            name, cap = m.group(1).strip(), int(m.group(2))
+        # Try to extract trailing capacity: "Master bedroom 2" or "Bunk room (4)"
+        # Use re.search anchored to $ to avoid catastrophic backtracking on long lines.
+        m = re.search(r'\s*[\(\[]?(\d+)[\)\]]?\s*$', line)
+        if m and m.start() > 0:
+            name, cap = line[:m.start()].strip(), int(m.group(1))
         else:
             name, cap = line, None
         if name:
