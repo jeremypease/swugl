@@ -9,6 +9,10 @@ Check the roadmap memory (`ROADMAP.md`) before implementing anything new. Verify
 2. Does it conflict with a planned architecture decision (e.g. billing gating, access tiers)?
 3. Is it already marked ✅ done or in-progress somewhere?
 
+Also check for context:
+- **GitHub issues** (`jeremypease/swugl`) — open issues and enhancement requests may already describe the work or reveal prior decisions.
+- **Sentry** — check for active errors related to the area you're touching; a bug report may already exist for the problem.
+
 Flag any conflicts to the user before implementing rather than discovering them after.
 
 ## Commands
