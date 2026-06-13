@@ -191,9 +191,12 @@ def photo_tag(photo_id):
                     tagged_by_id=current_user.person.id if current_user.person else None,
                 ))
                 db.session.commit()
-    open_idx = request.form.get('open_idx', '')
+    open_idx = request.form.get('open_idx', type=int)
+    if open_idx is not None:
+        return redirect(url_for('main.album_detail', album_id=photo.album_id,
+                                open=open_idx, _anchor=f'photo-{photo_id}'))
     return redirect(url_for('main.album_detail', album_id=photo.album_id,
-                            _anchor=f'photo-{photo_id}') + (f'?open={open_idx}' if open_idx else ''))
+                            _anchor=f'photo-{photo_id}'))
 
 
 @main.route('/photos/<int:photo_id>/tags/<int:tag_id>/remove', methods=['POST'])
@@ -210,9 +213,10 @@ def photo_untag(photo_id, tag_id):
     photo = tag.photo
     db.session.delete(tag)
     db.session.commit()
-    open_idx = request.form.get('open_idx', '')
-    return redirect(url_for('main.album_detail', album_id=photo.album_id)
-                    + (f'?open={open_idx}' if open_idx else ''))
+    open_idx = request.form.get('open_idx', type=int)
+    if open_idx is not None:
+        return redirect(url_for('main.album_detail', album_id=photo.album_id, open=open_idx))
+    return redirect(url_for('main.album_detail', album_id=photo.album_id))
 
 
 @main.route('/members/<int:person_id>/photos')
@@ -311,5 +315,10 @@ def serve_photo(key):
     person = None if photo else Person.query.filter_by(family_id=current_user.active_family_id, photo_path=key).first()
     if not photo and not person:
         abort(403)
-    data, content_type = get_object_bytes(key)
+    # Use the path from the DB record (not the URL parameter) to prevent path injection
+    if photo:
+        safe_key = photo.path if photo.path == key else photo.thumb_path
+    else:
+        safe_key = person.photo_path
+    data, content_type = get_object_bytes(safe_key)
     return Response(data, content_type=content_type)
