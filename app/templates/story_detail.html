@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% from "_macros.html" import av %}
+
+{% block title %}Family Story — {{ prompt.person.get_display_name() }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <div class="eyebrow"><a href="{{ url_for('main.stories') }}" style="color:var(--slate);text-decoration:none;">← Family Stories</a></div>
+        <h1>A story from {{ prompt.person.get_display_name() }}</h1>
+    </div>
+</div>
+
+<div style="max-width:680px;">
+    <div class="card" style="margin-bottom:20px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+            {{ av(prompt.person, size='md') }}
+            <div>
+                <div style="font-weight:600;">{{ prompt.person.get_display_name() }}</div>
+                {% if prompt.person.get_age() %}<div style="font-size:12px;color:var(--slate);">Age {{ prompt.person.get_age() }}</div>{% endif %}
+            </div>
+        </div>
+        <div style="font-size:17px;color:var(--ink);line-height:1.5;border-left:3px solid var(--vine);padding-left:14px;">
+            {{ prompt.question }}
+        </div>
+    </div>
+
+    {% if prompt.response %}
+    <div class="card">
+        <div style="font-size:15px;color:var(--ink-soft);line-height:1.7;white-space:pre-wrap;">{{ prompt.response.answer }}</div>
+        <div style="font-size:12px;color:var(--slate-soft);margin-top:14px;">
+            Shared {{ prompt.answered_at.strftime('%B %-d, %Y') }}{% if prompt.response.answered_by and prompt.response.answered_by_id != prompt.person_id %} · recorded by {{ prompt.response.answered_by.get_display_name() }}{% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if can_answer %}
+    <div class="card" style="margin-top:20px;">
+        <div class="card-header"><h3>{% if prompt.response %}Edit this story{% else %}Write the answer{% endif %}</h3></div>
+        <form method="POST" action="{{ url_for('main.story_answer', prompt_id=prompt.id) }}">
+            {{ form.hidden_tag() }}
+            <div class="field">
+                {{ form.answer(rows=8, placeholder="Tell the story in their own words…", style="width:100%;font-size:15px;line-height:1.6;") }}
+                {% for e in form.answer.errors %}<span class="msg">{{ e }}</span>{% endfor %}
+            </div>
+            <button type="submit" class="btn btn-primary">{{ form.submit.label.text }}</button>
+        </form>
+        <p style="font-size:12px;color:var(--slate);margin-top:10px;">
+            Answering on someone's behalf? Just type what they tell you — it'll be saved as their story.
+        </p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

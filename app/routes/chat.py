@@ -1,49 +1,73 @@
-from flask import render_template, redirect, url_for, request, jsonify, abort, Response
-from flask_login import login_required, current_user
-from ..models import ChatMessage, User
-from .. import db, limiter
-from . import main, admin_required
-from ..billing import requires_plan, family_has_paid_access
-from ..forms import ChatMessageForm
+"""Pod-wide group chat: routes, notification fan-out, and poll throttling."""
 from datetime import datetime, timedelta
 
-# ── Chat ──────────────────────────────────────────────────────────────────────
+from flask import render_template, request, redirect, url_for, jsonify, abort, Response
+from flask_login import login_required, current_user
+
+from .. import db
+from ..models import (
+    ChatMessage, User, Notification, NotificationPreference, NOTIFICATION_EVENTS,
+)
+from ..forms import ChatMessageForm
+from ..billing import requires_plan, family_has_paid_access
+from . import main, admin_required
+
+# A member is "actively viewing" chat if their last-seen timestamp is within
+# this window. It must exceed CHAT_SEEN_THROTTLE (below) so a member who is
+# actively polling — but whose timestamp is only written periodically — is never
+# mistaken for absent and re-notified.
+CHAT_VIEWING_WINDOW = 60  # seconds
+CHAT_SEEN_THROTTLE = 25   # seconds — min gap between chat_last_seen_at writes
+
 
 def _notify_chat_members(msg):
-    """Notify family members not currently viewing chat.
-
-    Collapses into one unread notification per user — if an unread chat
-    notification already exists it is updated in place rather than a new row
-    created, so a burst of messages doesn't flood the bell.
-    """
-    from ..notifications import create_notification
-    from ..models import Notification
-    cutoff = datetime.utcnow() - timedelta(seconds=10)
+    """Notify family members not currently viewing chat, collapsed to a single
+    rolling "N new messages" notification per recipient (no per-message spam)."""
+    if not NOTIFICATION_EVENTS.get('chat_message', {}).get('in_app'):
+        return
+    cutoff = datetime.utcnow() - timedelta(seconds=CHAT_VIEWING_WINDOW)
     recipients = User.query.filter(
         User.family_id == msg.family_id,
         User.id != msg.author_id,
-        db.or_(User.chat_last_seen_at.is_(None), User.chat_last_seen_at < cutoff),
+        db.or_(User.chat_last_seen_at == None, User.chat_last_seen_at < cutoff),
     ).all()
     author_name = msg.author.get_full_name()
     for recipient in recipients:
+        if not NotificationPreference.is_enabled(recipient.id, 'chat_message', 'in_app'):
+            continue
+        # Count this recipient's unread messages since they last saw chat.
+        q = ChatMessage.query.filter(
+            ChatMessage.family_id == msg.family_id,
+            ChatMessage.author_id != recipient.id,
+        )
+        if recipient.chat_last_seen_at:
+            q = q.filter(ChatMessage.created_at > recipient.chat_last_seen_at)
+        unread_count = q.count()
+        title = (f'{unread_count} new messages in chat' if unread_count > 1
+                 else f'New message from {author_name}')
+        # Collapse any existing unread chat notifications into one rolling row.
         existing = Notification.query.filter_by(
-            user_id=recipient.id,
-            event_type='chat_message',
-            read_at=None,
-        ).first()
-        if existing:
-            existing.title = f'New message from {author_name}'
-            existing.body = msg.body[:120]
-            existing.created_at = datetime.utcnow()
-            db.session.commit()
+            user_id=recipient.id, event_type='chat_message', read_at=None
+        ).order_by(Notification.created_at.desc()).all()
+        keep = existing[0] if existing else None
+        for extra in existing[1:]:
+            db.session.delete(extra)
+        if keep:
+            keep.title = title
+            keep.body = msg.body[:120]
+            keep.created_at = datetime.utcnow()
         else:
-            create_notification(
-                recipient,
-                'chat_message',
-                title=f'New message from {author_name}',
-                body=msg.body[:120],
-                url='/chat',
-            )
+            db.session.add(Notification(
+                user_id=recipient.id, event_type='chat_message',
+                title=title, body=msg.body[:120], url='/chat',
+            ))
+        _send_push(recipient, title, msg.body[:120], '/chat')
+    db.session.commit()
+
+
+def _send_push(user, title, body, url):
+    from ..notifications import send_push_notification
+    send_push_notification(user, title, body=body, url=url)
 
 
 @main.route('/chat')
@@ -63,6 +87,11 @@ def chat():
     )
     messages = list(reversed(messages))
     current_user.chat_last_seen_at = datetime.utcnow()
+    # Opening chat clears the rolling chat notification so the next message
+    # starts a fresh count.
+    Notification.query.filter_by(
+        user_id=current_user.id, event_type='chat_message', read_at=None
+    ).update({'read_at': datetime.utcnow()})
     db.session.commit()
     form = ChatMessageForm()
     return render_template('chat.html', messages=messages, form=form, upgrade_required=False)
@@ -98,9 +127,14 @@ def chat_poll():
         .limit(100)
         .all()
     )
-    threshold = datetime.utcnow() - timedelta(seconds=30)
-    if current_user.chat_last_seen_at is None or current_user.chat_last_seen_at < threshold:
-        current_user.chat_last_seen_at = datetime.utcnow()
+    # Throttle the bookkeeping write: a 5s poll would otherwise commit on every
+    # tick. Only persist when the timestamp is meaningfully stale. The viewing
+    # window (CHAT_VIEWING_WINDOW) is wider than this so an active poller is
+    # never treated as absent between writes.
+    now = datetime.utcnow()
+    last = current_user.chat_last_seen_at
+    if last is None or (now - last).total_seconds() > CHAT_SEEN_THROTTLE:
+        current_user.chat_last_seen_at = now
         db.session.commit()
     return jsonify({
         'messages': [
@@ -182,4 +216,3 @@ def chat_export():
         mimetype='text/csv',
         headers={'Content-Disposition': f'attachment; filename="chat-{slug}.csv"'},
     )
-

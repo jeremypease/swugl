@@ -117,6 +117,14 @@
                 </div>
             </div>
 
+            {# One-step invite: add to the tree AND email them to join #}
+            <label class="checkbox-row" style="margin-bottom:12px;">
+                <input type="checkbox" name="invite_now" value="1" id="invite-now-cb">
+                <span><strong>Email them an invitation to join now</strong>
+                    <span style="color:var(--slate);font-size:13px;margin-left:6px;">Requires an email address above. Leave unchecked to just add them to the family tree.</span>
+                </span>
+            </label>
+
             <div class="field" id="maiden-name-field">
                 {{ form.maiden_name.label }}
                 {{ form.maiden_name() }}

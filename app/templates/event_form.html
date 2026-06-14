@@ -133,12 +133,15 @@
             {% if saved_locations %}
             <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
                 {% for loc in saved_locations %}
+                {# Jinja has no list comprehensions — build the spots list via append. #}
+                {% set loc_spots = [] %}
+                {% for s in loc.sleeping_spots %}{% set _ = loc_spots.append({"name": s.name, "spot_type": s.spot_type or "", "capacity": s.capacity}) %}{% endfor %}
                 <button type="button"
                     class="loc-chip"
                     data-loc-id="{{ loc.id }}"
                     data-loc-name="{{ loc.name }}"
                     data-loc-address="{{ loc.address or '' }}"
-                    data-loc-spots='{{ [{"name": s.name, "spot_type": s.spot_type or "", "capacity": s.capacity} for s in loc.sleeping_spots] | tojson }}'
+                    data-loc-spots='{{ loc_spots | tojson }}'
                     style="font-size:12px;padding:3px 10px;border-radius:99px;border:1px solid var(--hairline-strong);background:var(--paper);color:var(--slate);cursor:pointer;transition:background .1s,color .1s,border-color .1s;">
                     <i data-lucide="map-pin" style="width:11px;height:11px;vertical-align:-1px;margin-right:2px;"></i>{{ loc.name }}
                 </button>

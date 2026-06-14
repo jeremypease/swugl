@@ -1,11 +1,13 @@
-from flask import render_template, redirect, url_for, flash, request, current_app, abort
-from flask_login import login_required, current_user
-from ..models import Person
-from .. import db
-from . import main
+"""Group greeting cards: create, sign, send, and the AI draft helper."""
 from datetime import date, datetime
 
-# ── Greeting Cards ────────────────────────────────────────────────────────────
+from flask import render_template, request, redirect, url_for, flash, abort, jsonify, current_app
+from flask_login import login_required, current_user
+
+from .. import db
+from ..models import GreetingCard, CardSignature, Person
+from ..notifications import notify_family
+from . import main
 
 CARD_OCCASIONS = [
     ('birthday', 'Birthday'),
@@ -14,13 +16,13 @@ CARD_OCCASIONS = [
     ('custom', 'Other'),
 ]
 
+
 @main.route('/cards')
 @login_required
 def cards():
     if not current_user.active_family.enable_greeting_cards:
         flash('Greeting cards are disabled for this family.', 'error')
         return redirect(url_for('main.home'))
-    from ..models import GreetingCard, CardSignature
     all_cards = GreetingCard.query.filter_by(family_id=current_user.active_family_id)\
         .order_by(GreetingCard.created_at.desc()).all()
     people = Person.query.filter_by(
@@ -45,7 +47,6 @@ def cards():
 @main.route('/cards/new', methods=['POST'])
 @login_required
 def create_card():
-    from ..models import GreetingCard
     recipient_id = request.form.get('recipient_id', type=int)
     occasion = request.form.get('occasion', 'custom')
     title = request.form.get('title', '').strip()
@@ -59,10 +60,9 @@ def create_card():
     send_date = None
     if send_date_str:
         try:
-            from datetime import date as dt_date
-            send_date = dt_date.fromisoformat(send_date_str)
+            send_date = date.fromisoformat(send_date_str)
         except ValueError:
-            pass  # keep send_date=None when form value is malformed
+            pass
     card = GreetingCard(
         family_id=current_user.active_family_id,
         recipient_id=recipient_id,
@@ -73,6 +73,17 @@ def create_card():
     )
     db.session.add(card)
     db.session.commit()
+    actor = current_user.person.get_display_name() if current_user.person else 'Someone'
+    # Exclude the recipient's own account — it's a surprise card.
+    recipient_user_id = recipient.user.id if recipient.user else None
+    notify_family(
+        current_user.active_family_id, 'new_card',
+        title=f'{actor} started a card for {recipient.get_display_name()}',
+        body='Add your signature before it’s sent.',
+        url=url_for('main.card_detail', card_id=card.id),
+        exclude_user_id=current_user.id,
+        exclude_user_ids=[recipient_user_id] if recipient_user_id else None,
+    )
     flash(f'Card created! Invite the family to sign it.', 'success')
     return redirect(url_for('main.card_detail', card_id=card.id))
 
@@ -80,7 +91,6 @@ def create_card():
 @main.route('/cards/<int:card_id>')
 @login_required
 def card_detail(card_id):
-    from ..models import GreetingCard, CardSignature
     card = db.session.get(GreetingCard, card_id)
     if not card or card.family_id != current_user.active_family_id:
         abort(404)
@@ -111,7 +121,6 @@ def card_detail(card_id):
 @main.route('/cards/<int:card_id>/sign', methods=['POST'])
 @login_required
 def sign_card(card_id):
-    from ..models import GreetingCard, CardSignature
     card = db.session.get(GreetingCard, card_id)
     if not card or card.family_id != current_user.active_family_id:
         abort(404)
@@ -141,7 +150,6 @@ def sign_card(card_id):
 @main.route('/cards/<int:card_id>/delete', methods=['POST'])
 @login_required
 def delete_card(card_id):
-    from ..models import GreetingCard
     card = db.session.get(GreetingCard, card_id)
     if not card or card.family_id != current_user.active_family_id:
         abort(404)
@@ -157,7 +165,6 @@ def delete_card(card_id):
 @main.route('/cards/<int:card_id>/mark-sent', methods=['POST'])
 @login_required
 def mark_card_sent(card_id):
-    from ..models import GreetingCard
     card = db.session.get(GreetingCard, card_id)
     if not card or card.family_id != current_user.active_family_id:
         abort(404)
@@ -170,11 +177,9 @@ def mark_card_sent(card_id):
     return redirect(url_for('main.card_detail', card_id=card_id))
 
 
-
 @main.route('/cards/ai-draft', methods=['POST'])
 @login_required
 def card_ai_draft():
-    from flask import jsonify
     from ..ai import draft_card_message
     data = request.json or {}
     recipient_name = data.get('recipient_name', '').strip()
@@ -186,7 +191,6 @@ def card_ai_draft():
     try:
         message = draft_card_message(recipient_name, occasion, current_user.active_family.name)
         return jsonify({'message': message})
-    except Exception:
-        current_app.logger.exception('AI card draft error')
+    except Exception as e:
+        current_app.logger.error(f'AI card draft error: {e}')
         return jsonify({'error': 'AI draft failed'}), 500
-

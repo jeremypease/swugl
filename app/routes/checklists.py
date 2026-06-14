@@ -1,17 +1,17 @@
-from flask import render_template, redirect, url_for, flash, request, abort, jsonify
-from flask_login import login_required, current_user
-from . import main
-from .. import db
-from ..models import Event
+"""Shared family checklists: packing, shopping, and general lists."""
 from datetime import date
 
+from flask import render_template, request, redirect, url_for, flash, jsonify, abort
+from flask_login import login_required, current_user
 
-# ── Checklists ───────────────────────────────────────────────────────────────
+from .. import db
+from ..models import Checklist, ChecklistItem, Event
+from . import main
+
 
 @main.route('/checklists')
 @login_required
 def checklists():
-    from ..models import Checklist
     all_lists = Checklist.query.filter_by(family_id=current_user.active_family_id)\
         .order_by(Checklist.created_at.desc()).all()
     upcoming_events = Event.query.filter_by(family_id=current_user.active_family_id)\
@@ -25,7 +25,6 @@ def checklists():
 @main.route('/checklists/new', methods=['POST'])
 @login_required
 def create_checklist():
-    from ..models import Checklist
     title = request.form.get('title', '').strip()
     list_type = request.form.get('list_type', 'general')
     event_id = request.form.get('event_id', type=int)
@@ -47,7 +46,6 @@ def create_checklist():
 @main.route('/checklists/<int:checklist_id>')
 @login_required
 def checklist_detail(checklist_id):
-    from ..models import Checklist
     cl = db.session.get(Checklist, checklist_id)
     if not cl or cl.family_id != current_user.active_family_id:
         abort(404)
@@ -57,7 +55,6 @@ def checklist_detail(checklist_id):
 @main.route('/checklists/<int:checklist_id>/items/add', methods=['POST'])
 @login_required
 def checklist_add_item(checklist_id):
-    from ..models import Checklist, ChecklistItem
     cl = db.session.get(Checklist, checklist_id)
     if not cl or cl.family_id != current_user.active_family_id:
         abort(404)
@@ -71,7 +68,6 @@ def checklist_add_item(checklist_id):
 @main.route('/checklists/<int:checklist_id>/items/<int:item_id>/toggle', methods=['POST'])
 @login_required
 def checklist_toggle_item(checklist_id, item_id):
-    from ..models import ChecklistItem
     wants_json = 'application/json' in request.headers.get('Accept', '')
     item = db.session.get(ChecklistItem, item_id)
     if not item or item.checklist.family_id != current_user.active_family_id:
@@ -90,7 +86,6 @@ def checklist_toggle_item(checklist_id, item_id):
 @main.route('/checklists/<int:checklist_id>/items/<int:item_id>/delete', methods=['POST'])
 @login_required
 def checklist_delete_item(checklist_id, item_id):
-    from ..models import ChecklistItem
     item = db.session.get(ChecklistItem, item_id)
     if not item or item.checklist.family_id != current_user.active_family_id:
         abort(404)
@@ -104,7 +99,6 @@ def checklist_delete_item(checklist_id, item_id):
 @main.route('/checklists/<int:checklist_id>/delete', methods=['POST'])
 @login_required
 def checklist_delete(checklist_id):
-    from ..models import Checklist
     cl = db.session.get(Checklist, checklist_id)
     if not cl or cl.family_id != current_user.active_family_id:
         abort(404)
@@ -120,7 +114,6 @@ def checklist_delete(checklist_id):
 @main.route('/checklists/<int:checklist_id>/rename', methods=['POST'])
 @login_required
 def checklist_rename(checklist_id):
-    from ..models import Checklist
     cl = db.session.get(Checklist, checklist_id)
     if not cl or cl.family_id != current_user.active_family_id:
         abort(404)
@@ -137,7 +130,6 @@ def checklist_rename(checklist_id):
 @main.route('/checklists/<int:checklist_id>/clear-done', methods=['POST'])
 @login_required
 def checklist_clear_done(checklist_id):
-    from ..models import Checklist, ChecklistItem
     cl = db.session.get(Checklist, checklist_id)
     if not cl or cl.family_id != current_user.active_family_id:
         abort(404)

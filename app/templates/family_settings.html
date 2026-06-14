@@ -119,6 +119,15 @@
                             </div>
                         </div>
                     </label>
+                    <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:4px 0;margin-top:8px;">
+                        {{ form.enable_stories(style="width:16px;height:16px;margin-top:2px;flex-shrink:0;cursor:pointer;") }}
+                        <div>
+                            <div style="font-weight:600;font-size:14px;">{{ form.enable_stories.label.text }}</div>
+                            <div style="font-size:12px;color:var(--slate);margin-top:2px;">
+                                Show the Family Stories section in the nav. Weekly AI story prompts; paid plan required to participate.
+                            </div>
+                        </div>
+                    </label>
                     <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--hairline);">
                         <label style="display:block;font-weight:600;font-size:14px;margin-bottom:4px;">
                             {{ form.chat_retention_days.label.text }}

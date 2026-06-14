@@ -297,6 +297,48 @@
     </div>
     {% endif %}
 
+    {# ── Family Stories ─────────────────────────────────────────── #}
+    {% set can_manage_stories = current_user.active_is_admin or current_user.active_is_delegate or is_own_profile %}
+    {% if person_stories or (stories_available and can_manage_stories) %}
+    <div class="card">
+        <div class="card-header">
+            <h3>Family Stories</h3>
+            {% if person_stories %}<a href="{{ url_for('main.stories') }}" style="font-size:13px;color:var(--slate);text-decoration:none;">See all →</a>{% endif %}
+        </div>
+        {% if person_stories %}
+        <div style="display:flex;flex-direction:column;gap:14px;">
+            {% for p in person_stories[:3] %}
+            <div style="border-bottom:1px solid var(--hairline);padding-bottom:12px;">
+                <div style="font-size:13px;color:var(--slate);font-style:italic;margin-bottom:4px;">{{ p.question }}</div>
+                <div style="font-size:14px;color:var(--ink-soft);line-height:1.5;white-space:pre-wrap;">{{ p.response.answer[:220] }}{% if p.response.answer|length > 220 %}… <a href="{{ url_for('main.story_detail', prompt_id=p.id) }}" style="color:var(--vine);">read more</a>{% endif %}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="color:var(--slate);font-size:14px;padding:4px 0 12px;">No stories captured yet.</p>
+        {% endif %}
+        {% if stories_available and can_manage_stories %}
+        <div style="margin-top:12px;">
+            {% if person.stories_enabled %}
+            <form method="POST" action="{{ url_for('main.story_new_prompt', person_id=person.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-secondary btn-sm">
+                    <i data-lucide="sparkles" style="width:13px;height:13px;"></i> {% if person_stories %}New question{% else %}Send the first question{% endif %}
+                </button>
+            </form>
+            {% else %}
+            <form method="POST" action="{{ url_for('main.story_enable', person_id=person.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-secondary btn-sm">
+                    <i data-lucide="book-heart" style="width:13px;height:13px;"></i> Enable weekly story prompts
+                </button>
+            </form>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
 </div>
 </div>
 {% endblock %}

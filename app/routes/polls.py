@@ -1,11 +1,15 @@
-from flask import render_template, redirect, url_for, flash, request, abort, current_app
-from flask_login import login_required, current_user
-from . import main
-from .. import db
+"""Family polls: create, vote, results, and the AI suggestion helper."""
 from datetime import date
 
+from flask import render_template, request, redirect, url_for, flash, abort, jsonify, current_app
+from flask_login import login_required, current_user
+from sqlalchemy import func as _func
 
-# ── Polls ─────────────────────────────────────────────────────────────────────
+from .. import db
+from ..models import Poll, PollOption, PollVote
+from ..notifications import notify_family
+from . import main
+
 
 @main.route('/polls')
 @login_required
@@ -13,8 +17,6 @@ def polls():
     if not current_user.active_family.enable_polls:
         flash('Polls are disabled for this family.', 'error')
         return redirect(url_for('main.home'))
-    from ..models import Poll, PollVote
-    from sqlalchemy import func as _func
     all_polls = Poll.query.filter_by(family_id=current_user.active_family_id)\
         .order_by(Poll.created_at.desc()).all()
     poll_ids = [p.id for p in all_polls]
@@ -41,7 +43,6 @@ def polls():
 @main.route('/polls/new', methods=['POST'])
 @login_required
 def create_poll():
-    from ..models import Poll, PollOption
     question = request.form.get('question', '').strip()
     closes_at_str = request.form.get('closes_at', '').strip()
     options = [o.strip() for o in request.form.getlist('options') if o.strip()]
@@ -51,10 +52,9 @@ def create_poll():
     closes_at = None
     if closes_at_str:
         try:
-            from datetime import date as dt_date
-            closes_at = dt_date.fromisoformat(closes_at_str)
+            closes_at = date.fromisoformat(closes_at_str)
         except ValueError:
-            pass  # keep closes_at=None when form value is malformed
+            pass
     poll = Poll(
         family_id=current_user.active_family_id,
         created_by_id=current_user.person.id if current_user.person else None,
@@ -66,13 +66,20 @@ def create_poll():
     for label in options:
         db.session.add(PollOption(poll_id=poll.id, label=label))
     db.session.commit()
+    actor = current_user.person.get_display_name() if current_user.person else 'Someone'
+    notify_family(
+        current_user.active_family_id, 'new_poll',
+        title=f'{actor} added a poll',
+        body=question,
+        url=url_for('main.polls'),
+        exclude_user_id=current_user.id,
+    )
     return redirect(url_for('main.poll_detail', poll_id=poll.id))
 
 
 @main.route('/polls/<int:poll_id>')
 @login_required
 def poll_detail(poll_id):
-    from ..models import Poll, PollVote
     poll = db.session.get(Poll, poll_id)
     if not poll or poll.family_id != current_user.active_family_id:
         abort(404)
@@ -87,7 +94,6 @@ def poll_detail(poll_id):
 @main.route('/polls/<int:poll_id>/vote', methods=['POST'])
 @login_required
 def vote_poll(poll_id):
-    from ..models import Poll, PollVote
     poll = db.session.get(Poll, poll_id)
     if not poll or poll.family_id != current_user.active_family_id or poll.is_closed:
         abort(404)
@@ -109,7 +115,6 @@ def vote_poll(poll_id):
 @main.route('/polls/<int:poll_id>/delete', methods=['POST'])
 @login_required
 def delete_poll(poll_id):
-    from ..models import Poll
     poll = db.session.get(Poll, poll_id)
     if not poll or poll.family_id != current_user.active_family_id:
         abort(404)
@@ -125,7 +130,6 @@ def delete_poll(poll_id):
 @main.route('/polls/ai-suggest', methods=['POST'])
 @login_required
 def poll_ai_suggest():
-    from flask import jsonify
     from ..ai import suggest_poll
     data = request.json or {}
     topic = data.get('topic', '').strip()
@@ -136,6 +140,6 @@ def poll_ai_suggest():
     try:
         result = suggest_poll(topic, current_user.active_family.name)
         return jsonify(result)
-    except Exception:
-        current_app.logger.exception('AI poll suggest error')
+    except Exception as e:
+        current_app.logger.error(f'AI poll suggest error: {e}')
         return jsonify({'error': 'AI suggest failed'}), 500

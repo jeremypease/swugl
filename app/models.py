@@ -52,6 +52,7 @@ class Family(db.Model):
     enable_polls = db.Column(db.Boolean, default=True, nullable=False, server_default='true')
     enable_greeting_cards = db.Column(db.Boolean, default=True, nullable=False, server_default='true')
     enable_chat = db.Column(db.Boolean, default=True, nullable=False, server_default='true')
+    enable_stories = db.Column(db.Boolean, default=True, nullable=False, server_default='true')
     chat_retention_days = db.Column(db.Integer, nullable=True)  # None = keep forever
 
     people = db.relationship('Person', back_populates='family', foreign_keys='Person.family_id')
@@ -113,6 +114,9 @@ class Person(db.Model):
     notes = db.Column(db.Text)
     pronouns = db.Column(db.String(50))
     in_directory = db.Column(db.Boolean, default=True, nullable=False)
+    # Family Stories opt-in (per-person, since account-less elders participate too)
+    stories_enabled = db.Column(db.Boolean, default=False, nullable=False, server_default='false')
+    story_last_prompted_at = db.Column(db.DateTime, nullable=True)
 
     family = db.relationship('Family', back_populates='people', foreign_keys='Person.family_id')
 
@@ -289,6 +293,7 @@ class User(UserMixin, db.Model):
     totp_secret = db.Column(db.String(64), nullable=True)
     totp_enabled = db.Column(db.Boolean, nullable=False, server_default='0')
     chat_last_seen_at = db.Column(db.DateTime, nullable=True)
+    home_last_seen_at = db.Column(db.DateTime, nullable=True)
     passkeys = db.relationship('UserCredential', backref='user', cascade='all, delete-orphan')
 
     # Multi-pod memberships
@@ -355,11 +360,19 @@ NOTIFICATION_EVENTS = {
     'digest':        {'label': 'Weekly digest',          'default': True,  'in_app': False},
     'new_event':     {'label': 'New event created',      'default': True,  'in_app': True},
     'announcement':  {'label': 'New announcement',       'default': True,  'in_app': True},
-    'new_member':    {'label': 'New member joins',        'default': False, 'in_app': True},
+    'new_member':    {'label': 'New member joins',        'default': True,  'in_app': True},
     'rsvp_reminder': {'label': 'RSVP reminder',          'default': True,  'in_app': True},
     'assignment':    {'label': 'Task or meal assignment', 'default': True,  'in_app': True},
     'event_comment': {'label': 'New comment on event',   'default': True,  'in_app': True},
     'chat_message':  {'label': 'New chat message',        'default': True,  'in_app': True},
+    # Engagement notifications — in-app/bell only (email default False to avoid
+    # inbox fatigue). is_enabled() falls back to these defaults, so existing
+    # users get them with no pref re-seed.
+    'new_poll':      {'label': 'New poll',               'default': True,  'in_app': True},
+    'new_card':      {'label': 'New greeting card',      'default': True,  'in_app': True},
+    'new_photos':    {'label': 'New photos added',       'default': True,  'in_app': True},
+    'story_prompt':  {'label': 'Your weekly story prompt', 'default': True, 'in_app': True},
+    'new_story':     {'label': 'A family story was shared', 'default': True, 'in_app': True},
 }
 
 
@@ -855,6 +868,41 @@ class CardSignature(db.Model):
     person = db.relationship('Person')
 
 
+class StoryPrompt(db.Model):
+    """A weekly AI-generated (or admin-assigned) story question for one person."""
+    __tablename__ = 'story_prompts'
+
+    id = db.Column(db.Integer, primary_key=True)
+    family_id = db.Column(db.Integer, db.ForeignKey('families.id'), nullable=False, index=True)
+    person_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=False, index=True)  # the subject
+    question = db.Column(db.Text, nullable=False)
+    source = db.Column(db.String(10), nullable=False, default='auto')  # 'auto' | 'manual'
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    answered_at = db.Column(db.DateTime, nullable=True)
+
+    person = db.relationship('Person')
+    responses = db.relationship('StoryResponse', backref='prompt',
+                                cascade='all, delete-orphan')
+
+    @property
+    def response(self):
+        """The single answer to this prompt, if any."""
+        return self.responses[0] if self.responses else None
+
+
+class StoryResponse(db.Model):
+    """A person's answer to a story prompt (one per prompt; answered_by may be a proxy)."""
+    __tablename__ = 'story_responses'
+
+    id = db.Column(db.Integer, primary_key=True)
+    prompt_id = db.Column(db.Integer, db.ForeignKey('story_prompts.id'), nullable=False, unique=True)
+    answer = db.Column(db.Text, nullable=False)
+    answered_by_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=True)  # self or proxy
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    answered_by = db.relationship('Person')
+
+
 class AnnouncementReaction(db.Model):
     __tablename__ = 'announcement_reactions'
 
@@ -1115,38 +1163,3 @@ class EventPaymentRecord(db.Model):
             return self.net_cents / 100
         return None
 
-
-# ── Story Prompts ──────────────────────────────────────────────────────────────
-
-class StoryPrompt(db.Model):
-    """A weekly AI-generated question sent to all family members."""
-    __tablename__ = 'story_prompts'
-
-    id = db.Column(db.Integer, primary_key=True)
-    family_id = db.Column(db.Integer, db.ForeignKey('families.id'), nullable=False, index=True)
-    question = db.Column(db.Text, nullable=False)
-    category = db.Column(db.String(50), nullable=True)
-    week_of = db.Column(db.Date, nullable=False)  # Monday of the prompt week
-    sent_at = db.Column(db.DateTime, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    family = db.relationship('Family', backref=db.backref('story_prompts', lazy='dynamic'))
-    responses = db.relationship('StoryResponse', back_populates='prompt',
-                                cascade='all, delete-orphan', lazy='dynamic')
-
-
-class StoryResponse(db.Model):
-    """A family member's written answer to a StoryPrompt."""
-    __tablename__ = 'story_responses'
-
-    id = db.Column(db.Integer, primary_key=True)
-    prompt_id = db.Column(db.Integer, db.ForeignKey('story_prompts.id'), nullable=False, index=True)
-    person_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=False, index=True)
-    body = db.Column(db.Text, nullable=False)
-    submitted_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, nullable=True)
-
-    __table_args__ = (db.UniqueConstraint('prompt_id', 'person_id', name='uq_story_response'),)
-
-    prompt = db.relationship('StoryPrompt', back_populates='responses')
-    person = db.relationship('Person', backref=db.backref('story_responses', lazy='dynamic'))

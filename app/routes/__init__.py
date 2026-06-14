@@ -1,10 +1,11 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, send_file, session, abort, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
-from ..models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, AssignmentTask, ASSIGNMENT_CATEGORIES, EventRSVP, EventSleepingSpot, SPOT_TYPES, EventComment, Announcement, Album, Photo, Poll, NotificationPreference, NOTIFICATION_EVENTS, UserPodMembership, CalendarToken, EventPaymentConfig, EventPaymentRecord, FamilyPayoutAccount, Location, Document, DOCUMENT_CATEGORIES, ChatMessage, StoryPrompt, StoryResponse
+from ..models import Family, User, Person, ParentRelationship, PARENT_ROLES, SpouseRelationship, Event, EventMeal, EventMealItem, EventAssignment, AssignmentTask, ASSIGNMENT_CATEGORIES, EventRSVP, EventSleepingSpot, SPOT_TYPES, EventComment, Announcement, Album, Photo, Poll, NotificationPreference, NOTIFICATION_EVENTS, UserPodMembership, CalendarToken, EventPaymentConfig, EventPaymentRecord, FamilyPayoutAccount, Location, Document, DOCUMENT_CATEGORIES, ChatMessage
 from ..forms import LoginForm, RegistrationForm, ProfileForm, SpouseForm, EndSpouseForm, SpouseInviteForm, ForgotPasswordForm, ResetPasswordForm, AddPersonForm, RelativeForm, AddParentForm, FamilySettingsForm, EditPersonForm, EventForm, EventCommentForm, EventMealForm, EventMealFamilyAssignForm, EventMealItemForm, EventMealSelfSignupForm, EventMealAssignForm, EventAssignmentForm, EventAssignmentAdminAssignForm, EventSleepingSpotForm, EventSleepingAssignForm, GENDER_CHOICES_DEFAULT, GENDER_CHOICES_EXPANDED, PRONOUN_CHOICES, AnnouncementForm, AlbumForm, PhotoUploadForm, SupportForm, ChatMessageForm
 from ..email import send_verification_email, send_pending_notification, send_approval_notification, send_spouse_confirmation_email, send_spouse_invitation_email, send_password_reset_email, send_member_invitation_email, send_welcome_email, send_support_email, send_pod_added_email
 from datetime import date, datetime, timedelta
 from functools import wraps
+from urllib.parse import urlparse
 from .. import db, limiter
 from ..billing import requires_plan, family_has_paid_access, FREE_MEMBER_LIMIT, FREE_EVENT_LIMIT
 from ..storage import upload_photo, delete_object, get_object_bytes
@@ -310,14 +311,22 @@ def home():
     # Onboarding checklist — only for admins of new pods (families with account_id)
     onboarding = None
     if current_user.active_is_admin and current_user.family and current_user.active_family.account_id:
-        has_members = member_count > 1
-        has_photo = len(recent_photos) > 0
-        steps = [
-            ('members', 'Add your first family member', url_for('main.members'), has_members),
-            ('photo',   'Upload a photo', url_for('main.albums'), has_photo),
+        event_count = Event.query.filter_by(family_id=current_user.active_family_id).count()
+        location_count = Location.query.filter_by(family_id=current_user.active_family_id).count()
+        core = [
+            ('members',  'Add your first family member', url_for('main.members'),         member_count > 1),
+            ('profile',  'Complete your profile',        url_for('main.profile_edit'),    bool(me and me.birthday)),
+            ('event',    'Create your first event',      url_for('main.events_list'),     event_count > 0),
+            ('photo',    'Upload a photo',               url_for('main.albums'),          len(recent_photos) > 0),
+            ('location', 'Add a family location',        url_for('main.admin_locations'), location_count > 0),
         ]
-        incomplete = [s for s in steps if not s[3]]
-        if incomplete:
+        steps = list(core)
+        # Optional suggestion — does not gate the checklist, so it never nags
+        # members who aren't adding a spouse/partner.
+        if me and not me.get_active_spouse():
+            steps.append(('spouse', 'Add your spouse or partner', url_for('main.spouse_add'), False))
+        # Show the checklist until every CORE step is done.
+        if any(not s[3] for s in core):
             onboarding = steps
     # Activity feed — last 30 days across all content types
     # Announcements are excluded here because they have their own card on the home page.
@@ -386,6 +395,17 @@ def home():
     _activity.sort(key=lambda x: x['ts'], reverse=True)
     activity_feed = _activity[:15]
 
+    # Mark feed items that arrived since the viewer last loaded home, then
+    # advance their marker. Excludes the viewer's own actions so "New" reflects
+    # what others did. First-ever visit (prev_seen is None) shows nothing new.
+    prev_seen = current_user.home_last_seen_at
+    for item in activity_feed:
+        actor = item.get('actor')
+        is_own = actor is not None and getattr(actor, 'user', None) and actor.user.id == current_user.id
+        item['is_new'] = bool(prev_seen and item['ts'] > prev_seen and not is_own)
+    current_user.home_last_seen_at = datetime.utcnow()
+    db.session.commit()
+
     # RSVP status map for upcoming events (current user's person)
     rsvp_map = {}
     if me:
@@ -430,8 +450,8 @@ def login():
             return redirect(url_for('tf.login_2fa'))
         login_user(user, remember=form.remember_me.data)
         session['active_family_id'] = user.family_id
-        next_url = session.pop('next', None)
-        return redirect(next_url or url_for('main.home'))
+        next_page = session.pop('next', None)
+        return redirect(next_page or url_for('main.home'))
     return render_template('login.html', form=form)
 
 @main.route('/logout', methods=['POST'])
@@ -597,6 +617,7 @@ def register_invited(token):
             NotificationPreference.seed_defaults(invited_user.id)
             _ensure_membership(invited_user)
             db.session.commit()
+            _notify_new_member(invited_user)
             flash('Account created! You can now log in.', 'info')
         return redirect(url_for('main.login'))
 
@@ -677,6 +698,11 @@ def add_member():
             db.session.add(ParentRelationship(parent_id=parent2.id, child_id=person.id, role=_default_parent_role(parent2)))
         db.session.commit()
         flash(f'{person.name} has been added to the family.', 'info')
+        # One-step invite: if requested and we have an email, send the invitation
+        # now instead of making the admin open the profile and click Invite.
+        if request.form.get('invite_now') and person.email and not person.deathday:
+            msg, category = _send_member_invite(person, person.email)
+            flash(msg, category)
         link_spouse_for = request.form.get('link_spouse_for', type=int) or request.args.get('link_spouse_for', type=int)
         if link_spouse_for:
             return redirect(url_for('main.admin_link_spouse', person_id=link_spouse_for))
@@ -840,7 +866,7 @@ def family_settings():
         form.enable_polls.data = family.enable_polls
         form.enable_greeting_cards.data = family.enable_greeting_cards
         form.enable_chat.data = family.enable_chat
-        form.chat_retention_days.data = str(family.chat_retention_days) if family.chat_retention_days else ''
+        form.enable_stories.data = family.enable_stories
     if form.validate_on_submit():
         family.name = form.family_name.data
         family.require_member_approval = form.require_member_approval.data
@@ -848,8 +874,7 @@ def family_settings():
         family.enable_polls = form.enable_polls.data
         family.enable_greeting_cards = form.enable_greeting_cards.data
         family.enable_chat = form.enable_chat.data
-        retention = form.chat_retention_days.data
-        family.chat_retention_days = int(retention) if retention else None
+        family.enable_stories = form.enable_stories.data
         db.session.commit()
         flash('Family settings saved.', 'info')
         return redirect(url_for('main.family_settings'))
@@ -898,6 +923,278 @@ def reset_password(token):
         return redirect(url_for('main.login'))
     return render_template('reset_password.html', form=form)
 
+ALLOWED_PHOTO_EXTS = {'jpg', 'jpeg', 'png', 'webp', 'gif', 'heic'}
+
+def _save_photo_file(file, album_id):
+    """Returns (key, thumb_key) or None on rejected file."""
+    result = upload_photo(file, folder=f'albums/{album_id}', with_thumb=True)
+    return result if result else None
+
+@main.route('/albums')
+@login_required
+def albums():
+    all_albums = Album.query.filter_by(family_id=current_user.active_family_id)\
+        .order_by(Album.created_at.desc()).all()
+    form = AlbumForm()
+    events = Event.query.filter_by(family_id=current_user.active_family_id).order_by(Event.start_date.desc()).all()
+    form.event_id.choices = [(0, '-- None --')] + [(e.id, e.name) for e in events]
+    return render_template('albums_list.html', albums=all_albums, form=form,
+                           has_paid_access=family_has_paid_access(current_user.family))
+
+@main.route('/albums/add', methods=['POST'])
+@login_required
+@contributor_or_admin_required
+@requires_plan
+def add_album():
+    events = Event.query.filter_by(family_id=current_user.active_family_id).all()
+    form = AlbumForm()
+    form.event_id.choices = [(0, '-- None --')] + [(e.id, e.name) for e in events]
+    if form.validate_on_submit():
+        album = Album(
+            family_id=current_user.active_family_id,
+            created_by_id=current_user.person.id if current_user.person else None,
+            name=form.name.data.strip(),
+            description=form.description.data or None,
+            year=form.year.data or None,
+            event_id=form.event_id.data or None,
+        )
+        db.session.add(album)
+        db.session.commit()
+        flash(f'Album "{album.name}" created.', 'info')
+        return redirect(url_for('main.album_detail', album_id=album.id))
+    return redirect(url_for('main.albums'))
+
+@main.route('/albums/<int:album_id>')
+@login_required
+def album_detail(album_id):
+    album = db.session.get(Album, album_id)
+    if not album or album.family_id != current_user.active_family_id:
+        flash('Album not found.', 'error')
+        return redirect(url_for('main.albums'))
+    upload_form = PhotoUploadForm()
+    people = Person.query.filter_by(
+        family_id=current_user.active_family_id, in_directory=True
+    ).order_by(Person.name).all()
+    return render_template('album_detail.html', album=album, upload_form=upload_form,
+                           people=people)
+
+@main.route('/albums/<int:album_id>/upload', methods=['POST'])
+@login_required
+@contributor_or_admin_required
+@requires_plan
+def upload_photos(album_id):
+    album = db.session.get(Album, album_id)
+    if not album or album.family_id != current_user.active_family_id:
+        return redirect(url_for('main.albums'))
+    files = request.files.getlist('photos')
+    caption = request.form.get('caption', '').strip() or None
+    count = 0
+    for file in files:
+        if file and file.filename:
+            result = _save_photo_file(file, album_id)
+            if result:
+                path, thumb_path = result
+                photo = Photo(
+                    album_id=album_id,
+                    family_id=current_user.active_family_id,
+                    uploaded_by_id=current_user.person.id if current_user.person else None,
+                    path=path,
+                    thumb_path=thumb_path,
+                    caption=caption,
+                )
+                db.session.add(photo)
+                count += 1
+    if count:
+        db.session.commit()
+        flash(f'{count} photo{"s" if count != 1 else ""} uploaded.', 'info')
+        from ..notifications import notify_family
+        actor = current_user.person.get_display_name() if current_user.person else 'Someone'
+        notify_family(
+            current_user.active_family_id, 'new_photos',
+            title=f'{actor} added {count} photo{"s" if count != 1 else ""} to {album.name}',
+            url=url_for('main.album_detail', album_id=album_id),
+            exclude_user_id=current_user.id,
+        )
+    return redirect(url_for('main.album_detail', album_id=album_id))
+
+@main.route('/events/<int:event_id>/photos/upload', methods=['POST'])
+@login_required
+@requires_plan
+def event_upload_photos(event_id):
+    event = db.session.get(Event, event_id)
+    if not event or event.family_id != current_user.active_family_id:
+        return redirect(url_for('main.events_list'))
+    # Find or auto-create the primary event album
+    album = Album.query.filter_by(event_id=event_id, family_id=current_user.active_family_id).first()
+    if not album:
+        album = Album(
+            family_id=current_user.active_family_id,
+            created_by_id=current_user.person.id if current_user.person else None,
+            name=event.name,
+            event_id=event_id,
+        )
+        db.session.add(album)
+        db.session.flush()
+    files = request.files.getlist('photos')
+    count = 0
+    for file in files:
+        if file and file.filename:
+            ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else ''
+            if ext in ALLOWED_PHOTO_EXTS:
+                result = _save_photo_file(file, album.id)
+                if result:
+                    path, thumb_path = result
+                    db.session.add(Photo(
+                        album_id=album.id,
+                        family_id=current_user.active_family_id,
+                        uploaded_by_id=current_user.person.id if current_user.person else None,
+                        path=path,
+                        thumb_path=thumb_path,
+                    ))
+                    count += 1
+    if count:
+        db.session.commit()
+        flash(f'{count} photo{"s" if count != 1 else ""} added.', 'info')
+    else:
+        db.session.rollback()
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+@main.route('/albums/<int:album_id>/download')
+@login_required
+def download_album(album_id):
+    album = db.session.get(Album, album_id)
+    if not album or album.family_id != current_user.active_family_id:
+        return redirect(url_for('main.albums'))
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for photo in album.photos:
+            try:
+                data, _ = get_object_bytes(photo.path)
+                zf.writestr(os.path.basename(photo.path), data)
+            except Exception:
+                pass
+    buf.seek(0)
+    safe_name = ''.join(c if c.isalnum() or c in ' -_' else '_' for c in album.name)
+    return send_file(buf, mimetype='application/zip',
+                     as_attachment=True, download_name=f'{safe_name}.zip')
+
+@main.route('/albums/<int:album_id>/photos/<int:photo_id>/delete', methods=['POST'])
+@login_required
+def delete_photo(album_id, photo_id):
+    photo = db.session.get(Photo, photo_id)
+    if not photo or photo.family_id != current_user.active_family_id:
+        return redirect(url_for('main.album_detail', album_id=album_id))
+    can_delete = current_user.active_is_admin or (current_user.person and photo.uploaded_by_id == current_user.person.id)
+    if can_delete:
+        delete_object(photo.path)
+        delete_object(photo.thumb_path)
+        db.session.delete(photo)
+        db.session.commit()
+        flash('Photo deleted.', 'info')
+    return redirect(url_for('main.album_detail', album_id=album_id))
+
+@main.route('/photos/<int:photo_id>/tag', methods=['POST'])
+@login_required
+def photo_tag(photo_id):
+    from ..models import PhotoTag
+    photo = db.session.get(Photo, photo_id)
+    if not photo or photo.family_id != current_user.active_family_id:
+        abort(404)
+    person_id = request.form.get('person_id', type=int)
+    if person_id:
+        person = db.session.get(Person, person_id)
+        if person and person.family_id == current_user.active_family_id:
+            existing = PhotoTag.query.filter_by(photo_id=photo_id, person_id=person_id).first()
+            if not existing:
+                db.session.add(PhotoTag(
+                    photo_id=photo_id, person_id=person_id,
+                    tagged_by_id=current_user.person.id if current_user.person else None,
+                ))
+                db.session.commit()
+    return redirect(url_for('main.album_detail', album_id=photo.album_id,
+                            _anchor=f'photo-{photo_id}'))
+
+
+@main.route('/photos/<int:photo_id>/tags/<int:tag_id>/remove', methods=['POST'])
+@login_required
+def photo_untag(photo_id, tag_id):
+    from ..models import PhotoTag
+    tag = db.session.get(PhotoTag, tag_id)
+    if not tag or tag.photo.family_id != current_user.active_family_id:
+        abort(404)
+    is_tagger = current_user.person and tag.tagged_by_id == current_user.person.id
+    is_tagged = current_user.person and tag.person_id == current_user.person.id
+    if not (current_user.active_is_admin or is_tagger or is_tagged):
+        abort(403)
+    photo = tag.photo
+    db.session.delete(tag)
+    db.session.commit()
+    return redirect(url_for('main.album_detail', album_id=photo.album_id))
+
+
+@main.route('/members/<int:person_id>/photos')
+@login_required
+def person_photos(person_id):
+    from ..models import PhotoTag
+    person = db.session.get(Person, person_id)
+    if not person or person.family_id != current_user.active_family_id:
+        abort(404)
+    tags = PhotoTag.query.filter_by(person_id=person_id)\
+        .join(Photo).filter(Photo.family_id == current_user.active_family_id)\
+        .order_by(Photo.created_at.desc()).all()
+    photos = [t.photo for t in tags]
+    return render_template('person_photos.html', person=person, photos=photos)
+
+
+@main.route('/albums/<int:album_id>/edit', methods=['POST'])
+@login_required
+@admin_required
+def edit_album(album_id):
+    album = db.session.get(Album, album_id)
+    if not album or album.family_id != current_user.active_family_id:
+        return redirect(url_for('main.albums'))
+    name = request.form.get('name', '').strip()
+    if name:
+        album.name = name
+    album.description = request.form.get('description', '').strip() or None
+    year_str = request.form.get('year', '').strip()
+    album.year = int(year_str) if year_str.isdigit() else None
+    db.session.commit()
+    flash('Album updated.', 'info')
+    return redirect(url_for('main.album_detail', album_id=album_id))
+
+
+@main.route('/photos/<int:photo_id>/caption', methods=['POST'])
+@login_required
+def photo_caption(photo_id):
+    photo = db.session.get(Photo, photo_id)
+    if not photo or photo.family_id != current_user.active_family_id:
+        abort(404)
+    can_edit = current_user.active_is_admin or (
+        current_user.person and photo.uploaded_by_id == current_user.person.id)
+    if not can_edit:
+        abort(403)
+    caption = request.form.get('caption', '').strip() or None
+    photo.caption = caption
+    db.session.commit()
+    return jsonify({'caption': caption or ''})
+
+
+@main.route('/albums/<int:album_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def delete_album(album_id):
+    album = db.session.get(Album, album_id)
+    if not album or album.family_id != current_user.active_family_id:
+        return redirect(url_for('main.albums'))
+    for photo in album.photos:
+        delete_object(photo.path)
+        delete_object(photo.thumb_path)
+    db.session.delete(album)
+    db.session.commit()
+    flash('Album deleted.', 'info')
+    return redirect(url_for('main.albums'))
 
 # ── Announcements ──────────────────────────────────────────────────────────────
 
@@ -1029,6 +1326,20 @@ def edit_announcement(ann_id):
         db.session.commit()
     return redirect(url_for('main.announcements'))
 
+def _notify_new_member(new_user):
+    """Tell the rest of the family that someone just joined."""
+    from ..notifications import notify_family
+    name = new_user.get_full_name()
+    fam = new_user.family
+    url = url_for('main.person_detail', person_id=new_user.person_id) if new_user.person_id else None
+    notify_family(
+        new_user.family_id, 'new_member',
+        title=f'{name} joined {fam.name if fam else "the family"}',
+        url=url,
+        exclude_user_id=new_user.id,
+    )
+
+
 @main.route('/admin/users')
 @login_required
 @admin_required
@@ -1052,6 +1363,7 @@ def approve_user(user_id):
     NotificationPreference.seed_defaults(user.id)
     _ensure_membership(user)
     db.session.commit()
+    _notify_new_member(user)
     if current_app.config.get('MAIL_ENABLED'):
         send_approval_notification(user, url_for('main.login', _external=True))
     flash(f'{user.get_full_name()} has been approved.', 'info')
@@ -1263,24 +1575,17 @@ def location_spot_delete(loc_id, spot_id):
     return redirect(url_for('main.admin_locations'))
 
 
-@main.route('/person/<int:person_id>/invite', methods=['POST'])
-@login_required
-@contributor_or_admin_required
-def invite_person(person_id):
-    person = db.session.get(Person, person_id)
-    if not person or person.family_id != current_user.active_family_id:
-        flash('Person not found.', 'error')
-        return redirect(url_for('main.home'))
-    if person.user:
-        flash(f'{person.get_display_name()} already has an account.', 'error')
-        return redirect(url_for('main.person_detail', person_id=person_id))
-    if person.deathday:
-        flash('Cannot invite a deceased person.', 'error')
-        return redirect(url_for('main.person_detail', person_id=person_id))
-    email = (person.email or request.form.get('email', '')).strip()
+def _send_member_invite(person, email):
+    """Invite `person` to join the active family via `email`.
+
+    Either links an existing account into this pod, or creates an invited User
+    and emails a registration link. Returns (message, flash_category) for the
+    caller to flash. Caller must have verified `person` is in the active family
+    and has no account yet.
+    """
+    email = (email or '').strip()
     if not email:
-        flash('Add an email address to this person before sending an invitation.', 'error')
-        return redirect(url_for('main.person_edit', person_id=person_id))
+        return ('Add an email address to this person before sending an invitation.', 'error')
     existing_user = User.query.filter_by(email=email).first()
     if existing_user:
         # User already has an account — add them to this pod if not already a member.
@@ -1288,23 +1593,21 @@ def invite_person(person_id):
             user_id=existing_user.id, family_id=current_user.active_family_id
         ).first()
         if already:
-            flash(f'{person.get_display_name()} is already a member of this circle.', 'error')
-        else:
-            db.session.add(UserPodMembership(
-                user_id=existing_user.id,
-                family_id=current_user.active_family_id,
-                role='member',
-            ))
-            person.user = existing_user
-            db.session.commit()
-            if current_app.config.get('MAIL_ENABLED'):
-                send_pod_added_email(
-                    existing_user,
-                    current_user.active_family.name,
-                    url_for('main.home', _external=True),
-                )
-            flash(f'{person.get_display_name()} has been added to this circle.', 'info')
-        return redirect(url_for('main.person_detail', person_id=person_id))
+            return (f'{person.get_display_name()} is already a member of this circle.', 'error')
+        db.session.add(UserPodMembership(
+            user_id=existing_user.id,
+            family_id=current_user.active_family_id,
+            role='member',
+        ))
+        person.user = existing_user
+        db.session.commit()
+        if current_app.config.get('MAIL_ENABLED'):
+            send_pod_added_email(
+                existing_user,
+                current_user.active_family.name,
+                url_for('main.home', _external=True),
+            )
+        return (f'{person.get_display_name()} has been added to this circle.', 'info')
     names = person.name.strip().split()
     first = names[0]
     last = ' '.join(names[1:]) if len(names) > 1 else ''
@@ -1328,8 +1631,47 @@ def invite_person(person_id):
             inviting_name, first, current_user.active_family.name,
             email, url_for('main.register_invited', token=token, _external=True)
         )
-    flash(f'Invitation sent to {email}.', 'info')
+    return (f'Invitation sent to {email}.', 'info')
+
+
+@main.route('/person/<int:person_id>/invite', methods=['POST'])
+@login_required
+@contributor_or_admin_required
+def invite_person(person_id):
+    person = db.session.get(Person, person_id)
+    if not person or person.family_id != current_user.active_family_id:
+        flash('Person not found.', 'error')
+        return redirect(url_for('main.home'))
+    if person.user:
+        flash(f'{person.get_display_name()} already has an account.', 'error')
+        return redirect(url_for('main.person_detail', person_id=person_id))
+    if person.deathday:
+        flash('Cannot invite a deceased person.', 'error')
+        return redirect(url_for('main.person_detail', person_id=person_id))
+    email = (person.email or request.form.get('email', '')).strip()
+    if not email:
+        flash('Add an email address to this person before sending an invitation.', 'error')
+        return redirect(url_for('main.person_edit', person_id=person_id))
+    msg, category = _send_member_invite(person, email)
+    flash(msg, category)
     return redirect(url_for('main.person_detail', person_id=person_id))
+
+
+def _person_stories(person):
+    """Answered Family Stories for a person, newest first (for their profile)."""
+    from ..models import StoryPrompt
+    return (StoryPrompt.query
+            .filter(StoryPrompt.family_id == person.family_id,
+                    StoryPrompt.person_id == person.id,
+                    StoryPrompt.answered_at.isnot(None))
+            .order_by(StoryPrompt.answered_at.desc()).all())
+
+
+def _stories_available():
+    """True when the active family has Stories enabled and paid access."""
+    fam = current_user.active_family
+    return bool(fam and fam.enable_stories and family_has_paid_access(fam))
+
 
 @main.route('/profile')
 @login_required
@@ -1338,7 +1680,8 @@ def profile():
     if not person:
         flash('No profile found. Please contact the admin.', 'error')
         return redirect(url_for('main.home'))
-    return render_template('profile.html', person=person, relationship=None, parent_roles=PARENT_ROLES, spouse_roles=SPOUSE_ROLES)
+    return render_template('profile.html', person=person, relationship=None, parent_roles=PARENT_ROLES, spouse_roles=SPOUSE_ROLES,
+                           person_stories=_person_stories(person), stories_available=_stories_available())
 
 @main.route('/profile/delete-account', methods=['POST'])
 @login_required
@@ -1496,7 +1839,8 @@ def person_detail(person_id):
     tagged_photos = [t.photo for t in tagged_photos]
     return render_template('profile.html', person=person, relationship=relationship,
                            parent_roles=PARENT_ROLES, spouse_roles=SPOUSE_ROLES,
-                           tagged_photos=tagged_photos)
+                           tagged_photos=tagged_photos,
+                           person_stories=_person_stories(person), stories_available=_stories_available())
 
 @main.route('/person/<int:person_id>/edit', methods=['GET', 'POST'])
 @login_required
@@ -1548,16 +1892,47 @@ def person_edit(person_id):
 @login_required
 def search():
     q = request.args.get('q', '').strip()
-    results = []
+    results = {'people': [], 'events': [], 'photos': [], 'announcements': [], 'documents': []}
+    total = 0
     if q:
-        results = Person.query.filter(
-            Person.family_id == current_user.active_family_id,
-            db.or_(
-                Person.name.ilike(f'%{q}%'),
-                Person.nickname.ilike(f'%{q}%'),
-            )
-        ).order_by(Person.name).all()
-    return render_template('search.html', q=q, results=results)
+        fid = current_user.active_family_id
+        like = f'%{q}%'
+        results['people'] = Person.query.filter(
+            Person.family_id == fid,
+            db.or_(Person.name.ilike(like), Person.nickname.ilike(like)),
+        ).order_by(Person.name).limit(10).all()
+
+        results['events'] = Event.query.filter(
+            Event.family_id == fid,
+            db.or_(Event.name.ilike(like), Event.description.ilike(like)),
+        ).order_by(Event.start_date.desc().nullslast()).limit(10).all()
+
+        results['announcements'] = Announcement.query.filter(
+            Announcement.family_id == fid,
+            db.or_(Announcement.title.ilike(like), Announcement.body.ilike(like)),
+        ).order_by(Announcement.created_at.desc()).limit(10).all()
+
+        # Photos matched by caption, plus albums matched by name — surfaced as
+        # albums so a click lands on the album the photo lives in.
+        album_hits = Album.query.filter(
+            Album.family_id == fid, Album.name.ilike(like),
+        ).limit(10).all()
+        caption_photos = Photo.query.filter(
+            Photo.family_id == fid, Photo.caption.ilike(like),
+        ).order_by(Photo.created_at.desc()).limit(10).all()
+        seen_albums = {a.id: a for a in album_hits}
+        for p in caption_photos:
+            if p.album_id not in seen_albums and p.album:
+                seen_albums[p.album_id] = p.album
+        results['photos'] = list(seen_albums.values())
+
+        results['documents'] = Document.query.filter(
+            Document.family_id == fid,
+            db.or_(Document.title.ilike(like), Document.original_filename.ilike(like)),
+        ).order_by(Document.uploaded_at.desc()).limit(10).all()
+
+        total = sum(len(v) for v in results.values())
+    return render_template('search.html', q=q, results=results, total=total)
 
 @main.route('/person/<int:person_id>/link-spouse', methods=['GET', 'POST'])
 @login_required
@@ -1848,85 +2223,6 @@ def timeline():
     return render_template('timeline.html', grouped=grouped, today=today)
 
 
-# ── Documents ─────────────────────────────────────────────────────────────────
-
-@main.route('/documents')
-@login_required
-def documents_list():
-    fid = current_user.active_family_id
-    docs = Document.query.filter_by(family_id=fid).order_by(Document.uploaded_at.desc()).all()
-    from itertools import groupby as _groupby
-    grouped = {}
-    for d in docs:
-        cat = d.category or 'Other'
-        grouped.setdefault(cat, []).append(d)
-    ordered = [(cat, grouped[cat]) for cat in DOCUMENT_CATEGORIES if cat in grouped]
-    return render_template('documents.html', grouped=ordered, categories=DOCUMENT_CATEGORIES)
-
-
-@main.route('/documents/upload', methods=['POST'])
-@login_required
-def document_upload():
-    from ..storage import upload_document
-    fid = current_user.active_family_id
-    f = request.files.get('file')
-    if not f or not f.filename:
-        flash('No file selected.', 'error')
-        return redirect(url_for('main.documents_list'))
-    result = upload_document(f)
-    if result is None:
-        flash('Unsupported file type. Allowed: pdf, jpg, png, gif, webp, heic, txt, doc, docx', 'error')
-        return redirect(url_for('main.documents_list'))
-    key, ext, size = result
-    title = request.form.get('title', '').strip() or f.filename.rsplit('.', 1)[0]
-    my_person = current_user.person if current_user.person and current_user.person.family_id == fid else None
-    doc = Document(
-        family_id=fid,
-        uploader_id=my_person.id if my_person else None,
-        title=title,
-        category=request.form.get('category') or None,
-        storage_key=key,
-        original_filename=f.filename,
-        file_type=ext,
-        file_size=size,
-        notes=request.form.get('notes', '').strip() or None,
-    )
-    db.session.add(doc)
-    db.session.commit()
-    flash('Document uploaded.', 'success')
-    return redirect(url_for('main.documents_list'))
-
-
-@main.route('/documents/<int:doc_id>/view')
-@login_required
-def document_view(doc_id):
-    from ..storage import get_object_bytes
-    from flask import Response
-    doc = db.session.get(Document, doc_id)
-    if not doc or doc.family_id != current_user.active_family_id:
-        abort(404)
-    data, content_type = get_object_bytes(doc.storage_key)
-    inline_types = {'application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'text/plain'}
-    disposition = 'inline' if content_type in inline_types else f'attachment; filename="{doc.original_filename}"'
-    return Response(data, content_type=content_type,
-                    headers={'Content-Disposition': disposition})
-
-
-@main.route('/documents/<int:doc_id>/delete', methods=['POST'])
-@login_required
-@admin_required
-def document_delete(doc_id):
-    from ..storage import delete_object
-    doc = db.session.get(Document, doc_id)
-    if not doc or doc.family_id != current_user.active_family_id:
-        abort(404)
-    delete_object(doc.storage_key)
-    db.session.delete(doc)
-    db.session.commit()
-    flash('Document deleted.', 'success')
-    return redirect(url_for('main.documents_list'))
-
-
 # ── Public pages ───────────────────────────────────────────────────────────────
 
 @main.route('/privacy')
@@ -2065,115 +2361,6 @@ def regenerate_calendar_token():
     return redirect(url_for('main.profile_calendar'))
 
 
-# ── Story Prompts ─────────────────────────────────────────────────────────────
-
-@main.route('/stories')
-@login_required
-@requires_plan
-def stories():
-    prompts = (
-        StoryPrompt.query
-        .filter_by(family_id=current_user.active_family_id)
-        .filter(StoryPrompt.sent_at.isnot(None))
-        .order_by(StoryPrompt.week_of.desc())
-        .limit(24)
-        .all()
-    )
-    return render_template('stories.html', prompts=prompts)
-
-
-@main.route('/stories/<int:prompt_id>', methods=['GET', 'POST'])
-@login_required
-@requires_plan
-def story_prompt_view(prompt_id):
-    prompt = StoryPrompt.query.filter_by(
-        id=prompt_id, family_id=current_user.active_family_id
-    ).first_or_404()
-
-    person = current_user.person
-    my_response = (
-        StoryResponse.query.filter_by(prompt_id=prompt_id, person_id=person.id).first()
-        if person else None
-    )
-
-    if request.method == 'POST':
-        if not person:
-            flash('You need a linked profile to share a story.', 'error')
-            return redirect(url_for('main.story_prompt_view', prompt_id=prompt_id))
-        body = (request.form.get('body') or '').strip()
-        if not body:
-            flash('Your story cannot be empty.', 'error')
-            return redirect(url_for('main.story_prompt_view', prompt_id=prompt_id))
-        if my_response:
-            my_response.body = body
-            my_response.updated_at = datetime.utcnow()
-        else:
-            db.session.add(StoryResponse(prompt_id=prompt_id, person_id=person.id, body=body))
-        db.session.commit()
-        flash('Your story has been saved.', 'success')
-        return redirect(url_for('main.story_prompt_view', prompt_id=prompt_id))
-
-    responses = (
-        StoryResponse.query
-        .filter_by(prompt_id=prompt_id)
-        .order_by(StoryResponse.submitted_at.asc())
-        .all()
-    )
-    return render_template('story_prompt.html', prompt=prompt, responses=responses,
-                           my_response=my_response)
-
-
-@main.route('/admin/stories/generate', methods=['POST'])
-@login_required
-@admin_required
-@requires_plan
-def stories_generate():
-    """Manually generate and send this week's story prompt."""
-    from ..ai import generate_story_prompt
-    from ..email import send_story_prompt_email
-
-    family = current_user.active_family
-    today = date.today()
-    week_of = today - timedelta(days=today.weekday())
-
-    existing = StoryPrompt.query.filter_by(family_id=family.id, week_of=week_of).first()
-    if existing and existing.sent_at:
-        flash('A story prompt was already sent this week.', 'info')
-        return redirect(url_for('main.stories'))
-
-    recent_qs = [
-        p.question for p in
-        StoryPrompt.query.filter_by(family_id=family.id)
-        .order_by(StoryPrompt.created_at.desc()).limit(8).all()
-    ]
-
-    if existing:
-        prompt_obj = existing
-    else:
-        question = generate_story_prompt(family, recent_qs)
-        if not question:
-            flash('Could not generate a prompt — check the ANTHROPIC_API_KEY setting.', 'error')
-            return redirect(url_for('main.stories'))
-        prompt_obj = StoryPrompt(family_id=family.id, question=question, week_of=week_of)
-        db.session.add(prompt_obj)
-        db.session.flush()
-
-    members = User.query.filter_by(
-        family_id=family.id, status='approved', email_verified=True
-    ).all()
-    respond_url = url_for('main.story_prompt_view', prompt_id=prompt_obj.id, _external=True)
-    for user in members:
-        try:
-            send_story_prompt_email(user, family, prompt_obj.question, respond_url)
-        except Exception:
-            current_app.logger.exception('Failed to send story prompt email to user %s', user.id)
-
-    prompt_obj.sent_at = datetime.utcnow()
-    db.session.commit()
-    flash(f'Story prompt sent to {len(members)} member(s).', 'success')
-    return redirect(url_for('main.stories'))
-
-
 # ── PWA ─────────────────────────────────────────────────────────────────────────
 
 @main.route('/manifest.json')
@@ -2184,7 +2371,6 @@ def pwa_manifest():
     with open(path) as f:
         data = f.read()
     return Response(data, content_type='application/manifest+json')
-
 
 
 @main.route('/sw.js')
@@ -2204,4 +2390,42 @@ def pwa_sw():
 def pwa_offline():
     return render_template('offline.html')
 
-from . import events, chat, checklists, polls, cards, photos
+
+@main.route('/photos/<path:key>')
+@login_required
+def serve_photo(key):
+    """Proxy route: serves R2 photos through Flask when no R2_PUBLIC_URL is set."""
+    from flask import Response, abort
+    # Look up by primary path first, then thumbnail path, then person photo.
+    # Always use the key from the DB record (never the user-supplied URL parameter)
+    # to avoid path injection through get_object_bytes → os.path.join → open().
+    photo_by_path = Photo.query.filter_by(
+        family_id=current_user.active_family_id, path=key
+    ).first()
+    if photo_by_path:
+        data, content_type = get_object_bytes(photo_by_path.path)
+        return Response(data, content_type=content_type)
+
+    photo_by_thumb = Photo.query.filter_by(
+        family_id=current_user.active_family_id, thumb_path=key
+    ).first()
+    if photo_by_thumb:
+        data, content_type = get_object_bytes(photo_by_thumb.thumb_path)
+        return Response(data, content_type=content_type)
+
+    person = Person.query.filter_by(
+        family_id=current_user.active_family_id, photo_path=key
+    ).first()
+    if person:
+        data, content_type = get_object_bytes(person.photo_path)
+        return Response(data, content_type=content_type)
+
+    abort(403)
+
+
+# ── Feature route modules ──────────────────────────────────────────────────────
+# Imported last so the `main` blueprint and shared helpers above already exist.
+# Each module attaches its routes to `main` via @main.route.
+from . import chat, checklists, documents, stories, polls, cards, events  # noqa: E402,F401
+# _geocode_location lives in events.py but is shared by the location-admin routes above.
+from .events import _geocode_location  # noqa: E402,F401

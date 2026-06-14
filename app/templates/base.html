@@ -99,6 +99,11 @@
                 {% if chat_paid and unread_chat_count %}<span id="chat-badge" style="position:absolute;top:6px;right:10px;background:var(--vine);color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px;line-height:1;">{{ unread_chat_count if unread_chat_count < 100 else '99+' }}</span>{% endif %}
             </a>
             {% endif %}
+            {% if stories_visible %}
+            <a href="/stories" {% if request.path.startswith('/stories') %}class="active"{% endif %}>
+                <i data-lucide="book-heart"></i> Stories
+            </a>
+            {% endif %}
             <a href="/notifications" {% if request.path == '/notifications' %}class="active"{% endif %} id="notif-bell" style="position:relative;" onclick="event.preventDefault();toggleNotifPanel();">
                 <i data-lucide="bell"></i> Notifications
                 <span id="notif-badge" style="position:absolute;top:6px;right:10px;background:var(--vine);color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;border-radius:8px;align-items:center;justify-content:center;padding:0 4px;line-height:1;display:{% if unread_notification_count %}flex{% else %}none{% endif %};">{{ unread_notification_count if unread_notification_count < 100 else '99+' }}</span>
@@ -329,9 +334,53 @@ document.addEventListener('click', function(e) {
     if (opener) { var m = document.getElementById(opener.dataset.openModal); if (m) m.style.display = 'flex'; }
     var closer = e.target.closest('[data-close-modal]');
     if (closer) { var m = document.getElementById(closer.dataset.closeModal); if (m) m.style.display = 'none'; }
-    var confirmBtn = e.target.closest('[data-confirm]');
-    if (confirmBtn && !confirm(confirmBtn.dataset.confirm)) { e.preventDefault(); e.stopImmediatePropagation(); }
 });
+</script>
+
+{# ── Styled confirmation dialog (replaces native confirm() for [data-confirm]) ── #}
+<div id="confirm-modal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(15,23,12,0.45);align-items:center;justify-content:center;padding:20px;">
+    <div class="card" style="max-width:400px;width:100%;box-shadow:var(--shadow-modal);">
+        <div id="confirm-modal-msg" style="font-size:15px;color:var(--ink);line-height:1.5;margin-bottom:20px;"></div>
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+            <button type="button" id="confirm-modal-cancel" class="btn btn-secondary btn-sm">Cancel</button>
+            <button type="button" id="confirm-modal-ok" class="btn btn-danger btn-sm">Confirm</button>
+        </div>
+    </div>
+</div>
+<script nonce="{{ g.csp_nonce }}">
+(function() {
+    var modal = document.getElementById('confirm-modal');
+    var msgEl = document.getElementById('confirm-modal-msg');
+    var okBtn = document.getElementById('confirm-modal-ok');
+    var cancelBtn = document.getElementById('confirm-modal-cancel');
+    var pending = null;
+
+    function close() { modal.style.display = 'none'; pending = null; }
+
+    // Capture phase so we intercept before form-submit and other click handlers.
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('[data-confirm]');
+        if (!btn) return;
+        if (btn.__confirmed) { btn.__confirmed = false; return; }  // already confirmed — let it through
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        pending = btn;
+        msgEl.textContent = btn.dataset.confirm || 'Are you sure?';
+        modal.style.display = 'flex';
+        okBtn.focus();
+    }, true);
+
+    okBtn.addEventListener('click', function() {
+        var btn = pending;
+        close();
+        if (btn) { btn.__confirmed = true; btn.click(); }  // re-fire; this time it passes through
+    });
+    cancelBtn.addEventListener('click', close);
+    modal.addEventListener('click', function(e) { if (e.target === modal) close(); });
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && modal.style.display === 'flex') close();
+    });
+})();
 </script>
 <script nonce="{{ g.csp_nonce }}">
 (function() {

@@ -12,39 +12,102 @@
 </div>
 
 {% if not q %}
-<p style="color:var(--slate);">Type a name in the search bar above.</p>
+<p style="color:var(--slate);">Search across people, events, photos, announcements, and documents.</p>
 
-{% elif not results %}
+{% elif total == 0 %}
 <div class="card" style="max-width:480px;">
-    <p style="color:var(--slate);">No family members found matching "{{ q }}".</p>
+    <p style="color:var(--slate);">Nothing found matching "{{ q }}".</p>
 </div>
 
 {% else %}
-<div class="card" style="max-width:640px;">
-    <div class="card-header">
-        <h3>Results</h3>
-        <span style="font-size:13px;color:var(--slate);">{{ results|length }} found</span>
-    </div>
-    {% for person in results %}
-    <div class="member-row">
-        {{ av(person, size='md', color='var(--vine)') }}
-        <div>
-            <div class="name">
-                <a href="/person/{{ person.id }}">{{ person.name }}</a>
-                {% if person.nickname and person.nickname != person.name %}
-                <span style="font-size:13px;color:var(--slate);">"{{ person.nickname }}"</span>
-                {% endif %}
+<div style="max-width:640px;display:flex;flex-direction:column;gap:20px;">
+
+    {% if results.people %}
+    <div class="card">
+        <div class="card-header"><h3>People</h3><span style="font-size:13px;color:var(--slate);">{{ results.people|length }}</span></div>
+        {% for person in results.people %}
+        <div class="member-row">
+            {{ av(person, size='md', color='var(--vine)') }}
+            <div>
+                <div class="name">
+                    <a href="/person/{{ person.id }}">{{ person.name }}</a>
+                    {% if person.nickname and person.nickname != person.name %}
+                    <span style="font-size:13px;color:var(--slate);">"{{ person.nickname }}"</span>
+                    {% endif %}
+                </div>
+                <div style="font-size:13px;color:var(--slate);margin-top:2px;">
+                    {% if person.birthday %}b. {{ person.birthday.strftime('%B %-d, %Y') }}{% endif %}
+                    {% if person.occupation %} · {{ person.occupation }}{% endif %}
+                </div>
             </div>
-            <div style="font-size:13px;color:var(--slate);margin-top:2px;">
-                {% if person.birthday %}b. {{ person.birthday.strftime('%B %-d, %Y') }}{% endif %}
-                {% if person.occupation %} · {{ person.occupation }}{% endif %}
+            {% if person.get_age() %}
+            <span style="font-size:13px;color:var(--slate);">Age {{ person.get_age() }}</span>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if results.events %}
+    <div class="card">
+        <div class="card-header"><h3>Events</h3><span style="font-size:13px;color:var(--slate);">{{ results.events|length }}</span></div>
+        {% for e in results.events %}
+        <div class="member-row">
+            <i data-lucide="calendar" style="width:20px;height:20px;color:var(--vine);"></i>
+            <div>
+                <div class="name"><a href="/events/{{ e.id }}">{{ e.name }}</a></div>
+                <div style="font-size:13px;color:var(--slate);margin-top:2px;">{{ e.date_range_display() }}</div>
             </div>
         </div>
-        {% if person.get_age() %}
-        <span style="font-size:13px;color:var(--slate);">Age {{ person.get_age() }}</span>
-        {% endif %}
+        {% endfor %}
     </div>
-    {% endfor %}
+    {% endif %}
+
+    {% if results.photos %}
+    <div class="card">
+        <div class="card-header"><h3>Photos</h3><span style="font-size:13px;color:var(--slate);">{{ results.photos|length }}</span></div>
+        {% for album in results.photos %}
+        <div class="member-row">
+            <i data-lucide="image" style="width:20px;height:20px;color:var(--vine);"></i>
+            <div>
+                <div class="name"><a href="/albums/{{ album.id }}">{{ album.name }}</a></div>
+                <div style="font-size:13px;color:var(--slate);margin-top:2px;">Album</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if results.announcements %}
+    <div class="card">
+        <div class="card-header"><h3>Announcements</h3><span style="font-size:13px;color:var(--slate);">{{ results.announcements|length }}</span></div>
+        {% for a in results.announcements %}
+        <div class="member-row">
+            <i data-lucide="megaphone" style="width:20px;height:20px;color:var(--vine);"></i>
+            <div>
+                <div class="name"><a href="/announcements">{{ a.title }}</a></div>
+                <div style="font-size:13px;color:var(--slate);margin-top:2px;">{{ a.created_at.strftime('%b %-d, %Y') }}</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if results.documents %}
+    <div class="card">
+        <div class="card-header"><h3>Documents</h3><span style="font-size:13px;color:var(--slate);">{{ results.documents|length }}</span></div>
+        {% for d in results.documents %}
+        <div class="member-row">
+            <i data-lucide="folder" style="width:20px;height:20px;color:var(--vine);"></i>
+            <div>
+                <div class="name"><a href="/documents/{{ d.id }}/view">{{ d.title }}</a></div>
+                <div style="font-size:13px;color:var(--slate);margin-top:2px;">{{ d.category or 'Document' }}</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
 </div>
 {% endif %}
 {% endblock %}
