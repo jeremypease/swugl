@@ -513,3 +513,23 @@ def send_support_email(user, family, category, message, support_email):
     <p style="white-space:pre-wrap;">{message}</p>
     """
     return send_email(support_email, subject, html_content, reply_to=user.email)
+
+
+def send_story_prompt_email(user, subject_person, question, answer_url):
+    """Weekly Family Stories prompt — links to the in-app answer form."""
+    return send_email(
+        user.email,
+        "Your weekly family story prompt",
+        f"""
+        <h2>Hi {user.first_name},</h2>
+        <p>Here's this week's question to help capture a piece of your story:</p>
+        <blockquote style="border-left:3px solid #3D7040;margin:16px 0;padding:8px 0 8px 16px;font-size:17px;color:#0F170C;">
+            {question}
+        </blockquote>
+        <p><a href="{answer_url}">Share your story &rarr;</a></p>
+        <p style="font-size:13px;color:#888;margin-top:24px;">
+            Your answer is saved to your profile for the whole family to treasure.
+            No rush — reply whenever a memory comes to you.
+        </p>
+        """
+    )

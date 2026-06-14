@@ -168,7 +168,7 @@ def create_app(test_config=None):
     from .oauth import oauth_bp, init_oauth
     from .api import api as api_bp
     from .storage import photo_url
-    from .commands import email_sequence, digest, rsvp_reminders, annual_events, merge_persons
+    from .commands import email_sequence, digest, rsvp_reminders, annual_events, merge_persons, story_prompts
     app.register_blueprint(main)
     app.register_blueprint(billing)
     app.register_blueprint(tf)
@@ -192,6 +192,7 @@ def create_app(test_config=None):
     app.cli.add_command(rsvp_reminders)
     app.cli.add_command(annual_events)
     app.cli.add_command(merge_persons)
+    app.cli.add_command(story_prompts)
 
     app.jinja_env.globals['photo_url'] = photo_url
 
@@ -223,6 +224,7 @@ def create_app(test_config=None):
         chat_paid = False
         unread_chat = 0
         paid_access = False
+        stories_visible = False
         if current_user.is_authenticated:
             fam = current_user.active_family
             if fam:
@@ -234,8 +236,11 @@ def create_app(test_config=None):
                     last_seen = current_user.chat_last_seen_at
                     q = ChatMessage.query.filter_by(family_id=current_user.active_family_id)
                     unread_chat = q.filter(ChatMessage.created_at > last_seen).count() if last_seen else q.count()
+            if fam and fam.enable_stories:
+                stories_visible = True
         return {
             'has_paid_access': paid_access,
+            'stories_visible': stories_visible,
             'now': datetime.utcnow(),
             'system_announcement': active_ann,
             'support_mode': s.get('support_mode', False),

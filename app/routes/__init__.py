@@ -876,6 +876,7 @@ def family_settings():
         form.enable_polls.data = family.enable_polls
         form.enable_greeting_cards.data = family.enable_greeting_cards
         form.enable_chat.data = family.enable_chat
+        form.enable_stories.data = family.enable_stories
     if form.validate_on_submit():
         family.name = form.family_name.data
         family.require_member_approval = form.require_member_approval.data
@@ -883,6 +884,7 @@ def family_settings():
         family.enable_polls = form.enable_polls.data
         family.enable_greeting_cards = form.enable_greeting_cards.data
         family.enable_chat = form.enable_chat.data
+        family.enable_stories = form.enable_stories.data
         db.session.commit()
         flash('Family settings saved.', 'info')
         return redirect(url_for('main.family_settings'))
@@ -1970,6 +1972,23 @@ def invite_person(person_id):
     flash(msg, category)
     return redirect(url_for('main.person_detail', person_id=person_id))
 
+
+def _person_stories(person):
+    """Answered Family Stories for a person, newest first (for their profile)."""
+    from ..models import StoryPrompt
+    return (StoryPrompt.query
+            .filter(StoryPrompt.family_id == person.family_id,
+                    StoryPrompt.person_id == person.id,
+                    StoryPrompt.answered_at.isnot(None))
+            .order_by(StoryPrompt.answered_at.desc()).all())
+
+
+def _stories_available():
+    """True when the active family has Stories enabled and paid access."""
+    fam = current_user.active_family
+    return bool(fam and fam.enable_stories and family_has_paid_access(fam))
+
+
 @main.route('/profile')
 @login_required
 def profile():
@@ -1977,7 +1996,8 @@ def profile():
     if not person:
         flash('No profile found. Please contact the admin.', 'error')
         return redirect(url_for('main.home'))
-    return render_template('profile.html', person=person, relationship=None, parent_roles=PARENT_ROLES, spouse_roles=SPOUSE_ROLES)
+    return render_template('profile.html', person=person, relationship=None, parent_roles=PARENT_ROLES, spouse_roles=SPOUSE_ROLES,
+                           person_stories=_person_stories(person), stories_available=_stories_available())
 
 @main.route('/profile/delete-account', methods=['POST'])
 @login_required
@@ -2135,7 +2155,8 @@ def person_detail(person_id):
     tagged_photos = [t.photo for t in tagged_photos]
     return render_template('profile.html', person=person, relationship=relationship,
                            parent_roles=PARENT_ROLES, spouse_roles=SPOUSE_ROLES,
-                           tagged_photos=tagged_photos)
+                           tagged_photos=tagged_photos,
+                           person_stories=_person_stories(person), stories_available=_stories_available())
 
 @main.route('/person/<int:person_id>/edit', methods=['GET', 'POST'])
 @login_required
@@ -4529,4 +4550,4 @@ def serve_photo(key):
 # ── Feature route modules ──────────────────────────────────────────────────────
 # Imported last so the `main` blueprint and shared helpers above already exist.
 # Each module attaches its routes to `main` via @main.route.
-from . import chat, checklists, documents  # noqa: E402,F401
+from . import chat, checklists, documents, stories  # noqa: E402,F401

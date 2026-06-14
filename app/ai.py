@@ -42,6 +42,37 @@ def draft_card_message(recipient_name, occasion, family_name=None):
     return _haiku([{'role': 'user', 'content': prompt}], max_tokens=200)
 
 
+def generate_story_prompt(person, recent_questions=None):
+    """Return one warm, open-ended life-story question personalized to `person`,
+    or None if AI is unavailable. `recent_questions` is a list of prior question
+    strings to avoid repeating."""
+    bits = []
+    age = person.get_age()
+    if age:
+        bits.append(f"about {age} years old" if not person.deathday else f"who lived to about {age}")
+    if person.birthplace:
+        bits.append(f"born in {person.birthplace}")
+    if person.occupation:
+        bits.append(f"worked as {person.occupation}")
+    profile = "; ".join(bits) if bits else "a family member"
+    avoid = ""
+    if recent_questions:
+        joined = " | ".join(q for q in recent_questions if q)
+        if joined:
+            avoid = (" Do NOT repeat or closely resemble any of these previously asked "
+                     f"questions: {joined}.")
+    prompt = (
+        f"Write ONE warm, specific, open-ended question inviting {person.get_display_name()} "
+        f"({profile}) to share a memory or story from their life. "
+        "Think StoryWorth: questions that draw out vivid personal history "
+        "(childhood, family, work, love, lessons, turning points). "
+        "It must be a single question, 1-2 sentences, never yes/no, and answerable by anyone "
+        "regardless of background." + avoid +
+        " Return only the question text — no preamble, no quotes."
+    )
+    return _haiku([{'role': 'user', 'content': prompt}], max_tokens=150)
+
+
 def suggest_poll(topic, family_name=None):
     """Return {question, options} for a poll on the given topic."""
     ctx = f" for the {family_name} family" if family_name else ""

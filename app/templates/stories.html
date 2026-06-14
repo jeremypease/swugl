@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% from "_macros.html" import av %}
+
+{% block title %}Family Stories — {{ current_user.active_family.name }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <div class="eyebrow">{{ current_user.active_family.name }}</div>
+        <h1>Family Stories</h1>
+        {% if not upgrade_required %}<p class="sub">Weekly questions that capture your family's memories, one story at a time.</p>{% endif %}
+    </div>
+</div>
+
+{% if upgrade_required %}
+<div style="max-width:560px;text-align:center;margin:48px auto 0;">
+    <div style="background:var(--paper);border:1px solid var(--hairline);border-radius:var(--r-l);padding:40px 32px;">
+        <i data-lucide="book-heart" style="width:48px;height:48px;color:var(--vine);margin-bottom:16px;"></i>
+        <h2 style="margin:0 0 10px;">Capture your family's stories</h2>
+        <p style="color:var(--slate);margin:0 0 24px;line-height:1.6;">
+            Every week, each participating member gets a warm, personal question about their life.
+            Their answers are saved forever as Family Stories — the kind of history no calendar app can replace.
+        </p>
+        <ul style="text-align:left;color:var(--slate);line-height:2;margin:0 0 28px;padding-left:20px;font-size:14px;">
+            <li>AI-written prompts, personalized to each person</li>
+            <li>Answer in a minute by email link or in the app</li>
+            <li>Record an elder's story on their behalf — no account needed</li>
+            <li>Stories live on each profile for the whole family</li>
+        </ul>
+        <a href="{{ url_for('billing.billing_page') }}" class="btn btn-primary">
+            <i data-lucide="zap"></i> Upgrade to unlock Family Stories
+        </a>
+    </div>
+</div>
+
+{% else %}
+<div style="max-width:680px;display:flex;flex-direction:column;gap:24px;">
+
+    {# Prompts waiting for an answer #}
+    {% if open_prompts %}
+    <div class="card">
+        <div class="card-header"><h3>Waiting for an answer</h3></div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+            {% for p in open_prompts %}
+            <a href="{{ url_for('main.story_detail', prompt_id=p.id) }}" class="member-row" style="text-decoration:none;color:inherit;align-items:flex-start;">
+                {{ av(p.person, size='md') }}
+                <div style="flex:1;min-width:0;">
+                    <div style="font-weight:600;font-size:14px;">{{ p.person.get_display_name() }}</div>
+                    <div style="font-size:14px;color:var(--ink-soft);margin-top:2px;">{{ p.question }}</div>
+                </div>
+                <span class="btn btn-secondary btn-sm" style="flex-shrink:0;">Answer</span>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {# Recently shared stories #}
+    <div class="card">
+        <div class="card-header"><h3>Recent stories</h3></div>
+        {% if answered %}
+        <div style="display:flex;flex-direction:column;gap:14px;">
+            {% for p in answered %}
+            <div style="border-bottom:1px solid var(--hairline);padding-bottom:14px;">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+                    {{ av(p.person, size='sm') }}
+                    <div style="font-weight:600;font-size:14px;">{{ p.person.get_display_name() }}</div>
+                    <div style="font-size:12px;color:var(--slate-soft);margin-left:auto;">{{ p.answered_at.strftime('%b %-d, %Y') }}</div>
+                </div>
+                <div style="font-size:13px;color:var(--slate);font-style:italic;margin-bottom:4px;">{{ p.question }}</div>
+                <div style="font-size:14px;color:var(--ink-soft);line-height:1.5;white-space:pre-wrap;">{{ p.response.answer[:280] }}{% if p.response.answer|length > 280 %}… <a href="{{ url_for('main.story_detail', prompt_id=p.id) }}" style="color:var(--vine);">read more</a>{% endif %}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="color:var(--slate);font-size:14px;padding:8px 0;">No stories yet. Enable Family Stories on a member's profile to get their first weekly question.</p>
+        {% endif %}
+    </div>
+
+</div>
+{% endif %}
+{% endblock %}

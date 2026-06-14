@@ -5,6 +5,7 @@ Railway cron jobs:
     flask digest           — weekly (0 8 * * 1)
     flask rsvp-reminders   — daily  (0 8 * * *)
     flask annual-events    — weekly (0 9 * * 1)
+    flask story-prompts    — weekly (0 9 * * 1)
 """
 import click
 from datetime import datetime, timedelta, date
@@ -150,6 +151,68 @@ def digest(dry_run):
 
     if not dry_run:
         click.echo(f'digest done: {total_sent} email(s) sent across {len(families)} family/families.')
+
+
+@click.command('story-prompts')
+@click.option('--dry-run', is_flag=True, help='Print who would be prompted without generating or sending.')
+@with_appcontext
+def story_prompts(dry_run):
+    """Send weekly Family Stories prompts to opted-in members of paid families."""
+    if not current_app.config.get('MAIL_ENABLED') and not dry_run:
+        click.echo('MAIL_ENABLED is not set — skipping. Pass --dry-run to preview.')
+        return
+    from .models import StoryPrompt
+    from .billing import family_has_paid_access
+    from .ai import generate_story_prompt
+    from .email import send_story_prompt_email
+
+    now = datetime.utcnow()
+    total = 0
+    with _request_ctx():
+        for family in Family.query.all():
+            if not family.enable_stories or not family_has_paid_access(family):
+                continue
+            participants = Person.query.filter_by(family_id=family.id, stories_enabled=True).all()
+            for person in participants:
+                # Pace once a week, and never stack an unanswered prompt.
+                if person.story_last_prompted_at and (now - person.story_last_prompted_at).days < 6:
+                    continue
+                if StoryPrompt.query.filter_by(family_id=family.id, person_id=person.id, answered_at=None).first():
+                    continue
+                if dry_run:
+                    click.echo(f'[DRY RUN] {family.name}: would prompt {person.get_display_name()}')
+                    total += 1
+                    continue
+                recent = [r.question for r in StoryPrompt.query
+                          .filter_by(family_id=family.id, person_id=person.id)
+                          .order_by(StoryPrompt.created_at.desc()).limit(10)]
+                question = generate_story_prompt(person, recent_questions=recent)
+                if not question:
+                    continue  # AI unavailable — skip this run
+                prompt = StoryPrompt(family_id=family.id, person_id=person.id,
+                                     question=question.strip(), source='auto')
+                person.story_last_prompted_at = now
+                db.session.add(prompt)
+                db.session.commit()
+                answer_url = url_for('main.story_detail', prompt_id=prompt.id, _external=True)
+                if person.user:
+                    send_story_prompt_email(person.user, person, question, answer_url)
+                    create_notification(person.user, 'story_prompt',
+                                        title='You have a new family story prompt',
+                                        body=question[:120], url=answer_url)
+                else:
+                    # Account-less elder — ask admins/contributors to help capture it.
+                    helpers = User.query.filter(
+                        User.family_id == family.id, User.status == 'approved',
+                        db.or_(User.is_admin.is_(True), User.is_delegate.is_(True)),
+                    ).all()
+                    for h in helpers:
+                        create_notification(h, 'story_prompt',
+                                            title=f'Help {person.get_display_name()} share a story',
+                                            body=question[:120], url=answer_url)
+                total += 1
+                click.echo(f'{family.name}: prompted {person.get_display_name()}')
+    click.echo(f'story-prompts done: {total} prompt(s){" (dry run)" if dry_run else ""}.')
 
 
 @click.command('rsvp-reminders')

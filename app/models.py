@@ -52,6 +52,7 @@ class Family(db.Model):
     enable_polls = db.Column(db.Boolean, default=True, nullable=False, server_default='true')
     enable_greeting_cards = db.Column(db.Boolean, default=True, nullable=False, server_default='true')
     enable_chat = db.Column(db.Boolean, default=True, nullable=False, server_default='true')
+    enable_stories = db.Column(db.Boolean, default=True, nullable=False, server_default='true')
 
     people = db.relationship('Person', back_populates='family', foreign_keys='Person.family_id')
     users = db.relationship('User', back_populates='family', foreign_keys='User.family_id')
@@ -112,6 +113,9 @@ class Person(db.Model):
     notes = db.Column(db.Text)
     pronouns = db.Column(db.String(50))
     in_directory = db.Column(db.Boolean, default=True, nullable=False)
+    # Family Stories opt-in (per-person, since account-less elders participate too)
+    stories_enabled = db.Column(db.Boolean, default=False, nullable=False, server_default='false')
+    story_last_prompted_at = db.Column(db.DateTime, nullable=True)
 
     family = db.relationship('Family', back_populates='people', foreign_keys='Person.family_id')
 
@@ -366,6 +370,8 @@ NOTIFICATION_EVENTS = {
     'new_poll':      {'label': 'New poll',               'default': True,  'in_app': True},
     'new_card':      {'label': 'New greeting card',      'default': True,  'in_app': True},
     'new_photos':    {'label': 'New photos added',       'default': True,  'in_app': True},
+    'story_prompt':  {'label': 'Your weekly story prompt', 'default': True, 'in_app': True},
+    'new_story':     {'label': 'A family story was shared', 'default': True, 'in_app': True},
 }
 
 
@@ -859,6 +865,41 @@ class CardSignature(db.Model):
     )
 
     person = db.relationship('Person')
+
+
+class StoryPrompt(db.Model):
+    """A weekly AI-generated (or admin-assigned) story question for one person."""
+    __tablename__ = 'story_prompts'
+
+    id = db.Column(db.Integer, primary_key=True)
+    family_id = db.Column(db.Integer, db.ForeignKey('families.id'), nullable=False, index=True)
+    person_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=False, index=True)  # the subject
+    question = db.Column(db.Text, nullable=False)
+    source = db.Column(db.String(10), nullable=False, default='auto')  # 'auto' | 'manual'
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    answered_at = db.Column(db.DateTime, nullable=True)
+
+    person = db.relationship('Person')
+    responses = db.relationship('StoryResponse', backref='prompt',
+                                cascade='all, delete-orphan')
+
+    @property
+    def response(self):
+        """The single answer to this prompt, if any."""
+        return self.responses[0] if self.responses else None
+
+
+class StoryResponse(db.Model):
+    """A person's answer to a story prompt (one per prompt; answered_by may be a proxy)."""
+    __tablename__ = 'story_responses'
+
+    id = db.Column(db.Integer, primary_key=True)
+    prompt_id = db.Column(db.Integer, db.ForeignKey('story_prompts.id'), nullable=False, unique=True)
+    answer = db.Column(db.Text, nullable=False)
+    answered_by_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=True)  # self or proxy
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    answered_by = db.relationship('Person')
 
 
 class AnnouncementReaction(db.Model):

@@ -119,6 +119,7 @@ class FamilySettingsForm(FlaskForm):
     enable_polls = BooleanField('Enable polls')
     enable_greeting_cards = BooleanField('Enable greeting cards')
     enable_chat = BooleanField('Enable chat')
+    enable_stories = BooleanField('Enable family stories')
     submit = SubmitField('Save')
 
 class AddPersonForm(FlaskForm):
@@ -314,6 +315,11 @@ class ResetPasswordForm(FlaskForm):
 class ChatMessageForm(FlaskForm):
     body   = TextAreaField('Message', validators=[DataRequired(), Length(min=1, max=2000)])
     submit = SubmitField('Send')
+
+
+class StoryAnswerForm(FlaskForm):
+    answer = TextAreaField('Your story', validators=[DataRequired(), Length(min=1, max=20000)])
+    submit = SubmitField('Save story')
 
 
 class SupportForm(FlaskForm):
