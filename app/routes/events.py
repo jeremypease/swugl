@@ -9,7 +9,6 @@ from ..forms import (EventForm, EventCommentForm, EventMealForm, EventMealFamily
                      EventSleepingSpotForm, EventSleepingAssignForm)
 from .. import db
 from ..billing import requires_plan, family_has_paid_access, FREE_EVENT_LIMIT
-import re
 from ..storage import upload_photo, delete_object
 from . import main, admin_required
 from datetime import date, datetime, timedelta
@@ -253,20 +252,30 @@ def event_add():
         # Seed meals from the day-grid checkboxes on the form
         _MEAL_LABELS = {'breakfast': 'Breakfast', 'lunch': 'Lunch', 'dinner': 'Dinner'}
         _MEAL_TIMES  = {'breakfast': '8:00 AM',   'lunch': '12:00 PM', 'dinner': '6:00 PM'}
+        _MEAL_TYPES  = frozenset(_MEAL_LABELS)
         for key in request.form:
-            m = re.match(r'^meals\[(\d{4}-\d{2}-\d{2})\]\[(breakfast|lunch|dinner)\]$', key)
-            if m:
-                try:
-                    meal_date_val = date.fromisoformat(m.group(1))
-                except ValueError:
-                    continue
-                meal_type = m.group(2)
-                db.session.add(EventMeal(
-                    event_id=event.id,
-                    name=f'{meal_date_val.strftime("%A")} {_MEAL_LABELS[meal_type]}',
-                    meal_date=meal_date_val,
-                    meal_time=_MEAL_TIMES[meal_type],
-                ))
+            # Expect: meals[YYYY-MM-DD][breakfast|lunch|dinner]
+            # Use string parsing instead of regex to avoid any regex backtracking on user input.
+            if not key.startswith('meals[') or not key.endswith(']'):
+                continue
+            inner = key[len('meals['):-1]  # strip leading 'meals[' and trailing ']'
+            bracket = inner.rfind('][')
+            if bracket < 0:
+                continue
+            date_part = inner[:bracket]
+            meal_type = inner[bracket + 2:]
+            if meal_type not in _MEAL_TYPES:
+                continue
+            try:
+                meal_date_val = date.fromisoformat(date_part)
+            except ValueError:
+                continue
+            db.session.add(EventMeal(
+                event_id=event.id,
+                name=f'{meal_date_val.strftime("%A")} {_MEAL_LABELS[meal_type]}',
+                meal_date=meal_date_val,
+                meal_time=_MEAL_TIMES[meal_type],
+            ))
 
         # Seed assignments from the task seed list
         for ti in range(50):

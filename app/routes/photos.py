@@ -191,10 +191,6 @@ def photo_tag(photo_id):
                     tagged_by_id=current_user.person.id if current_user.person else None,
                 ))
                 db.session.commit()
-    open_idx = request.form.get('open_idx', type=int)
-    if open_idx is not None:
-        return redirect(url_for('main.album_detail', album_id=photo.album_id,
-                                open=open_idx, _anchor=f'photo-{photo_id}'))
     return redirect(url_for('main.album_detail', album_id=photo.album_id,
                             _anchor=f'photo-{photo_id}'))
 
@@ -213,9 +209,6 @@ def photo_untag(photo_id, tag_id):
     photo = tag.photo
     db.session.delete(tag)
     db.session.commit()
-    open_idx = request.form.get('open_idx', type=int)
-    if open_idx is not None:
-        return redirect(url_for('main.album_detail', album_id=photo.album_id, open=open_idx))
     return redirect(url_for('main.album_detail', album_id=photo.album_id))
 
 
@@ -308,17 +301,28 @@ def photo_ai_caption(photo_id):
 def serve_photo(key):
     """Proxy route: serves R2 photos through Flask when no R2_PUBLIC_URL is set."""
     from flask import Response, abort
-    photo = Photo.query.filter(
-        Photo.family_id == current_user.active_family_id,
-        db.or_(Photo.path == key, Photo.thumb_path == key),
+    # Look up by primary path first, then thumbnail path, then person photo.
+    # Always use the key from the DB record (never the user-supplied URL parameter)
+    # to avoid path injection through get_object_bytes → os.path.join → open().
+    photo_by_path = Photo.query.filter_by(
+        family_id=current_user.active_family_id, path=key
     ).first()
-    person = None if photo else Person.query.filter_by(family_id=current_user.active_family_id, photo_path=key).first()
-    if not photo and not person:
-        abort(403)
-    # Use the path from the DB record (not the URL parameter) to prevent path injection
-    if photo:
-        safe_key = photo.path if photo.path == key else photo.thumb_path
-    else:
-        safe_key = person.photo_path
-    data, content_type = get_object_bytes(safe_key)
-    return Response(data, content_type=content_type)
+    if photo_by_path:
+        data, content_type = get_object_bytes(photo_by_path.path)
+        return Response(data, content_type=content_type)
+
+    photo_by_thumb = Photo.query.filter_by(
+        family_id=current_user.active_family_id, thumb_path=key
+    ).first()
+    if photo_by_thumb:
+        data, content_type = get_object_bytes(photo_by_thumb.thumb_path)
+        return Response(data, content_type=content_type)
+
+    person = Person.query.filter_by(
+        family_id=current_user.active_family_id, photo_path=key
+    ).first()
+    if person:
+        data, content_type = get_object_bytes(person.photo_path)
+        return Response(data, content_type=content_type)
+
+    abort(403)
