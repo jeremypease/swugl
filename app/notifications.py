@@ -69,9 +69,90 @@ def send_push_notification(user, title, body=None, url=None):
             pass  # stale token — prune in a future task
 
 
+_apns_token_cache = {}  # (key_id, team_id) → (token_str, expires_at)
+
+
+def _get_apns_jwt(key_id, team_id, private_key_pem):
+    import time
+    import jwt as pyjwt
+    from cryptography.hazmat.primitives.serialization import load_pem_private_key
+
+    cache_key = (key_id, team_id)
+    cached = _apns_token_cache.get(cache_key)
+    if cached and cached[1] > time.time() + 60:
+        return cached[0]
+
+    pem = private_key_pem.encode() if isinstance(private_key_pem, str) else private_key_pem
+    key = load_pem_private_key(pem, password=None)
+    now = int(time.time())
+    token = pyjwt.encode(
+        {'iss': team_id, 'iat': now},
+        key,
+        algorithm='ES256',
+        headers={'kid': key_id},
+    )
+    _apns_token_cache[cache_key] = (token, now + 3600)
+    return token
+
+
 def _send_apns(token, title, body, url):
-    """Send APNs push. Configure APNS_KEY_ID, APNS_TEAM_ID, APNS_BUNDLE_ID, APNS_PRIVATE_KEY."""
-    pass  # implement when mobile app is in TestFlight
+    """Send APNs HTTP/2 push via JWT auth.
+
+    Uses HTTP/1.1 (requests library) for now — swap the HTTP call to
+    httpx[http2] before App Store submission for proper HTTP/2 multiplexing.
+    Configure APNS_KEY_ID, APNS_TEAM_ID, APNS_BUNDLE_ID, APNS_PRIVATE_KEY,
+    and optionally APNS_PRODUCTION (default: sandbox).
+    """
+    import json
+    import requests as http_req
+
+    key_id = current_app.config.get('APNS_KEY_ID', '')
+    team_id = current_app.config.get('APNS_TEAM_ID', '')
+    bundle_id = current_app.config.get('APNS_BUNDLE_ID', '')
+    private_key = current_app.config.get('APNS_PRIVATE_KEY', '')
+
+    if not all([key_id, team_id, bundle_id, private_key]):
+        return
+
+    is_prod = current_app.config.get('APNS_PRODUCTION', False)
+    host = 'api.push.apple.com' if is_prod else 'api.sandbox.push.apple.com'
+
+    try:
+        jwt_token = _get_apns_jwt(key_id, team_id, private_key)
+    except Exception:
+        return
+
+    payload = {
+        'aps': {
+            'alert': {'title': title, 'body': body or ''},
+            'sound': 'default',
+            'badge': 1,
+        },
+    }
+    if url:
+        payload['url'] = url
+
+    headers = {
+        'authorization': f'bearer {jwt_token}',
+        'apns-topic': bundle_id,
+        'apns-push-type': 'alert',
+        'apns-priority': '10',
+        'content-type': 'application/json',
+    }
+
+    try:
+        resp = http_req.post(
+            f'https://{host}/3/device/{token}',
+            data=json.dumps(payload),
+            headers=headers,
+            timeout=10,
+        )
+        if resp.status_code == 410:
+            from .models import UserDevice
+            UserDevice.query.filter_by(token=token).delete()
+            db.session.commit()
+    except Exception:
+        pass
 
 
 def _send_fcm(token, title, body, url):

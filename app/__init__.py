@@ -118,6 +118,13 @@ def create_app(test_config=None):
     app.config['ANTHROPIC_API_KEY'] = os.environ.get('ANTHROPIC_API_KEY', '')
     app.config['APP_VERSION'] = os.environ.get('APP_VERSION', '1.0.0')
 
+    app.config['PUSH_ENABLED'] = os.environ.get('PUSH_ENABLED', '').lower() == 'true'
+    app.config['APNS_KEY_ID'] = os.environ.get('APNS_KEY_ID', '')
+    app.config['APNS_TEAM_ID'] = os.environ.get('APNS_TEAM_ID', '')
+    app.config['APNS_BUNDLE_ID'] = os.environ.get('APNS_BUNDLE_ID', '')
+    app.config['APNS_PRIVATE_KEY'] = os.environ.get('APNS_PRIVATE_KEY', '')
+    app.config['APNS_PRODUCTION'] = os.environ.get('APNS_PRODUCTION', '').lower() == 'true'
+
     # Request body cap — bulk album uploads send many photos in one multipart
     # POST, so this is well above the 25 MB per-file cap enforced in storage.py.
     app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
