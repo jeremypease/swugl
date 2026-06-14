@@ -515,21 +515,29 @@ def send_support_email(user, family, category, message, support_email):
     return send_email(support_email, subject, html_content, reply_to=user.email)
 
 
-def send_story_prompt_email(user, subject_person, question, answer_url):
-    """Weekly Family Stories prompt — links to the in-app answer form."""
+def send_story_prompt_email(user, family, question, respond_url):
+    """Send the weekly story prompt to a family member."""
     return send_email(
         user.email,
-        "Your weekly family story prompt",
+        f"This week's question for {family.name}",
         f"""
-        <h2>Hi {user.first_name},</h2>
-        <p>Here's this week's question to help capture a piece of your story:</p>
-        <blockquote style="border-left:3px solid #3D7040;margin:16px 0;padding:8px 0 8px 16px;font-size:17px;color:#0F170C;">
+        <p style="font-family:sans-serif;">Hi {user.first_name},</p>
+        <p style="font-family:sans-serif;">This week's question for {family.name}:</p>
+        <blockquote style="border-left:4px solid #4a7c59;margin:20px 0;padding:12px 20px;
+                           font-size:18px;font-style:italic;color:#333;background:#f9f9f7;
+                           border-radius:0 6px 6px 0;">
             {question}
         </blockquote>
-        <p><a href="{answer_url}">Share your story &rarr;</a></p>
-        <p style="font-size:13px;color:#888;margin-top:24px;">
-            Your answer is saved to your profile for the whole family to treasure.
-            No rush — reply whenever a memory comes to you.
+        <p style="font-family:sans-serif;">
+            Share your story — it's saved to your family's collection for everyone to read.
         </p>
-        """
+        <p>
+            <a href="{respond_url}" style="background:#4a7c59;color:#fff;padding:12px 24px;
+               text-decoration:none;border-radius:6px;display:inline-block;font-family:sans-serif;
+               font-weight:600;">Share Your Story</a>
+        </p>
+        <p style="font-family:sans-serif;color:#888;font-size:12px;margin-top:32px;">
+            You're receiving this as a member of {family.name} on Swugl.
+        </p>
+        """,
     )

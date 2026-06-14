@@ -1,25 +1,18 @@
-"""Events and every sub-feature: RSVPs, meals, assignments, sleeping,
-carpool, surveys, comments, payments, and the AI event parser."""
-import re
-from datetime import date, datetime, timedelta
-
-from flask import (render_template, request, redirect, url_for, flash, abort,
-                   jsonify, current_app, Response)
+from flask import render_template, redirect, url_for, flash, request, current_app, abort
 from flask_login import login_required, current_user
-
+from ..models import (Event, EventMeal, EventMealItem, EventAssignment, AssignmentTask, ASSIGNMENT_CATEGORIES,
+                      EventRSVP, EventSleepingSpot, SPOT_TYPES, EventComment, EventPaymentConfig,
+                      EventPaymentRecord, Location, Person, User, Photo, Album)
+from ..forms import (EventForm, EventCommentForm, EventMealForm, EventMealFamilyAssignForm,
+                     EventMealItemForm, EventMealSelfSignupForm, EventMealAssignForm,
+                     EventAssignmentForm, EventAssignmentAdminAssignForm,
+                     EventSleepingSpotForm, EventSleepingAssignForm)
 from .. import db
 from ..billing import requires_plan, family_has_paid_access, FREE_EVENT_LIMIT
 from ..storage import upload_photo, delete_object
-from ..models import (Family, User, Person, Event, EventMeal, EventMealItem,
-    EventAssignment, AssignmentTask, ASSIGNMENT_CATEGORIES, EventRSVP,
-    EventSleepingSpot, SPOT_TYPES, EventComment, EventPaymentConfig,
-    EventPaymentRecord, FamilyPayoutAccount, Location, Album, Photo, NotificationPreference,
-    CarpoolOffer, EventSurveyResponse, SpouseRelationship, ParentRelationship)
-from ..forms import (EventForm, EventCommentForm, EventMealForm,
-    EventMealFamilyAssignForm, EventMealItemForm, EventMealSelfSignupForm,
-    EventMealAssignForm, EventAssignmentForm, EventAssignmentAdminAssignForm,
-    EventSleepingSpotForm, EventSleepingAssignForm)
-from . import main, admin_required, contributor_or_admin_required
+from . import main, admin_required
+from datetime import date, datetime, timedelta
+from collections import defaultdict
 
 # ── Events ────────────────────────────────────────────────────────────────────
 
@@ -147,29 +140,9 @@ Description: {description}"""
             text = text.split('\n', 1)[1].rsplit('```', 1)[0].strip()
         data = _json.loads(text)
         return jsonify(data)
-    except Exception as e:
-        current_app.logger.error(f'AI event parse error: {e}')
+    except Exception:
+        current_app.logger.exception('AI event parse error')
         return jsonify({'error': 'AI parsing failed'}), 500
-
-
-@main.route('/photos/<int:photo_id>/ai-caption', methods=['POST'])
-@login_required
-def photo_ai_caption(photo_id):
-    from flask import jsonify
-    from ..ai import suggest_photo_caption
-    from ..storage import get_object_bytes
-    photo = db.session.get(Photo, photo_id)
-    if not photo or photo.family_id != current_user.active_family_id:
-        return jsonify({'error': 'Not found'}), 404
-    if not current_app.config.get('ANTHROPIC_API_KEY'):
-        return jsonify({'error': 'AI not configured'}), 503
-    try:
-        image_bytes, content_type = get_object_bytes(photo.path)
-        caption = suggest_photo_caption(image_bytes, content_type)
-        return jsonify({'caption': caption})
-    except Exception as e:
-        current_app.logger.error(f'AI photo caption error: {e}')
-        return jsonify({'error': 'AI caption failed'}), 500
 
 
 def _geocode_location(location_str):
@@ -188,7 +161,7 @@ def _geocode_location(location_str):
         if results:
             return float(results[0]['lat']), float(results[0]['lon'])
     except Exception:
-        pass
+        current_app.logger.debug('Geocode failed for %r', location_str)
     return None, None
 
 
@@ -279,20 +252,30 @@ def event_add():
         # Seed meals from the day-grid checkboxes on the form
         _MEAL_LABELS = {'breakfast': 'Breakfast', 'lunch': 'Lunch', 'dinner': 'Dinner'}
         _MEAL_TIMES  = {'breakfast': '8:00 AM',   'lunch': '12:00 PM', 'dinner': '6:00 PM'}
+        _MEAL_TYPES  = frozenset(_MEAL_LABELS)
         for key in request.form:
-            m = re.match(r'^meals\[(\d{4}-\d{2}-\d{2})\]\[(breakfast|lunch|dinner)\]$', key)
-            if m:
-                try:
-                    meal_date_val = date.fromisoformat(m.group(1))
-                except ValueError:
-                    continue
-                meal_type = m.group(2)
-                db.session.add(EventMeal(
-                    event_id=event.id,
-                    name=f'{meal_date_val.strftime("%A")} {_MEAL_LABELS[meal_type]}',
-                    meal_date=meal_date_val,
-                    meal_time=_MEAL_TIMES[meal_type],
-                ))
+            # Expect: meals[YYYY-MM-DD][breakfast|lunch|dinner]
+            # Use string parsing instead of regex to avoid any regex backtracking on user input.
+            if not key.startswith('meals[') or not key.endswith(']'):
+                continue
+            inner = key[len('meals['):-1]  # strip leading 'meals[' and trailing ']'
+            bracket = inner.rfind('][')
+            if bracket < 0:
+                continue
+            date_part = inner[:bracket]
+            meal_type = inner[bracket + 2:]
+            if meal_type not in _MEAL_TYPES:
+                continue
+            try:
+                meal_date_val = date.fromisoformat(date_part)
+            except ValueError:
+                continue
+            db.session.add(EventMeal(
+                event_id=event.id,
+                name=f'{meal_date_val.strftime("%A")} {_MEAL_LABELS[meal_type]}',
+                meal_date=meal_date_val,
+                meal_time=_MEAL_TIMES[meal_type],
+            ))
 
         # Seed assignments from the task seed list
         for ti in range(50):
@@ -584,7 +567,7 @@ def event_payment_setup(event_id):
                 if cap_val > amount_cents:
                     family_cap_cents = cap_val
             except (ValueError, TypeError):
-                pass
+                pass  # ignore malformed cap input; cap remains unset
 
     deadline_str = request.form.get('deadline', '').strip()
     deadline = datetime.strptime(deadline_str, '%Y-%m-%d').date() if deadline_str else None
@@ -713,12 +696,15 @@ def event_payment_checkout(event_id):
 
     try:
         session_obj = s.checkout.Session.create(**kwargs)
+        checkout_url = session_obj.url or ''
+        if not checkout_url.startswith('https://checkout.stripe.com/'):
+            raise ValueError('Unexpected Stripe checkout URL')
         record.stripe_checkout_session_id = session_obj.id
         db.session.commit()
-        return redirect(session_obj.url, code=303)
-    except Exception as e:
+        return redirect(checkout_url, code=303)
+    except Exception:
         flash('Could not start checkout. Please try again.', 'error')
-        current_app.logger.error(f'Stripe event checkout error: {e}')
+        current_app.logger.exception('Stripe event checkout error')
         return redirect(url_for('main.event_detail', event_id=event_id))
 
 
@@ -1664,11 +1650,15 @@ def event_sleeping_bulk_add(event_id):
         line = line.strip()
         if not line:
             continue
-        # Try to parse trailing number as capacity: "Master bedroom 2" or "Bunk room (4)"
-        import re as _re
-        m = _re.match(r'^(.+?)\s*[\(\[]?(\d+)[\)\]]?\s*$', line)
-        if m:
-            name, cap = m.group(1).strip(), int(m.group(2))
+        # Try to extract trailing capacity: "Master bedroom 2" or "Bunk room (4)"
+        # Use rsplit+isdigit to avoid any regex backtracking on user-provided text.
+        parts = line.rsplit(None, 1)
+        if len(parts) == 2:
+            last = parts[1].strip('()[]')
+            if last.isdigit():
+                name, cap = parts[0].strip(), int(last)
+            else:
+                name, cap = line, None
         else:
             name, cap = line, None
         if name:

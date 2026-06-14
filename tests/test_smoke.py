@@ -58,7 +58,9 @@ def test_login_rejects_open_redirect(app, bad_next):
 
 def test_login_allows_safe_next(app):
     with app.test_client() as c:
-        r = c.post('/login?next=/events', data={
+        # Access a protected page so Flask-Login stores next in the session
+        c.get('/events')
+        r = c.post('/login', data={
             'email': 'admin@pease-family.com',
             'password': 'Password1!',
         })

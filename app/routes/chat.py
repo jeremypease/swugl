@@ -1,7 +1,7 @@
 """Pod-wide group chat: routes, notification fan-out, and poll throttling."""
 from datetime import datetime, timedelta
 
-from flask import render_template, request, redirect, url_for, jsonify, abort
+from flask import render_template, request, redirect, url_for, jsonify, abort, Response
 from flask_login import login_required, current_user
 
 from .. import db
@@ -10,7 +10,7 @@ from ..models import (
 )
 from ..forms import ChatMessageForm
 from ..billing import requires_plan, family_has_paid_access
-from . import main
+from . import main, admin_required
 
 # A member is "actively viewing" chat if their last-seen timestamp is within
 # this window. It must exceed CHAT_SEEN_THROTTLE (below) so a member who is
@@ -182,3 +182,37 @@ def chat_delete(msg_id):
     db.session.delete(msg)
     db.session.commit()
     return redirect(url_for('main.chat'))
+
+
+@main.route('/chat/export')
+@login_required
+@admin_required
+def chat_export():
+    """Download all chat messages for this family as a CSV."""
+    import csv, io
+    family = current_user.active_family
+    if not family or not family.enable_chat:
+        abort(404)
+    msgs = (
+        ChatMessage.query
+        .filter_by(family_id=current_user.active_family_id)
+        .order_by(ChatMessage.created_at.asc())
+        .all()
+    )
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Date (UTC)', 'Time (UTC)', 'Author', 'Message', 'Edited'])
+    for m in msgs:
+        writer.writerow([
+            m.created_at.strftime('%Y-%m-%d'),
+            m.created_at.strftime('%H:%M:%S'),
+            m.author.get_full_name(),
+            m.body,
+            'yes' if m.edited_at else '',
+        ])
+    slug = family.name.lower().replace(' ', '-')
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename="chat-{slug}.csv"'},
+    )

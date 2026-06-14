@@ -88,6 +88,11 @@
                 <i data-lucide="bar-chart-2"></i> Polls
             </a>
             {% endif %}
+            {% if has_paid_access %}
+            <a href="/stories" {% if request.path.startswith('/stories') %}class="active"{% endif %}>
+                <i data-lucide="book-open"></i> Stories
+            </a>
+            {% endif %}
             {% if chat_visible %}
             <a href="/chat" {% if request.path.startswith('/chat') %}class="active"{% endif %} style="position:relative;">
                 <i data-lucide="message-circle"></i> Chat

@@ -120,6 +120,12 @@ class FamilySettingsForm(FlaskForm):
     enable_greeting_cards = BooleanField('Enable greeting cards')
     enable_chat = BooleanField('Enable chat')
     enable_stories = BooleanField('Enable family stories')
+    chat_retention_days = SelectField('Chat message retention', choices=[
+        ('', 'Keep forever'),
+        ('30', '30 days'),
+        ('90', '90 days'),
+        ('365', '1 year'),
+    ], validators=[Optional()])
     submit = SubmitField('Save')
 
 class AddPersonForm(FlaskForm):

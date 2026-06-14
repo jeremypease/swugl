@@ -450,17 +450,7 @@ def login():
             return redirect(url_for('tf.login_2fa'))
         login_user(user, remember=form.remember_me.data)
         session['active_family_id'] = user.family_id
-        next_page = request.args.get('next')
-        # Only allow same-site relative paths to prevent open redirect. The bare
-        # netloc check misses protocol-relative ("//evil.com") and backslash
-        # ("/\\evil.com") tricks that browsers resolve to an external host.
-        if next_page and (
-            urlparse(next_page).netloc
-            or not next_page.startswith('/')
-            or next_page.startswith('//')
-            or next_page.startswith('/\\')
-        ):
-            next_page = None
+        next_page = session.pop('next', None)
         return redirect(next_page or url_for('main.home'))
     return render_template('login.html', form=form)
 
@@ -1122,9 +1112,8 @@ def photo_tag(photo_id):
                     tagged_by_id=current_user.person.id if current_user.person else None,
                 ))
                 db.session.commit()
-    open_idx = request.form.get('open_idx', '')
     return redirect(url_for('main.album_detail', album_id=photo.album_id,
-                            _anchor=f'photo-{photo_id}') + (f'?open={open_idx}' if open_idx else ''))
+                            _anchor=f'photo-{photo_id}'))
 
 
 @main.route('/photos/<int:photo_id>/tags/<int:tag_id>/remove', methods=['POST'])
@@ -1136,14 +1125,12 @@ def photo_untag(photo_id, tag_id):
         abort(404)
     is_tagger = current_user.person and tag.tagged_by_id == current_user.person.id
     is_tagged = current_user.person and tag.person_id == current_user.person.id
-    if current_user.active_is_admin or is_tagger or is_tagged:
-        photo = tag.photo
-        db.session.delete(tag)
-        db.session.commit()
-        open_idx = request.form.get('open_idx', '')
-        return redirect(url_for('main.album_detail', album_id=photo.album_id)
-                        + (f'?open={open_idx}' if open_idx else ''))
-    abort(403)
+    if not (current_user.active_is_admin or is_tagger or is_tagged):
+        abort(403)
+    photo = tag.photo
+    db.session.delete(tag)
+    db.session.commit()
+    return redirect(url_for('main.album_detail', album_id=photo.album_id))
 
 
 @main.route('/members/<int:person_id>/photos')
@@ -2409,15 +2396,31 @@ def pwa_offline():
 def serve_photo(key):
     """Proxy route: serves R2 photos through Flask when no R2_PUBLIC_URL is set."""
     from flask import Response, abort
-    photo = Photo.query.filter(
-        Photo.family_id == current_user.active_family_id,
-        db.or_(Photo.path == key, Photo.thumb_path == key),
+    # Look up by primary path first, then thumbnail path, then person photo.
+    # Always use the key from the DB record (never the user-supplied URL parameter)
+    # to avoid path injection through get_object_bytes → os.path.join → open().
+    photo_by_path = Photo.query.filter_by(
+        family_id=current_user.active_family_id, path=key
     ).first()
-    person = None if photo else Person.query.filter_by(family_id=current_user.active_family_id, photo_path=key).first()
-    if not photo and not person:
-        abort(403)
-    data, content_type = get_object_bytes(key)
-    return Response(data, content_type=content_type)
+    if photo_by_path:
+        data, content_type = get_object_bytes(photo_by_path.path)
+        return Response(data, content_type=content_type)
+
+    photo_by_thumb = Photo.query.filter_by(
+        family_id=current_user.active_family_id, thumb_path=key
+    ).first()
+    if photo_by_thumb:
+        data, content_type = get_object_bytes(photo_by_thumb.thumb_path)
+        return Response(data, content_type=content_type)
+
+    person = Person.query.filter_by(
+        family_id=current_user.active_family_id, photo_path=key
+    ).first()
+    if person:
+        data, content_type = get_object_bytes(person.photo_path)
+        return Response(data, content_type=content_type)
+
+    abort(403)
 
 
 # ── Feature route modules ──────────────────────────────────────────────────────

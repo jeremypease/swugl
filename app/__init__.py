@@ -156,6 +156,7 @@ def create_app(test_config=None):
     login_manager.init_app(app)
     login_manager.login_view = 'main.login'
     login_manager.login_message_category = 'error'
+    app.config['USE_SESSION_FOR_NEXT'] = True
     csrf.init_app(app)
     limiter.init_app(app)
     jwt.init_app(app)
@@ -168,7 +169,7 @@ def create_app(test_config=None):
     from .oauth import oauth_bp, init_oauth
     from .api import api as api_bp
     from .storage import photo_url
-    from .commands import email_sequence, digest, rsvp_reminders, annual_events, merge_persons, story_prompts
+    from .commands import email_sequence, digest, rsvp_reminders, annual_events, merge_persons, prune_chat, story_prompts
     app.register_blueprint(main)
     app.register_blueprint(billing)
     app.register_blueprint(tf)
@@ -192,6 +193,7 @@ def create_app(test_config=None):
     app.cli.add_command(rsvp_reminders)
     app.cli.add_command(annual_events)
     app.cli.add_command(merge_persons)
+    app.cli.add_command(prune_chat)
     app.cli.add_command(story_prompts)
 
     app.jinja_env.globals['photo_url'] = photo_url
