@@ -4716,11 +4716,22 @@ def pwa_manifest():
 
 # ── Chat ──────────────────────────────────────────────────────────────────────
 
+# A member is "actively viewing" chat if their last-seen timestamp is within
+# this window. It must exceed CHAT_SEEN_THROTTLE (below) so a member who is
+# actively polling — but whose timestamp is only written periodically — is never
+# mistaken for absent and re-notified.
+CHAT_VIEWING_WINDOW = 60  # seconds
+CHAT_SEEN_THROTTLE = 25   # seconds — min gap between chat_last_seen_at writes
+
+
 def _notify_chat_members(msg):
-    """Send in-app notifications to family members not currently viewing chat."""
-    from .notifications import create_notification
+    """Notify family members not currently viewing chat, collapsed to a single
+    rolling "N new messages" notification per recipient (no per-message spam)."""
+    from .models import Notification, NotificationPreference, NOTIFICATION_EVENTS
     from datetime import timedelta
-    cutoff = datetime.utcnow() - timedelta(seconds=10)
+    if not NOTIFICATION_EVENTS.get('chat_message', {}).get('in_app'):
+        return
+    cutoff = datetime.utcnow() - timedelta(seconds=CHAT_VIEWING_WINDOW)
     recipients = User.query.filter(
         User.family_id == msg.family_id,
         User.id != msg.author_id,
@@ -4728,13 +4739,41 @@ def _notify_chat_members(msg):
     ).all()
     author_name = msg.author.get_full_name()
     for recipient in recipients:
-        create_notification(
-            recipient,
-            'chat_message',
-            title=f'New message from {author_name}',
-            body=msg.body[:120],
-            url='/chat',
+        if not NotificationPreference.is_enabled(recipient.id, 'chat_message', 'in_app'):
+            continue
+        # Count this recipient's unread messages since they last saw chat.
+        q = ChatMessage.query.filter(
+            ChatMessage.family_id == msg.family_id,
+            ChatMessage.author_id != recipient.id,
         )
+        if recipient.chat_last_seen_at:
+            q = q.filter(ChatMessage.created_at > recipient.chat_last_seen_at)
+        unread_count = q.count()
+        title = (f'{unread_count} new messages in chat' if unread_count > 1
+                 else f'New message from {author_name}')
+        # Collapse any existing unread chat notifications into one rolling row.
+        existing = Notification.query.filter_by(
+            user_id=recipient.id, event_type='chat_message', read_at=None
+        ).order_by(Notification.created_at.desc()).all()
+        keep = existing[0] if existing else None
+        for extra in existing[1:]:
+            db.session.delete(extra)
+        if keep:
+            keep.title = title
+            keep.body = msg.body[:120]
+            keep.created_at = datetime.utcnow()
+        else:
+            db.session.add(Notification(
+                user_id=recipient.id, event_type='chat_message',
+                title=title, body=msg.body[:120], url='/chat',
+            ))
+        send_push_notification_safe(recipient, title, msg.body[:120], '/chat')
+    db.session.commit()
+
+
+def send_push_notification_safe(user, title, body, url):
+    from .notifications import send_push_notification
+    send_push_notification(user, title, body=body, url=url)
 
 
 @main.route('/chat')
@@ -4754,6 +4793,12 @@ def chat():
     )
     messages = list(reversed(messages))
     current_user.chat_last_seen_at = datetime.utcnow()
+    # Opening chat clears the rolling chat notification so the next message
+    # starts a fresh count.
+    from .models import Notification
+    Notification.query.filter_by(
+        user_id=current_user.id, event_type='chat_message', read_at=None
+    ).update({'read_at': datetime.utcnow()})
     db.session.commit()
     form = ChatMessageForm()
     return render_template('chat.html', messages=messages, form=form, upgrade_required=False)
@@ -4789,8 +4834,15 @@ def chat_poll():
         .limit(100)
         .all()
     )
-    current_user.chat_last_seen_at = datetime.utcnow()
-    db.session.commit()
+    # Throttle the bookkeeping write: a 5s poll would otherwise commit on every
+    # tick. Only persist when the timestamp is meaningfully stale. The viewing
+    # window (CHAT_VIEWING_WINDOW) is wider than this so an active poller is
+    # never treated as absent between writes.
+    now = datetime.utcnow()
+    last = current_user.chat_last_seen_at
+    if last is None or (now - last).total_seconds() > CHAT_SEEN_THROTTLE:
+        current_user.chat_last_seen_at = now
+        db.session.commit()
     return jsonify({
         'messages': [
             {

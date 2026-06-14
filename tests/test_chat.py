@@ -190,3 +190,75 @@ def test_edit_rejected_after_window(app, auth_client):
         msg_id = msg.id
     rv = auth_client.post(f'/chat/{msg_id}/edit', data={'body': 'Too late'})
     assert rv.status_code == 403
+
+
+# ── notification collapsing (#41) ─────────────────────────────────────────────
+
+def _add_member(family_id, email):
+    from app import db
+    from app.models import Person
+    person = Person(name='Chat Watcher', family_id=family_id)
+    db.session.add(person); db.session.flush()
+    user = User(family_id=family_id, person_id=person.id, first_name='Chat',
+                last_name='Watcher', email=email, status='approved',
+                email_verified=True, is_admin=False)
+    user.set_password('Password1!')
+    db.session.add(user); db.session.commit()
+    return user.id
+
+
+def test_chat_notifications_collapse_to_one(app, auth_client):
+    """Multiple messages produce a single rolling notification per recipient."""
+    from app import db
+    from app.models import Notification, User
+    with app.app_context():
+        admin = User.query.filter_by(email='admin@pease-family.com').first()
+        watcher_id = _add_member(admin.family_id, 'cw@pease-family.com')
+
+    _send(auth_client, 'First')
+    _send(auth_client, 'Second')
+    _send(auth_client, 'Third')
+
+    with app.app_context():
+        notifs = Notification.query.filter_by(
+            user_id=watcher_id, event_type='chat_message', read_at=None
+        ).all()
+        assert len(notifs) == 1
+        assert '3 new messages' in notifs[0].title
+
+
+def test_opening_chat_clears_chat_notifications(app, auth_client):
+    """Opening /chat marks the viewer's unread chat notifications read."""
+    from app import db
+    from app.models import Notification, User
+    with app.app_context():
+        admin = User.query.filter_by(email='admin@pease-family.com').first()
+        db.session.add(Notification(user_id=admin.id, event_type='chat_message',
+                                    title='2 new messages in chat', url='/chat'))
+        db.session.commit()
+        admin_id = admin.id
+
+    auth_client.get('/chat')
+
+    with app.app_context():
+        assert Notification.query.filter_by(
+            user_id=admin_id, event_type='chat_message', read_at=None).count() == 0
+
+
+def test_chat_poll_throttles_seen_writes(app, auth_client):
+    """A second poll within the throttle window does not move chat_last_seen_at."""
+    from app import db
+    from app.models import User
+
+    auth_client.get('/chat/poll?after=0')  # first poll writes (was None)
+    with app.app_context():
+        db.session.expire_all()
+        t1 = User.query.filter_by(email='admin@pease-family.com').first().chat_last_seen_at
+
+    auth_client.get('/chat/poll?after=0')  # immediate second poll — throttled
+    with app.app_context():
+        db.session.expire_all()
+        t2 = User.query.filter_by(email='admin@pease-family.com').first().chat_last_seen_at
+
+    assert t1 is not None
+    assert t1 == t2
