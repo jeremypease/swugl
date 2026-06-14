@@ -2330,16 +2330,47 @@ def person_edit(person_id):
 @login_required
 def search():
     q = request.args.get('q', '').strip()
-    results = []
+    results = {'people': [], 'events': [], 'photos': [], 'announcements': [], 'documents': []}
+    total = 0
     if q:
-        results = Person.query.filter(
-            Person.family_id == current_user.active_family_id,
-            db.or_(
-                Person.name.ilike(f'%{q}%'),
-                Person.nickname.ilike(f'%{q}%'),
-            )
-        ).order_by(Person.name).all()
-    return render_template('search.html', q=q, results=results)
+        fid = current_user.active_family_id
+        like = f'%{q}%'
+        results['people'] = Person.query.filter(
+            Person.family_id == fid,
+            db.or_(Person.name.ilike(like), Person.nickname.ilike(like)),
+        ).order_by(Person.name).limit(10).all()
+
+        results['events'] = Event.query.filter(
+            Event.family_id == fid,
+            db.or_(Event.name.ilike(like), Event.description.ilike(like)),
+        ).order_by(Event.start_date.desc().nullslast()).limit(10).all()
+
+        results['announcements'] = Announcement.query.filter(
+            Announcement.family_id == fid,
+            db.or_(Announcement.title.ilike(like), Announcement.body.ilike(like)),
+        ).order_by(Announcement.created_at.desc()).limit(10).all()
+
+        # Photos matched by caption, plus albums matched by name — surfaced as
+        # albums so a click lands on the album the photo lives in.
+        album_hits = Album.query.filter(
+            Album.family_id == fid, Album.name.ilike(like),
+        ).limit(10).all()
+        caption_photos = Photo.query.filter(
+            Photo.family_id == fid, Photo.caption.ilike(like),
+        ).order_by(Photo.created_at.desc()).limit(10).all()
+        seen_albums = {a.id: a for a in album_hits}
+        for p in caption_photos:
+            if p.album_id not in seen_albums and p.album:
+                seen_albums[p.album_id] = p.album
+        results['photos'] = list(seen_albums.values())
+
+        results['documents'] = Document.query.filter(
+            Document.family_id == fid,
+            db.or_(Document.title.ilike(like), Document.original_filename.ilike(like)),
+        ).order_by(Document.uploaded_at.desc()).limit(10).all()
+
+        total = sum(len(v) for v in results.values())
+    return render_template('search.html', q=q, results=results, total=total)
 
 @main.route('/person/<int:person_id>/link-spouse', methods=['GET', 'POST'])
 @login_required
