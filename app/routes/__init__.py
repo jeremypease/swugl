@@ -406,6 +406,9 @@ def home():
     current_user.home_last_seen_at = datetime.utcnow()
     db.session.commit()
 
+    # Live badge counts for the /home launcher tiles (#55/#43)
+    tile_badges = _home_tile_badges(today, prev_seen)
+
     # RSVP status map for upcoming events (current user's person)
     rsvp_map = {}
     if me:
@@ -423,7 +426,70 @@ def home():
                            onboarding=onboarding,
                            activity_feed=activity_feed,
                            rsvp_map=rsvp_map,
+                           tile_badges=tile_badges,
                            now=datetime.now())
+
+
+def _home_tile_badges(today, prev_seen):
+    """Action-oriented counts for the /home launcher tiles (#55/#43 — Jeffrey
+    drops these into the tiles). Each value is an int; 0 means 'no badge'.
+    Chat and notification counts are NOT here — they already come from the
+    context processor as unread_chat_count / unread_notification_count.
+
+    Suggested phrasing per tile (Jeffrey's call on final copy):
+      events → "N upcoming" · photos → "N new" · announcements → "N new"
+      polls → "N to vote" · cards → "N to sign" · stories → "N to answer"
+    """
+    from ..models import (Event, Photo, Announcement, GreetingCard,
+                          CardSignature, Poll, PollVote, StoryPrompt)
+    fam = current_user.active_family
+    fid = current_user.active_family_id
+    my_pid = current_user.person.id if current_user.person else None
+    is_organizer = current_user.active_is_admin or current_user.active_is_delegate
+
+    badges = {
+        'events': Event.query.filter(
+            Event.family_id == fid, Event.start_date >= today).count(),
+        'photos': Photo.query.filter(
+            Photo.family_id == fid,
+            Photo.created_at >= datetime.utcnow() - timedelta(days=7)).count(),
+        'announcements': (Announcement.query.filter(
+            Announcement.family_id == fid,
+            Announcement.created_at > prev_seen).count() if prev_seen else 0),
+        'polls': 0,
+        'cards': 0,
+        'stories': 0,
+    }
+
+    # Open polls the viewer hasn't voted in
+    if fam.enable_polls and my_pid:
+        open_polls = [p for p in Poll.query.filter_by(family_id=fid).all() if not p.is_closed]
+        if open_polls:
+            voted = {v.poll_id for v in PollVote.query.filter(
+                PollVote.person_id == my_pid,
+                PollVote.poll_id.in_([p.id for p in open_polls])).all()}
+            badges['polls'] = sum(1 for p in open_polls if p.id not in voted)
+
+    # Unsent cards the viewer hasn't signed (and isn't the recipient of)
+    if fam.enable_greeting_cards and my_pid:
+        active = GreetingCard.query.filter(
+            GreetingCard.family_id == fid, GreetingCard.sent_at.is_(None),
+            GreetingCard.recipient_id != my_pid).all()
+        if active:
+            signed = {s.card_id for s in CardSignature.query.filter(
+                CardSignature.person_id == my_pid,
+                CardSignature.card_id.in_([c.id for c in active])).all()}
+            badges['cards'] = sum(1 for c in active if c.id not in signed)
+
+    # Open story prompts the viewer can answer (their own, or any if organizer)
+    if fam.enable_stories and family_has_paid_access(fam):
+        q = StoryPrompt.query.filter_by(family_id=fid, answered_at=None)
+        if not is_organizer:
+            q = q.filter_by(person_id=my_pid or -1)
+        badges['stories'] = q.count()
+
+    return badges
+
 
 @main.route('/login', methods=['GET', 'POST'])
 @limiter.limit('20 per minute', methods=['POST'])
