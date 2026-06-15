@@ -4,7 +4,7 @@ Tests for the /home launcher tile badge counts (backend data for #55/#43).
 from datetime import date, datetime, timedelta
 from flask_login import login_user
 from app import db
-from app.routes import _home_tile_badges
+from app.routes import _home_tile_badges, _next_event_teaser
 from app.models import (User, Person, Event, Poll, PollOption, GreetingCard,
                         StoryPrompt, Album, Photo, Announcement)
 
@@ -76,3 +76,40 @@ def test_badges_respect_feature_toggles(app):
         b = _badges_for(app)
         assert b['polls'] == 0
         assert b['stories'] == 0
+
+
+def test_members_new_this_month(app):
+    with app.app_context():
+        admin = User.query.filter_by(email='admin@pease-family.com').first()
+        fid = admin.family_id
+        # A member approved earlier this month → counts
+        p1 = Person(name='New Cousin', family_id=fid)
+        db.session.add(p1); db.session.flush()
+        u1 = User(family_id=fid, person_id=p1.id, first_name='New', last_name='Cousin',
+                  email='nc@pease-family.com', status='approved', email_verified=True,
+                  approved_date=date.today().replace(day=1))
+        u1.set_password('Password1!')
+        db.session.add(u1)
+        # A member approved before this month → does NOT count
+        p2 = Person(name='Old Cousin', family_id=fid)
+        db.session.add(p2); db.session.flush()
+        u2 = User(family_id=fid, person_id=p2.id, first_name='Old', last_name='Cousin',
+                  email='oc@pease-family.com', status='approved', email_verified=True,
+                  approved_date=date.today().replace(day=1) - timedelta(days=5))
+        u2.set_password('Password1!')
+        db.session.add(u2)
+        db.session.commit()
+        assert _badges_for(app)['members'] == 1
+
+
+def test_next_event_teaser(app):
+    with app.app_context():
+        today = date(2026, 6, 15)  # a Monday
+        mk = lambda d: [Event(name='E', start_date=d)]
+        assert _next_event_teaser([], today) is None
+        assert _next_event_teaser(mk(today), today) == 'today'
+        assert _next_event_teaser(mk(today + timedelta(days=1)), today) == 'tomorrow'
+        # within a week → weekday name
+        assert _next_event_teaser(mk(date(2026, 6, 20)), today) == 'Saturday'
+        # beyond a week → month/day
+        assert _next_event_teaser(mk(date(2026, 8, 1)), today) == 'Aug 1'

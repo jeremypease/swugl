@@ -406,8 +406,9 @@ def home():
     current_user.home_last_seen_at = datetime.utcnow()
     db.session.commit()
 
-    # Live badge counts for the /home launcher tiles (#55/#43)
+    # Live badge counts + teasers for the /home launcher tiles (#55/#43)
     tile_badges = _home_tile_badges(today, prev_seen)
+    tile_teasers = {'events': _next_event_teaser(upcoming_events, today)}
 
     # RSVP status map for upcoming events (current user's person)
     rsvp_map = {}
@@ -427,7 +428,25 @@ def home():
                            activity_feed=activity_feed,
                            rsvp_map=rsvp_map,
                            tile_badges=tile_badges,
+                           tile_teasers=tile_teasers,
                            now=datetime.now())
+
+
+def _next_event_teaser(upcoming_events, today):
+    """Human-readable 'when' for the soonest upcoming event, or None.
+    e.g. 'today', 'tomorrow', 'Saturday' (within a week), else 'Aug 1'.
+    upcoming_events is already ordered soonest-first."""
+    nxt = upcoming_events[0] if upcoming_events else None
+    if not nxt or not nxt.start_date:
+        return None
+    delta = (nxt.start_date - today).days
+    if delta <= 0:
+        return 'today'
+    if delta == 1:
+        return 'tomorrow'
+    if delta < 7:
+        return nxt.start_date.strftime('%A')        # weekday, e.g. "Saturday"
+    return nxt.start_date.strftime('%b %-d')         # e.g. "Aug 1"
 
 
 def _home_tile_badges(today, prev_seen):
@@ -438,7 +457,10 @@ def _home_tile_badges(today, prev_seen):
 
     Suggested phrasing per tile (Jeffrey's call on final copy):
       events → "N upcoming" · photos → "N new" · announcements → "N new"
-      polls → "N to vote" · cards → "N to sign" · stories → "N to answer"
+      members → "N new this month" · polls → "N to vote" · cards → "N to sign"
+      stories → "N to answer"
+    Human-readable teasers (e.g. the next event's day) are returned separately
+    by _next_event_teaser via the tile_teasers dict.
     """
     from ..models import (Event, Photo, Announcement, GreetingCard,
                           CardSignature, Poll, PollVote, StoryPrompt)
@@ -456,6 +478,9 @@ def _home_tile_badges(today, prev_seen):
         'announcements': (Announcement.query.filter(
             Announcement.family_id == fid,
             Announcement.created_at > prev_seen).count() if prev_seen else 0),
+        'members': User.query.filter(
+            User.family_id == fid, User.status == 'approved',
+            User.approved_date >= today.replace(day=1)).count(),
         'polls': 0,
         'cards': 0,
         'stories': 0,
