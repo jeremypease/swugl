@@ -155,3 +155,15 @@ def test_cancel_invite_only_targets_invited(app, auth_client):
     auth_client.post(f'/admin/cancel-invite/{admin_uid}', follow_redirects=True)
     with app.app_context():
         assert db.session.get(User, admin_uid) is not None
+
+
+def test_invited_edit_page_shows_email_field(app, auth_client):
+    """The edit form must render the email field for an invited person (it was
+    hidden behind 'managed through login account')."""
+    with app.app_context():
+        pid = _invite_target(app, name='Jeffrey Pease', email='wrong@icloud.com')
+    auth_client.post(f'/person/{pid}/invite', follow_redirects=True)
+    html = auth_client.get(f'/person/{pid}/edit').data.decode()
+    assert 'name="email"' in html
+    assert 'wrong@icloud.com' in html          # pre-filled, editable
+    assert 'managed through' not in html        # the blocking note is gone

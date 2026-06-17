@@ -89,10 +89,11 @@
                     {{ form.phone.label }}
                     {{ form.phone() }}
                 </div>
-                {% if not person.user %}
+                {% if not person.user or person.user.status == 'invited' %}
                 <div class="field">
                     {{ form.email.label }}
                     {{ form.email() }}
+                    {% if person.user and person.user.status == 'invited' %}<span class="help" style="font-size:12px;color:var(--slate);">Fixing a bad invite address? Update it here, then Resend.</span>{% endif %}
                     {% for error in form.email.errors %}<span class="msg">{{ error }}</span>{% endfor %}
                 </div>
                 {% endif %}
@@ -152,7 +153,7 @@
                 {{ form.notes(rows=4) }}
             </div>
 
-            {% if person.user %}
+            {% if person.user and person.user.status != 'invited' %}
             <p style="font-size:13px;color:var(--slate);margin-bottom:16px;">
                 Email is managed through their login account and cannot be changed here.
             </p>
