@@ -55,3 +55,66 @@ def test_add_member_without_invite_creates_only_person(app, auth_client):
         admin = User.query.filter_by(email='admin@pease-family.com').first()
         assert Person.query.filter_by(family_id=admin.family_id, name='Tree Only').first() is not None
         assert User.query.filter_by(email='treeonly@example.com').first() is None
+
+
+# ── invite expiry + resend (member invitations) ──────────────────────────────
+
+def _invite_target(app, name='Cousin Zed', email='zed@example.com'):
+    admin = User.query.filter_by(email='admin@pease-family.com').first()
+    p = Person(name=name, family_id=admin.family_id, email=email)
+    db.session.add(p); db.session.commit()
+    return p.id
+
+
+def test_invite_sets_30_day_expiry(app, auth_client):
+    from datetime import datetime
+    with app.app_context():
+        pid = _invite_target(app)
+    auth_client.post(f'/person/{pid}/invite', follow_redirects=True)
+    with app.app_context():
+        iu = User.query.filter_by(email='zed@example.com').first()
+        assert iu is not None and iu.status == 'invited'
+        days = (iu.invitation_token_expiry - datetime.utcnow()).days
+        assert 29 <= days <= 30
+
+
+def test_resend_regenerates_token_without_duplicate(app, auth_client):
+    with app.app_context():
+        pid = _invite_target(app)
+    auth_client.post(f'/person/{pid}/invite', follow_redirects=True)
+    with app.app_context():
+        iu = User.query.filter_by(email='zed@example.com').first()
+        tok1, uid1 = iu.invitation_token, iu.id
+    auth_client.post(f'/person/{pid}/invite', follow_redirects=True)  # resend
+    with app.app_context():
+        rows = User.query.filter_by(email='zed@example.com').all()
+        assert len(rows) == 1                 # no duplicate account
+        assert rows[0].id == uid1             # same row refreshed
+        assert rows[0].invitation_token != tok1   # new token
+
+
+def test_resend_works_after_expiry(app, auth_client):
+    from datetime import datetime, timedelta
+    with app.app_context():
+        pid = _invite_target(app)
+    auth_client.post(f'/person/{pid}/invite', follow_redirects=True)
+    with app.app_context():
+        iu = User.query.filter_by(email='zed@example.com').first()
+        iu.invitation_token_expiry = datetime.utcnow() - timedelta(days=1)
+        db.session.commit()
+    auth_client.post(f'/person/{pid}/invite', follow_redirects=True)  # resend after expiry
+    with app.app_context():
+        iu = User.query.filter_by(email='zed@example.com').first()
+        assert iu.invitation_token_expiry > datetime.utcnow()   # not blocked, refreshed
+
+
+def test_invite_refuses_registered_account(app, auth_client):
+    with app.app_context():
+        pid = _invite_target(app)
+    auth_client.post(f'/person/{pid}/invite', follow_redirects=True)
+    with app.app_context():
+        iu = User.query.filter_by(email='zed@example.com').first()
+        iu.status = 'approved'
+        db.session.commit()
+    r = auth_client.post(f'/person/{pid}/invite', follow_redirects=True)
+    assert b'already has an account' in r.data

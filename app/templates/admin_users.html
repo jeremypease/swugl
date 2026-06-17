@@ -148,7 +148,12 @@
                 {% if person.user %}
                     {% if person.user.status == 'approved' %}<span class="badge b-active"><span class="dot"></span>Active</span>
                     {% elif person.user.status == 'pending' %}<span class="badge b-pending"><span class="dot"></span>Pending</span>
-                    {% elif person.user.status == 'invited' %}<span class="badge b-invited"><span class="dot"></span>Invited</span>
+                    {% elif person.user.status == 'invited' %}
+                        {% if person.user.invitation_token_expiry and person.user.invitation_token_expiry < now %}
+                        <span class="badge b-pending"><span class="dot"></span>Invite expired</span>
+                        {% else %}
+                        <span class="badge b-invited"><span class="dot"></span>Invited</span>
+                        {% endif %}
                     {% elif person.user.status == 'removed' %}<span class="badge" style="background:#fef0f0;color:var(--tomato);border:1px solid #fcd0d0;"><span class="dot" style="background:var(--tomato);"></span>Removed</span>
                     {% else %}<span class="badge"><span class="dot"></span>{{ person.user.status|capitalize }}</span>{% endif %}
                 {% else %}
@@ -179,6 +184,14 @@
                         <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--vine);">Restore</button>
                     </form>
                     {% endif %}
+                {% endif %}
+                {% if person.user and person.user.status == 'invited' %}
+                    <form method="POST" action="/person/{{ person.id }}/invite">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--vine);" title="Resend invitation email">
+                            <i data-lucide="send" style="width:13px;height:13px;"></i> Resend
+                        </button>
+                    </form>
                 {% endif %}
             </div>
         </div>

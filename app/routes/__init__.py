@@ -1679,20 +1679,52 @@ def location_spot_delete(loc_id, spot_id):
     return redirect(url_for('main.admin_locations'))
 
 
-def _send_member_invite(person, email):
-    """Invite `person` to join the active family via `email`.
+INVITE_VALID_DAYS = 30  # how long a member invitation link stays valid
 
-    Either links an existing account into this pod, or creates an invited User
-    and emails a registration link. Returns (message, flash_category) for the
-    caller to flash. Caller must have verified `person` is in the active family
-    and has no account yet.
+
+def _email_invite_link(invited_user, email):
+    """Mint a fresh token on an invited User, persist it, and email the link.
+    Used for both first-time invites and resends."""
+    token = secrets.token_urlsafe(32)
+    invited_user.invitation_token = _hash_token(token)
+    invited_user.invitation_token_expiry = datetime.utcnow() + timedelta(days=INVITE_VALID_DAYS)
+    db.session.commit()
+    inviting_name = (current_user.person.get_display_name()
+                     if current_user.person else current_user.get_full_name())
+    if current_app.config.get('MAIL_ENABLED'):
+        send_member_invitation_email(
+            inviting_name, invited_user.first_name, current_user.active_family.name,
+            email, url_for('main.register_invited', token=token, _external=True)
+        )
+
+
+def _send_member_invite(person, email):
+    """Invite (or re-invite) `person` to join the active family via `email`.
+
+    - Already-registered account → refused.
+    - Existing invited (not-yet-registered) account → token refreshed and the
+      link re-sent (the Resend path).
+    - An existing account elsewhere with this email → added to this pod.
+    - Otherwise a new invited User is created and emailed a registration link.
+
+    Returns (message, flash_category) for the caller to flash.
     """
     email = (email or '').strip()
     if not email:
         return ('Add an email address to this person before sending an invitation.', 'error')
+
+    # Person already linked to an account in this family.
+    if person.user:
+        if person.user.status == 'invited':
+            # Resend: refresh the token + expiry and email a new link.
+            person.user.email = email
+            _email_invite_link(person.user, email)
+            return (f'Invitation resent to {email}.', 'info')
+        return (f'{person.get_display_name()} already has an account.', 'error')
+
+    # An account with this email exists elsewhere — add them to this pod.
     existing_user = User.query.filter_by(email=email).first()
     if existing_user:
-        # User already has an account — add them to this pod if not already a member.
         already = UserPodMembership.query.filter_by(
             user_id=existing_user.id, family_id=current_user.active_family_id
         ).first()
@@ -1712,29 +1744,21 @@ def _send_member_invite(person, email):
                 url_for('main.home', _external=True),
             )
         return (f'{person.get_display_name()} has been added to this circle.', 'info')
+
+    # Brand-new invite.
     names = person.name.strip().split()
-    first = names[0]
-    last = ' '.join(names[1:]) if len(names) > 1 else ''
-    token = secrets.token_urlsafe(32)
     invited_user = User(
         family_id=current_user.active_family_id,
         email=email,
-        first_name=first,
-        last_name=last,
+        first_name=names[0],
+        last_name=' '.join(names[1:]) if len(names) > 1 else '',
         password_hash='',
         status='invited',
-        invitation_token=_hash_token(token),
-        invitation_token_expiry=datetime.utcnow() + timedelta(days=7),
         person_id=person.id,
     )
     db.session.add(invited_user)
-    db.session.commit()
-    inviting_name = current_user.person.get_display_name() if current_user.person else current_user.get_full_name()
-    if current_app.config.get('MAIL_ENABLED'):
-        send_member_invitation_email(
-            inviting_name, first, current_user.active_family.name,
-            email, url_for('main.register_invited', token=token, _external=True)
-        )
+    db.session.flush()
+    _email_invite_link(invited_user, email)
     return (f'Invitation sent to {email}.', 'info')
 
 
@@ -1746,9 +1770,6 @@ def invite_person(person_id):
     if not person or person.family_id != current_user.active_family_id:
         flash('Person not found.', 'error')
         return redirect(url_for('main.home'))
-    if person.user:
-        flash(f'{person.get_display_name()} already has an account.', 'error')
-        return redirect(url_for('main.person_detail', person_id=person_id))
     if person.deathday:
         flash('Cannot invite a deceased person.', 'error')
         return redirect(url_for('main.person_detail', person_id=person_id))
@@ -1756,6 +1777,8 @@ def invite_person(person_id):
     if not email:
         flash('Add an email address to this person before sending an invitation.', 'error')
         return redirect(url_for('main.person_edit', person_id=person_id))
+    # _send_member_invite handles fresh-invite vs resend (existing invited
+    # account) and refuses only fully-registered accounts.
     msg, category = _send_member_invite(person, email)
     flash(msg, category)
     return redirect(url_for('main.person_detail', person_id=person_id))
@@ -2165,7 +2188,7 @@ def spouse_invite():
             email_verified=False,
             status='invited',
             invitation_token=_hash_token(invitation_token),
-            invitation_token_expiry=datetime.utcnow() + timedelta(days=7),
+            invitation_token_expiry=datetime.utcnow() + timedelta(days=INVITE_VALID_DAYS),
             invited_by_id=current_user.id,
             family_id=current_user.active_family_id,
             person_id=spouse_person.id,
