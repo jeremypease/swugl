@@ -82,7 +82,8 @@ def refresh():
         return error_response(401, 'User not found.', 'invalid_credentials')
     additional_claims = {'family_id': user.family_id}
     access = create_access_token(identity=user_id, additional_claims=additional_claims)
-    return jsonify({'access_token': access}), 200
+    new_refresh = create_refresh_token(identity=user_id)
+    return jsonify({'access_token': access, 'refresh_token': new_refresh}), 200
 
 
 @api.route('/auth/logout', methods=['POST'])
