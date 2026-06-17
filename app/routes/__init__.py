@@ -1453,6 +1453,47 @@ def admin_users():
     non_directory = Person.query.filter_by(family_id=current_user.active_family_id, in_directory=False).order_by(Person.name).all()
     return render_template('admin_users.html', pending=pending, people=people, non_directory=non_directory)
 
+
+@main.route('/admin/merge-people', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def merge_people():
+    """Admin tool to merge two duplicate Person records. Two-step: preview
+    (runs the merge in a transaction and rolls back) → confirm (commits)."""
+    from ..people_merge import merge_person_records
+    fid = current_user.active_family_id
+    people = Person.query.filter_by(family_id=fid).order_by(Person.name).all()
+    keep_id = request.values.get('keep_id', type=int)
+    remove_id = request.values.get('remove_id', type=int)
+    preview = None
+    if request.method == 'POST':
+        keep = db.session.get(Person, keep_id) if keep_id else None
+        remove = db.session.get(Person, remove_id) if remove_id else None
+        if (not keep or not remove or keep.family_id != fid or remove.family_id != fid):
+            flash('Pick two people from this family.', 'error')
+        elif keep_id == remove_id:
+            flash('Pick two different people to merge.', 'error')
+        elif request.form.get('confirm') == '1':
+            keep_name, remove_name = keep.name, remove.name
+            try:
+                merge_person_records(keep, remove)
+                db.session.commit()
+                flash(f'Merged "{remove_name}" into "{keep_name}". '
+                      'The duplicate has been removed and all its history kept.', 'info')
+                return redirect(url_for('main.admin_users'))
+            except ValueError as e:
+                db.session.rollback()
+                flash(str(e), 'error')
+        else:
+            try:
+                preview = merge_person_records(keep, remove)  # collect actions…
+            except ValueError as e:
+                flash(str(e), 'error')
+            db.session.rollback()  # …then undo: this was only a preview
+    return render_template('merge_people.html', people=people,
+                           keep_id=keep_id, remove_id=remove_id, preview=preview)
+
+
 @main.route('/admin/approve/<int:user_id>', methods=['POST'])
 @login_required
 @admin_required

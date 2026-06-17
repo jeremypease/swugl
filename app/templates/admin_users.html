@@ -79,7 +79,10 @@
             <h1 style="margin-bottom:4px;">Members &amp; Invites</h1>
             <div style="font-size:14px;color:var(--slate);">{{ people|length }} family member{{ 's' if people|length != 1 }}</div>
         </div>
-        <a href="/admin/add-member" class="btn btn-primary"><i data-lucide="user-plus"></i> Add member</a>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <a href="{{ url_for('main.merge_people') }}" class="btn btn-secondary"><i data-lucide="git-merge"></i> Merge duplicates</a>
+            <a href="/admin/add-member" class="btn btn-primary"><i data-lucide="user-plus"></i> Add member</a>
+        </div>
     </div>
 
     {# Pending approval #}

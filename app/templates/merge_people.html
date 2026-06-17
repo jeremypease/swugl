@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Merge duplicates — {{ current_user.active_family.name }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <div class="eyebrow"><a href="{{ url_for('main.admin_users') }}" style="color:var(--slate);text-decoration:none;">← Members &amp; invites</a></div>
+        <h1>Merge duplicate people</h1>
+    </div>
+</div>
+
+<div style="max-width:560px;">
+    <div class="card">
+        <p style="color:var(--slate);font-size:14px;margin-bottom:18px;line-height:1.5;">
+            Pick the record to <strong>keep</strong> and the duplicate to <strong>remove</strong>.
+            Every relationship, photo, event, and the login account from the duplicate moves to the
+            kept record — then the duplicate is deleted. Preview first; nothing changes until you confirm.
+        </p>
+        <form method="POST" action="{{ url_for('main.merge_people') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="field">
+                <label for="keep_id">Keep this record</label>
+                <select name="keep_id" id="keep_id" required>
+                    <option value="">— choose —</option>
+                    {% for p in people %}
+                    <option value="{{ p.id }}" {% if p.id == keep_id %}selected{% endif %}>{{ p.name }} (#{{ p.id }}){% if p.user %} — {{ p.user.email }}{% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="field">
+                <label for="remove_id">Remove this duplicate</label>
+                <select name="remove_id" id="remove_id" required>
+                    <option value="">— choose —</option>
+                    {% for p in people %}
+                    <option value="{{ p.id }}" {% if p.id == remove_id %}selected{% endif %}>{{ p.name }} (#{{ p.id }}){% if p.user %} — {{ p.user.email }}{% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-secondary"><i data-lucide="git-merge"></i> Preview merge</button>
+        </form>
+    </div>
+
+    {% if preview is not none %}
+    <div class="card" style="margin-top:20px;border-color:var(--vine);">
+        <div class="card-header"><h3>Preview — what will happen</h3></div>
+        {% if preview %}
+        <ul style="font-size:14px;color:var(--ink-soft);line-height:1.8;margin:0 0 18px;padding-left:20px;">
+            {% for line in preview %}<li>{{ line }}</li>{% endfor %}
+        </ul>
+        {% else %}
+        <p style="color:var(--slate);font-size:14px;margin-bottom:18px;">The duplicate has no data to transfer — it will simply be deleted.</p>
+        {% endif %}
+        <form method="POST" action="{{ url_for('main.merge_people') }}"
+              data-confirm="Merge and permanently delete the duplicate? This cannot be undone.">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="keep_id" value="{{ keep_id }}">
+            <input type="hidden" name="remove_id" value="{{ remove_id }}">
+            <input type="hidden" name="confirm" value="1">
+            <button type="submit" class="btn btn-danger"><i data-lucide="git-merge"></i> Confirm merge</button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
