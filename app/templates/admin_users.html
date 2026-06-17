@@ -195,6 +195,16 @@
                             <i data-lucide="send" style="width:13px;height:13px;"></i> Resend
                         </button>
                     </form>
+                    <a href="{{ url_for('main.person_edit', person_id=person.id) }}" class="btn btn-ghost btn-sm" style="color:var(--slate);" title="Edit details / fix email">
+                        <i data-lucide="pencil" style="width:13px;height:13px;"></i> Edit
+                    </a>
+                    <form method="POST" action="{{ url_for('main.cancel_invite', user_id=person.user.id) }}"
+                          data-confirm="Cancel the invitation to {{ person.get_display_name() }}? Their account-in-waiting is removed; the person stays in the tree.">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);" title="Cancel invitation">
+                            <i data-lucide="x" style="width:13px;height:13px;"></i> Cancel
+                        </button>
+                    </form>
                 {% endif %}
             </div>
         </div>

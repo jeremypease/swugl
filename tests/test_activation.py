@@ -118,3 +118,40 @@ def test_invite_refuses_registered_account(app, auth_client):
         db.session.commit()
     r = auth_client.post(f'/person/{pid}/invite', follow_redirects=True)
     assert b'already has an account' in r.data
+
+
+# ── fix invited email + cancel invite ────────────────────────────────────────
+
+def test_edit_updates_invited_account_email(app, auth_client):
+    with app.app_context():
+        pid = _invite_target(app, name='Jeff Pease', email='wrong@icloud.com')
+    auth_client.post(f'/person/{pid}/invite', follow_redirects=True)
+    auth_client.post(f'/person/{pid}/edit',
+                     data={'name': 'Jeff Pease', 'gender': 'Male', 'email': 'jnpease@icloud.com'},
+                     follow_redirects=True)
+    with app.app_context():
+        person = db.session.get(Person, pid)
+        assert person.email == 'jnpease@icloud.com'
+        assert person.user.email == 'jnpease@icloud.com'   # pending account synced
+
+
+def test_cancel_invite_removes_account_keeps_person(app, auth_client):
+    with app.app_context():
+        pid = _invite_target(app, name='Jeff Pease', email='jeff@example.com')
+    auth_client.post(f'/person/{pid}/invite', follow_redirects=True)
+    with app.app_context():
+        uid = db.session.get(Person, pid).user.id
+    auth_client.post(f'/admin/cancel-invite/{uid}', follow_redirects=True)
+    with app.app_context():
+        assert db.session.get(User, uid) is None       # pending account gone
+        assert db.session.get(Person, pid) is not None  # person kept
+
+
+def test_cancel_invite_only_targets_invited(app, auth_client):
+    with app.app_context():
+        admin = User.query.filter_by(email='admin@pease-family.com').first()
+        admin_uid = admin.id
+    # admin is approved, not invited → refused, still present
+    auth_client.post(f'/admin/cancel-invite/{admin_uid}', follow_redirects=True)
+    with app.app_context():
+        assert db.session.get(User, admin_uid) is not None

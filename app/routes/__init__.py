@@ -1494,6 +1494,23 @@ def merge_people():
                            keep_id=keep_id, remove_id=remove_id, preview=preview)
 
 
+@main.route('/admin/cancel-invite/<int:user_id>', methods=['POST'])
+@login_required
+@admin_required
+def cancel_invite(user_id):
+    """Delete a pending (invited, not-yet-registered) account. The person stays
+    in the family tree; only the dangling invitation is removed."""
+    user = db.session.get(User, user_id)
+    if not user or user.family_id != current_user.active_family_id or user.status != 'invited':
+        flash('Pending invitation not found.', 'error')
+        return redirect(url_for('main.admin_users'))
+    name = user.get_full_name()
+    db.session.delete(user)   # invited users have no memberships/prefs/content to cascade
+    db.session.commit()
+    flash(f'Invitation to {name} cancelled. You can re-invite them anytime.', 'info')
+    return redirect(url_for('main.admin_users'))
+
+
 @main.route('/admin/approve/<int:user_id>', methods=['POST'])
 @login_required
 @admin_required
@@ -2038,9 +2055,18 @@ def person_edit(person_id):
         person.deathday = form.deathday.data
         person.deathplace = form.deathplace.data or None
         person.notes = form.notes.data or None
-        # Only update email if person has no login account (otherwise email = login email)
-        if not person.user:
-            person.email = form.email.data or None
+        # Email is editable while there's no registered account — i.e. no user, or
+        # one that's still only invited (so an admin can fix a wrong invite address).
+        if not person.user or person.user.status == 'invited':
+            new_email = (form.email.data or '').strip() or None
+            person.email = new_email
+            if person.user and new_email:
+                # Keep the pending account's email in sync (collision-safe).
+                clash = User.query.filter(User.email == new_email, User.id != person.user.id).first()
+                if clash:
+                    flash('Another account already uses that email.', 'error')
+                    return redirect(url_for('main.person_edit', person_id=person_id))
+                person.user.email = new_email
         # Handle photo upload/removal
         if form.remove_photo.data and person.photo_path:
             delete_object(person.photo_path)
