@@ -366,9 +366,17 @@ document.addEventListener('click', function(e) {
     }, true);
 
     okBtn.addEventListener('click', function() {
-        var btn = pending;
+        var el = pending;
         close();
-        if (btn) { btn.__confirmed = true; btn.click(); }  // re-fire; this time it passes through
+        if (!el) return;
+        // data-confirm can sit on a <form> (submit it — click() is a no-op on
+        // forms) or on a button/link (re-fire the click, which now passes through).
+        if (el.tagName === 'FORM') {
+            if (el.requestSubmit) { el.requestSubmit(); } else { el.submit(); }
+        } else {
+            el.__confirmed = true;
+            el.click();
+        }
     });
     cancelBtn.addEventListener('click', close);
     modal.addEventListener('click', function(e) { if (e.target === modal) close(); });
