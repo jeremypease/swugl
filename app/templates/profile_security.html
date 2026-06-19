@@ -162,10 +162,10 @@
                   data-confirm="Permanently delete your account? This cannot be undone.">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="field">
-                    <label for="confirm-delete">Type <strong>DELETE</strong> to confirm</label>
-                    <input type="text" id="confirm-delete" name="confirm" autocomplete="off" required>
+                    <label for="confirm-delete">Type the word <strong>DELETE</strong> (all caps) to confirm</label>
+                    <input type="text" id="confirm-delete" name="confirm" placeholder="DELETE" autocomplete="off" required>
                 </div>
-                <button type="submit" class="btn" style="background:#b91c1c;color:#fff;">Delete my account</button>
+                <button type="submit" class="btn" style="background:#b91c1c;color:#fff;">Delete my account &amp; circle</button>
             </form>
         </div>
     </div>

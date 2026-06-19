@@ -1,7 +1,7 @@
 import io
 import pytest
 from PIL import Image
-from app.models import Family, User, Person, ChatMessage
+from app.models import Family, User, Person, ChatMessage, StoryPrompt, StoryResponse
 from app import db
 
 
@@ -90,6 +90,29 @@ def test_sole_user_delete_purges_family(app, auth_client):
         assert User.query.filter_by(email='admin@pease-family.com').first() is None
         assert Person.query.filter_by(family_id=family_id).count() == 0
         # Other family untouched
+        assert User.query.filter_by(email='admin@other-family.com').first() is not None
+
+
+def test_sole_user_delete_purges_family_with_stories(app, auth_client):
+    """Regression (#60): a circle with Family Stories used to fail to delete —
+    StoryPrompt.person_id / family_id are NOT NULL and weren't scrubbed, so the
+    Person/Family delete hit a foreign-key violation."""
+    with app.app_context():
+        admin = User.query.filter_by(email='admin@pease-family.com').first()
+        family_id, person_id = admin.family_id, admin.person_id
+        prompt = StoryPrompt(family_id=family_id, person_id=person_id,
+                             question='What was your first job?', source='manual')
+        db.session.add(prompt); db.session.flush()
+        db.session.add(StoryResponse(prompt_id=prompt.id, answer='Paper route.',
+                                     answered_by_id=person_id))
+        db.session.commit()
+    rv = auth_client.post('/profile/delete-account', data={'confirm': 'DELETE'},
+                          follow_redirects=False)
+    assert rv.status_code == 302
+    with app.app_context():
+        assert db.session.get(Family, family_id) is None
+        assert StoryPrompt.query.filter_by(family_id=family_id).count() == 0
+        assert StoryResponse.query.count() == 0          # cascaded with its prompt
         assert User.query.filter_by(email='admin@other-family.com').first() is not None
 
 

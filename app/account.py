@@ -14,7 +14,7 @@ from .models import (
     Photo, Poll, GreetingCard, Checklist, Location, Document, ChatMessage,
     Notification, NotificationPreference, UserDevice, OAuthAccount,
     CalendarToken, UserPodMembership, SupportNote, PlatformAuditLog,
-    FamilyPayoutAccount, EventPaymentRecord,
+    FamilyPayoutAccount, EventPaymentRecord, StoryPrompt,
 )
 from .storage import delete_object
 
@@ -110,8 +110,11 @@ def purge_family(family):
     ChatMessage.query.filter_by(family_id=family.id).delete()
     SupportNote.query.filter_by(pod_id=family.id).delete()
     Document.query.filter_by(family_id=family.id).delete()
+    # StoryPrompt must precede Person/Family deletion — its person_id and
+    # family_id are NOT NULL, so leftover rows block the purge. Its responses
+    # cascade (StoryPrompt.responses = delete-orphan).
     for model in (Location, Checklist, GreetingCard, Poll, Album,
-                  Announcement, Event):
+                  Announcement, Event, StoryPrompt):
         for row in model.query.filter_by(family_id=family.id).all():
             db.session.delete(row)  # per-aggregate cascades handle children
     FamilyPayoutAccount.query.filter_by(family_id=family.id).delete()
