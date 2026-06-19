@@ -1,13 +1,16 @@
 import json
 import time
+import secrets
+from datetime import datetime, timedelta
 import requests as http_requests
 import jwt as pyjwt
-from flask import Blueprint, redirect, url_for, flash, session, current_app, abort, request
+from flask import (Blueprint, redirect, url_for, flash, session, current_app,
+                   abort, request, render_template)
 from flask_login import login_user, login_required, current_user
 from authlib.integrations.flask_client import OAuth
 
 from . import db
-from .models import User, OAuthAccount
+from .models import User, OAuthAccount, Family, Person, NotificationPreference
 
 oauth_bp = Blueprint('oauth', __name__)
 oauth = OAuth()
@@ -63,6 +66,138 @@ def init_oauth(app):
             app.logger.error(f'Apple Sign-In failed to initialize: {e}')
 
 
+# ── Account-creation helpers (shared by Google + Apple) ─────────────────────────
+
+def _login_and_home(user):
+    login_user(user)
+    session['active_family_id'] = user.family_id
+    return redirect(url_for('main.home'))
+
+
+def _set_oauth_intent(invite_token):
+    """Stash the intent for the upcoming provider round-trip. An invite token
+    (from the invitation link) means 'activate that pending account'."""
+    if invite_token:
+        session['oauth_action'] = 'invite'
+        session['oauth_invite_token'] = invite_token
+    else:
+        session.pop('oauth_action', None)
+        session.pop('oauth_invite_token', None)
+
+
+def _lookup_invited_user(token):
+    """Resolve a still-valid invited account from a raw invite token, or None."""
+    if not token:
+        return None
+    from .routes import _hash_token
+    user = User.query.filter_by(invitation_token=_hash_token(token)).first()
+    if not user or user.status != 'invited':
+        return None
+    if user.invitation_token_expiry and user.invitation_token_expiry < datetime.utcnow():
+        return None
+    return user
+
+
+def _activate_invited_via_oauth(invited_user, provider, provider_id):
+    """Claim a pending invited account with a verified OAuth identity.
+
+    Possessing the (already-validated) invite token is the authorization, so we
+    don't require the provider email to match the invited email — this is what
+    makes Apple private-relay addresses work. We only refuse if this exact
+    provider identity is already tied to a different user."""
+    existing = OAuthAccount.query.filter_by(
+        provider=provider, provider_user_id=provider_id).first()
+    if existing and existing.user_id != invited_user.id:
+        flash(f'That {provider.capitalize()} account is already linked to another user.', 'error')
+        return redirect(url_for('main.login'))
+    if not existing:
+        db.session.add(OAuthAccount(user_id=invited_user.id, provider=provider,
+                                    provider_user_id=provider_id))
+
+    from .routes import finalize_invited_activation
+    status = finalize_invited_activation(invited_user)
+    if status == 'pending':
+        flash('Account created! An admin will review and approve your access shortly.', 'info')
+        return redirect(url_for('main.login'))
+    flash('Welcome! Your account is ready.', 'info')
+    return _login_and_home(invited_user)
+
+
+def _begin_new_signup(provider, provider_id, email, first_name, last_name):
+    """A verified OAuth identity with no existing account. Honor the same gate
+    as /register, then collect a circle name before creating the pod."""
+    if not current_app.config.get('REGISTRATION_OPEN'):
+        flash('Registration is currently closed.', 'error')
+        return redirect(url_for('main.login'))
+    session['pending_oauth'] = {
+        'provider': provider, 'provider_id': provider_id, 'email': email,
+        'first_name': first_name or '', 'last_name': last_name or '',
+    }
+    return redirect(url_for('oauth.complete_signup'))
+
+
+def _create_pod_from_oauth(provider, provider_id, email, first_name, last_name, family_name):
+    """Create a brand-new circle (Family + Person + admin User) for a verified
+    OAuth identity, mirroring register() but with the email already verified."""
+    account_id = 'pod_' + secrets.token_urlsafe(6)
+    family = Family(name=family_name, account_id=account_id, plan='trial',
+                    trial_ends_at=datetime.utcnow() + timedelta(days=30))
+    db.session.add(family)
+    db.session.flush()
+    full_name = f'{first_name} {last_name}'.strip()
+    person = Person(name=full_name, email=email, family_id=family.id)
+    db.session.add(person)
+    db.session.flush()
+    user = User(first_name=first_name, last_name=last_name, email=email,
+                email_verified=True, status='approved', is_admin=True,
+                family_id=family.id, person_id=person.id, password_hash='')
+    db.session.add(user)
+    db.session.flush()
+    db.session.add(OAuthAccount(user_id=user.id, provider=provider,
+                                provider_user_id=provider_id))
+    NotificationPreference.seed_defaults(user.id)
+    from .routes import _ensure_membership
+    _ensure_membership(user)
+    db.session.commit()
+    if current_app.config.get('MAIL_ENABLED'):
+        from .email import send_welcome_email
+        send_welcome_email(user, family, url_for('main.home', _external=True))
+    return user
+
+
+@oauth_bp.route('/auth/complete-signup', methods=['GET', 'POST'])
+def complete_signup():
+    """Finish-setup page after a brand-new user authenticates with Apple/Google:
+    capture a circle name, then create the pod and sign them in."""
+    pending = session.get('pending_oauth')
+    if not pending:
+        return redirect(url_for('main.login'))
+    if not current_app.config.get('REGISTRATION_OPEN'):
+        session.pop('pending_oauth', None)
+        return render_template('registration_closed.html'), 403
+
+    from .forms import OAuthSignupForm
+    form = OAuthSignupForm()
+    if request.method == 'GET':
+        form.first_name.data = pending.get('first_name') or ''
+        form.last_name.data = pending.get('last_name') or ''
+
+    if form.validate_on_submit():
+        if User.query.filter_by(email=pending['email']).first():
+            session.pop('pending_oauth', None)
+            flash('An account with that email already exists. Please sign in.', 'error')
+            return redirect(url_for('main.login'))
+        user = _create_pod_from_oauth(
+            pending['provider'], pending['provider_id'], pending['email'],
+            form.first_name.data, form.last_name.data, form.family_name.data,
+        )
+        session.pop('pending_oauth', None)
+        return _login_and_home(user)
+
+    return render_template('oauth_complete_signup.html', form=form,
+                           email=pending['email'], provider=pending.get('provider'))
+
+
 # ── Google ────────────────────────────────────────────────────────────────────
 
 @oauth_bp.route('/auth/google')
@@ -72,6 +207,7 @@ def google_login():
         return redirect(url_for('main.login'))
     if current_user.is_authenticated:
         return redirect(url_for('main.home'))
+    _set_oauth_intent(request.args.get('invite'))
     redirect_uri = url_for('oauth.google_callback', _external=True)
     return oauth.google.authorize_redirect(redirect_uri)
 
@@ -92,7 +228,9 @@ def google_callback():
     if not current_app.config.get('GOOGLE_CLIENT_ID'):
         return redirect(url_for('main.login'))
 
-    linking = session.pop('oauth_action', None) == 'link'
+    action = session.pop('oauth_action', None)
+    invite_token = session.pop('oauth_invite_token', None)
+    linking = action == 'link'
 
     try:
         token = oauth.google.authorize_access_token()
@@ -107,6 +245,13 @@ def google_callback():
 
     provider_id = userinfo['sub']
     email = userinfo['email']
+
+    if action == 'invite':
+        invited = _lookup_invited_user(invite_token)
+        if not invited:
+            flash('That invitation link is invalid or has expired. Please ask to be re-invited.', 'error')
+            return redirect(url_for('main.login'))
+        return _activate_invited_via_oauth(invited, 'google', provider_id)
 
     if linking:
         if not current_user.is_authenticated:
@@ -131,9 +276,9 @@ def google_callback():
     else:
         user = User.query.filter_by(email=email).first()
         if not user:
-            flash('No account found for that Google address. '
-                  'Please register or ask a family admin to invite you.', 'error')
-            return redirect(url_for('main.login'))
+            # No account yet → start self-serve signup (gated by REGISTRATION_OPEN).
+            return _begin_new_signup('google', provider_id, email,
+                                     userinfo.get('given_name'), userinfo.get('family_name'))
         link = OAuthAccount(user_id=user.id, provider='google', provider_user_id=provider_id)
         db.session.add(link)
         db.session.commit()
@@ -159,6 +304,7 @@ def apple_login():
         return redirect(url_for('main.login'))
     if current_user.is_authenticated:
         return redirect(url_for('main.home'))
+    _set_oauth_intent(request.args.get('invite'))
     redirect_uri = (current_app.config.get('APPLE_REDIRECT_URI')
                     or url_for('oauth.apple_callback', _external=True))
     current_app.logger.warning(f'Apple login redirect_uri: {redirect_uri}')
@@ -182,7 +328,9 @@ def apple_callback():
     if not current_app.config.get('APPLE_CLIENT_ID'):
         return redirect(url_for('main.login'))
 
-    linking = session.pop('oauth_action', None) == 'link'
+    action = session.pop('oauth_action', None)
+    invite_token = session.pop('oauth_invite_token', None)
+    linking = action == 'link'
 
     # Capture these before authorize_access_token() consumes the form data.
     form_id_token = request.form.get('id_token')
@@ -279,13 +427,25 @@ def apple_callback():
     # Apple sends email in id_token claims on first sign-in only.
     # The 'user' form field (JSON) is also only present on first sign-in.
     email = id_token_claims.get('email')
+    apple_first = apple_last = None
     user_json = request.form.get('user')
-    if user_json and not email:
+    if user_json:
         try:
             user_data = json.loads(user_json)
-            email = user_data.get('email')
+            if not email:
+                email = user_data.get('email')
+            name = user_data.get('name') or {}
+            apple_first = name.get('firstName')
+            apple_last = name.get('lastName')
         except (ValueError, KeyError):
             pass
+
+    if action == 'invite':
+        invited = _lookup_invited_user(invite_token)
+        if not invited:
+            flash('That invitation link is invalid or has expired. Please ask to be re-invited.', 'error')
+            return redirect(url_for('main.login'))
+        return _activate_invited_via_oauth(invited, 'apple', provider_id)
 
     if linking:
         if not current_user.is_authenticated:
@@ -310,9 +470,11 @@ def apple_callback():
     else:
         user = User.query.filter_by(email=email).first() if email else None
         if not user:
-            flash('No account found for that Apple ID. '
-                  'Please register or ask a family admin to invite you.', 'error')
-            return redirect(url_for('main.login'))
+            if not email:
+                flash('Apple didn\'t share an email, so we couldn\'t create an account. '
+                      'Use your invitation link, or register first.', 'error')
+                return redirect(url_for('main.login'))
+            return _begin_new_signup('apple', provider_id, email, apple_first, apple_last)
         link = OAuthAccount(user_id=user.id, provider='apple', provider_user_id=provider_id)
         db.session.add(link)
         db.session.commit()

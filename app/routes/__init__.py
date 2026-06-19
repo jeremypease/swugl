@@ -678,6 +678,27 @@ def resend_verification():
     return render_template('resend_verification.html', email=email, expired=expired)
 
 
+def finalize_invited_activation(invited_user):
+    """Shared finalize step when an invited account is claimed — by password
+    (register_invited) or by Apple/Google (oauth). Verifies the email, clears
+    the invite token, applies the family's approval policy, and on approval
+    seeds prefs + membership and notifies the family. Returns the resulting
+    status ('approved' or 'pending'). Does NOT log the user in or flash."""
+    invited_user.email_verified = True
+    invited_user.invitation_token = None
+    invited_user.invitation_token_expiry = None
+    if invited_user.family and invited_user.family.require_member_approval:
+        invited_user.status = 'pending'
+        db.session.commit()
+        return 'pending'
+    invited_user.status = 'approved'
+    NotificationPreference.seed_defaults(invited_user.id)
+    _ensure_membership(invited_user)
+    db.session.commit()
+    _notify_new_member(invited_user)
+    return 'approved'
+
+
 @main.route('/register/invite/<token>', methods=['GET', 'POST'])
 @limiter.limit('10 per hour', methods=['POST'])
 def register_invited(token):
@@ -701,28 +722,18 @@ def register_invited(token):
         invited_user.last_name = form.last_name.data
         invited_user.phone = format_phone(form.phone.data)
         invited_user.set_password(form.password.data)
-        invited_user.email_verified = True
-        invited_user.invitation_token = None
-        invited_user.invitation_token_expiry = None
         # Sync person name if first/last name changed during registration
         if invited_user.person:
             invited_user.person.name = f"{form.first_name.data} {form.last_name.data}"
-        if invited_user.family and invited_user.family.require_member_approval:
-            invited_user.status = 'pending'
-            db.session.commit()
+        if finalize_invited_activation(invited_user) == 'pending':
             if current_app.config.get('MAIL_ENABLED'):
                 send_pending_notification(invited_user)
             flash('Account created! An admin will review and approve your access shortly.', 'info')
         else:
-            invited_user.status = 'approved'
-            NotificationPreference.seed_defaults(invited_user.id)
-            _ensure_membership(invited_user)
-            db.session.commit()
-            _notify_new_member(invited_user)
             flash('Account created! You can now log in.', 'info')
         return redirect(url_for('main.login'))
 
-    return render_template('register.html', form=form, invited=True)
+    return render_template('register.html', form=form, invited=True, oauth_invite_token=token)
 
 @main.route('/admin/add-member', methods=['GET', 'POST'])
 @login_required

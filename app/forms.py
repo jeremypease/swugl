@@ -75,6 +75,16 @@ class RegistrationForm(FlaskForm):
     submit = SubmitField('Register')
 
 
+class OAuthSignupForm(FlaskForm):
+    """Finish-setup for a brand-new user creating their own circle via
+    Apple/Google. Email comes from the verified provider (not editable here);
+    we only need a circle name plus a confirmed display name."""
+    family_name = StringField('Family Name', validators=[DataRequired(), Length(min=2, max=100)])
+    first_name = StringField('First Name', validators=[DataRequired(), Length(min=2, max=50)])
+    last_name = StringField('Last Name', validators=[DataRequired(), Length(min=2, max=50)])
+    submit = SubmitField('Create my circle')
+
+
 class ProfileForm(FlaskForm):
     nickname = StringField('Nickname', validators=[Optional(), Length(max=50)])
     gender = SelectField('Gender', choices=[
