@@ -78,11 +78,13 @@ def event_rsvp(event_id):
 
     user_id = get_jwt_identity()
     user = User.query.get(int(user_id))
-    household_person_ids = {p.id for p in (user.person.household_members() if user and user.person else [])}
-    if user and user.person_id:
-        household_person_ids.add(user.person_id)
-    if person_id not in household_person_ids:
-        return error_response(403, 'You may only RSVP for your household members.', 'forbidden')
+    # Admins may RSVP anyone; members only their own household. Mirror the web
+    # route's rule rather than reinventing it (routes/events._get_household_ids).
+    if not (user and user.is_admin):
+        from ..routes.events import _get_household_ids
+        household_ids = _get_household_ids(user.person if user else None)
+        if person_id not in household_ids:
+            return error_response(403, 'You may only RSVP for your household members.', 'forbidden')
 
     rsvp = EventRSVP.query.filter_by(event_id=event_id, person_id=person_id).first()
     if rsvp:
