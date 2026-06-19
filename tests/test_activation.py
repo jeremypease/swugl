@@ -167,3 +167,23 @@ def test_invited_edit_page_shows_email_field(app, auth_client):
     assert 'name="email"' in html
     assert 'wrong@icloud.com' in html          # pre-filled, editable
     assert 'managed through' not in html        # the blocking note is gone
+
+
+def test_cancel_invite_with_dependent_notification(app, auth_client):
+    """Regression: an invited account can have a notification; cancelling must
+    not crash on the NOT NULL notifications.user_id (Sentry 7559130874)."""
+    from app.models import Notification
+    with app.app_context():
+        pid = _invite_target(app, name='Notif Invitee', email='ni@example.com')
+    auth_client.post(f'/person/{pid}/invite', follow_redirects=True)
+    with app.app_context():
+        uid = db.session.get(Person, pid).user.id
+        db.session.add(Notification(user_id=uid, event_type='chat_message',
+                                    title='New message', body='hi', url='/chat'))
+        db.session.commit()
+    r = auth_client.post(f'/admin/cancel-invite/{uid}', follow_redirects=True)
+    assert r.status_code == 200
+    with app.app_context():
+        assert db.session.get(User, uid) is None
+        assert Notification.query.filter_by(user_id=uid).count() == 0
+        assert db.session.get(Person, pid) is not None

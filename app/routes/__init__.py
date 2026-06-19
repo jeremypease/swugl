@@ -1505,7 +1505,12 @@ def cancel_invite(user_id):
         flash('Pending invitation not found.', 'error')
         return redirect(url_for('main.admin_users'))
     name = user.get_full_name()
-    db.session.delete(user)   # invited users have no memberships/prefs/content to cascade
+    # Clean up dependent rows first — an invited account can still have
+    # notifications etc., and notifications.user_id is NOT NULL, so a bare
+    # delete makes SQLAlchemy try to null them and Postgres rejects it.
+    from ..account import _scrub_user_rows
+    _scrub_user_rows(user)
+    db.session.delete(user)
     db.session.commit()
     flash(f'Invitation to {name} cancelled. You can re-invite them anytime.', 'info')
     return redirect(url_for('main.admin_users'))
