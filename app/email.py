@@ -25,6 +25,13 @@ def send_email(to_email, subject, html_content, reply_to=None):
         return True
     except Exception as e:
         print(f"Email error: {e}")
+        # Surface the real failure — a swallowed send looks like "nothing sent"
+        # with no trace. Report it so the next failure is diagnosable.
+        try:
+            import sentry_sdk
+            sentry_sdk.capture_exception(e)
+        except Exception:
+            pass
         return False
 
 

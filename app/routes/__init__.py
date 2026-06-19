@@ -1747,18 +1747,32 @@ INVITE_VALID_DAYS = 30  # how long a member invitation link stays valid
 
 def _email_invite_link(invited_user, email):
     """Mint a fresh token on an invited User, persist it, and email the link.
-    Used for both first-time invites and resends."""
+    Used for both first-time invites and resends.
+
+    Returns True only if the invitation email was actually accepted by the
+    mail provider. Returns False when mail is disabled or the send failed —
+    so callers can tell the admin the truth instead of claiming "sent" when
+    nothing left the building."""
     token = secrets.token_urlsafe(32)
     invited_user.invitation_token = _hash_token(token)
     invited_user.invitation_token_expiry = datetime.utcnow() + timedelta(days=INVITE_VALID_DAYS)
     db.session.commit()
+    if not current_app.config.get('MAIL_ENABLED'):
+        return False
     inviting_name = (current_user.person.get_display_name()
                      if current_user.person else current_user.get_full_name())
-    if current_app.config.get('MAIL_ENABLED'):
-        send_member_invitation_email(
-            inviting_name, invited_user.first_name, current_user.active_family.name,
-            email, url_for('main.register_invited', token=token, _external=True)
-        )
+    return bool(send_member_invitation_email(
+        inviting_name, invited_user.first_name, current_user.active_family.name,
+        email, url_for('main.register_invited', token=token, _external=True)
+    ))
+
+
+def _invite_result_message(email, sent, resend=False):
+    """Build an honest (message, category) for an invite attempt."""
+    if sent:
+        return (f'Invitation {"resent" if resend else "sent"} to {email}.', 'info')
+    return (f"Couldn't send the invitation email to {email}. The account is "
+            f"ready — check mail settings, then use Resend.", 'error')
 
 
 def _send_member_invite(person, email):
@@ -1781,8 +1795,8 @@ def _send_member_invite(person, email):
         if person.user.status == 'invited':
             # Resend: refresh the token + expiry and email a new link.
             person.user.email = email
-            _email_invite_link(person.user, email)
-            return (f'Invitation resent to {email}.', 'info')
+            sent = _email_invite_link(person.user, email)
+            return _invite_result_message(email, sent, resend=True)
         return (f'{person.get_display_name()} already has an account.', 'error')
 
     # An account with this email exists elsewhere — add them to this pod.
@@ -1821,8 +1835,8 @@ def _send_member_invite(person, email):
     )
     db.session.add(invited_user)
     db.session.flush()
-    _email_invite_link(invited_user, email)
-    return (f'Invitation sent to {email}.', 'info')
+    sent = _email_invite_link(invited_user, email)
+    return _invite_result_message(email, sent)
 
 
 @main.route('/person/<int:person_id>/invite', methods=['POST'])
@@ -2267,13 +2281,18 @@ def spouse_invite():
         )
         db.session.add(invited_user)
         db.session.commit()
+        sent = False
         if current_app.config.get('MAIL_ENABLED'):
-            send_spouse_invitation_email(
+            sent = bool(send_spouse_invitation_email(
                 person,
                 invite_form.email.data,
                 url_for('main.register_invited', token=invitation_token, _external=True)
-            )
-        flash(f'Invitation sent to {full_name} at {invite_form.email.data}.', 'info')
+            ))
+        if sent:
+            flash(f'Invitation sent to {full_name} at {invite_form.email.data}.', 'info')
+        else:
+            flash(f"{full_name} was added, but the invitation email to "
+                  f"{invite_form.email.data} couldn't be sent. Check mail settings.", 'error')
         return redirect(url_for('main.profile'))
     form = SpouseForm()
     eligible = [

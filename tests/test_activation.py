@@ -187,3 +187,29 @@ def test_cancel_invite_with_dependent_notification(app, auth_client):
         assert db.session.get(User, uid) is None
         assert Notification.query.filter_by(user_id=uid).count() == 0
         assert db.session.get(Person, pid) is not None
+
+
+# ── honest invite flash (don't claim "sent" when nothing went out) ───────────
+
+def test_invite_warns_when_email_send_fails(app, auth_client, monkeypatch):
+    """Mail enabled but the provider rejects the send → tell the admin it
+    failed, and still leave the account ready to resend."""
+    import app.routes as routes_pkg
+    monkeypatch.setitem(app.config, 'MAIL_ENABLED', True)
+    monkeypatch.setattr(routes_pkg, 'send_member_invitation_email', lambda *a, **k: False)
+    with app.app_context():
+        pid = _invite_target(app, name='Send Fails', email='fails@example.com')
+    r = auth_client.post(f'/person/{pid}/invite', follow_redirects=True)
+    assert b'send the invitation email to fails@example.com' in r.data
+    with app.app_context():
+        assert User.query.filter_by(email='fails@example.com').first() is not None
+
+
+def test_invite_confirms_only_when_email_sent(app, auth_client, monkeypatch):
+    import app.routes as routes_pkg
+    monkeypatch.setitem(app.config, 'MAIL_ENABLED', True)
+    monkeypatch.setattr(routes_pkg, 'send_member_invitation_email', lambda *a, **k: True)
+    with app.app_context():
+        pid = _invite_target(app, name='Send Ok', email='ok@example.com')
+    r = auth_client.post(f'/person/{pid}/invite', follow_redirects=True)
+    assert b'Invitation sent to ok@example.com' in r.data
