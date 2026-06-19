@@ -1,5 +1,10 @@
+import re
 import resend
 from flask import current_app
+
+
+DEFAULT_FROM = 'Swugl <noreply@swugl.com>'
+_EMAIL_RE = re.compile(r'^[^@<>\s]+@[^@<>\s]+\.[^@<>\s]+$')
 
 
 def _client():
@@ -7,8 +12,34 @@ def _client():
     return resend.Emails
 
 
+def _valid_from(value):
+    """True if `value` is a From header Resend will accept — either
+    `email@example.com` or `Name <email@example.com>`, with no stray quotes."""
+    if not value:
+        return False
+    m = re.fullmatch(r'(?:(.*?)\s*<\s*(\S+)\s*>|(\S+))', value)
+    if not m:
+        return False
+    name, bracket_addr, bare_addr = m.groups()
+    if not _EMAIL_RE.match(bracket_addr or bare_addr or ''):
+        return False
+    # A display name carrying quotes/brackets is the usual Railway paste bug.
+    return not (name and ('"' in name or '<' in name or '>' in name))
+
+
 def _from():
-    return current_app.config.get('RESEND_FROM_EMAIL', 'Swugl <noreply@swugl.com>')
+    """Resolve the From header, falling back to a known-good default.
+
+    RESEND_FROM_EMAIL is operator-supplied; a malformed value (stray quotes,
+    a bare name, trailing whitespace) makes Resend reject *every* send and
+    silently takes down all email. Guard it so one bad env var can't."""
+    configured = (current_app.config.get('RESEND_FROM_EMAIL') or '').strip()
+    if _valid_from(configured):
+        return configured
+    if configured:
+        print(f"Ignoring malformed RESEND_FROM_EMAIL {configured!r}; "
+              f"using {DEFAULT_FROM!r}")
+    return DEFAULT_FROM
 
 
 def send_email(to_email, subject, html_content, reply_to=None):
