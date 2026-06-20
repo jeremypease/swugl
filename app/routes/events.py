@@ -503,6 +503,9 @@ def event_edit(event_id):
         if form.end_date.data and form.start_date.data and form.end_date.data < form.start_date.data:
             form.end_date.errors.append('End date cannot be before start date.')
             return render_template('event_form.html', form=form, event=event, saved_locations=saved_locations)
+        # Snapshot the fields worth notifying about, so a typo fix stays quiet.
+        _before = (event.start_date, event.start_time, event.end_date,
+                   event.end_time, event.location)
         event.name = form.name.data
         event.kind = form.kind.data or None
         event.description = form.description.data or None
@@ -542,6 +545,17 @@ def event_edit(event_id):
             if key:
                 event.cover_image_path = key
         db.session.commit()
+        # Only ping the family when the date/time/place actually moved.
+        if _before != (event.start_date, event.start_time, event.end_date,
+                       event.end_time, event.location):
+            from ..notifications import notify_family
+            notify_family(
+                event.family_id, 'event_updated',
+                title=f'{event.name} was updated',
+                body=event.date_range_display(),
+                url=url_for('main.event_detail', event_id=event.id, _external=True),
+                exclude_user_id=current_user.id,
+            )
         flash('Event updated.', 'info')
         return redirect(url_for('main.event_detail', event_id=event.id))
     # Pre-populate location_id from the event for the edit form
@@ -1092,7 +1106,20 @@ def event_rsvp(event_id):
     else:
         db.session.add(EventRSVP(event_id=event_id, person_id=person_id, status=status))
         db.session.commit()
+    if status != 'clear':
+        _notify_rsvp(event, person, status, actor_user_id=current_user.id)
     return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+def _notify_rsvp(event, person, status, actor_user_id=None):
+    """Tell the family's admins that an RSVP came in (web + API share this)."""
+    from ..notifications import notify_admins
+    notify_admins(
+        event.family_id, 'rsvp_received',
+        title=f"{person.get_display_name()} RSVP'd {status} to {event.name}",
+        url=url_for('main.event_detail', event_id=event.id, _external=True),
+        exclude_user_id=actor_user_id,
+    )
 
 
 def _get_household_ids(person):

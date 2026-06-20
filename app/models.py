@@ -372,6 +372,12 @@ NOTIFICATION_EVENTS = {
     'new_photos':    {'label': 'New photos added',       'default': True,  'in_app': True},
     'story_prompt':  {'label': 'Your weekly story prompt', 'default': True, 'in_app': True},
     'new_story':     {'label': 'A family story was shared', 'default': True, 'in_app': True},
+    # Push triggers (#9) — in-app + device push only (no email sender wired), so
+    # 'default' just governs the in-app/push fallback. is_enabled() falls back to
+    # these, so existing users get them with no pref re-seed.
+    'event_updated': {'label': 'Event date/time/place changes', 'default': True, 'in_app': True},
+    'rsvp_received': {'label': 'Someone RSVPs (admins)',     'default': True, 'in_app': True},
+    'birthday':      {'label': 'Upcoming birthday reminders', 'default': True, 'in_app': True},
 }
 
 

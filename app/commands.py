@@ -6,6 +6,7 @@ Railway cron jobs:
     flask rsvp-reminders   — daily  (0 8 * * *)
     flask annual-events    — weekly (0 9 * * 1)
     flask story-prompts    — weekly (0 9 * * 1)
+    flask birthday-reminders — daily (0 8 * * *)
 """
 import click
 from datetime import datetime, timedelta, date
@@ -410,3 +411,33 @@ def merge_persons(keep_id, remove_id, dry_run):
     else:
         db.session.commit()
         click.echo('Done.')
+
+
+@click.command('birthday-reminders')
+@click.option('--dry-run', is_flag=True, help='List who would be notified without sending.')
+@with_appcontext
+def birthday_reminders(dry_run):
+    """Notify each family (in-app + push) of birthdays happening tomorrow."""
+    from .notifications import notify_family
+    target = date.today() + timedelta(days=1)
+    total = 0
+    with _request_ctx():
+        for family in Family.query.all():
+            for p in Person.query.filter_by(family_id=family.id).all():
+                if not p.birthday or p.deathday:
+                    continue
+                if (p.birthday.month, p.birthday.day) != (target.month, target.day):
+                    continue
+                name = p.get_display_name()
+                total += 1
+                if dry_run:
+                    click.echo(f"[DRY RUN] {family.name}: would notify about {name}'s birthday")
+                    continue
+                notify_family(
+                    family.id, 'birthday',
+                    title=f"\U0001F382 {name}'s birthday is tomorrow",
+                    url=url_for('main.person_detail', person_id=p.id, _external=True),
+                    exclude_user_id=p.user.id if p.user else None,
+                )
+    verb = 'would notify' if dry_run else 'notified'
+    click.echo(f'birthday-reminders done: {verb} for {total} birthday(s).')

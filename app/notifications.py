@@ -48,6 +48,17 @@ def notify_family(family_id, event_type, title, body=None, url=None,
         create_notification(user, event_type, title, body=body, url=url)
 
 
+def notify_admins(family_id, event_type, title, body=None, url=None, exclude_user_id=None):
+    """In-app + push to a family's admins only (e.g. an RSVP came in). Each is
+    gated by the admin's own preference via create_notification."""
+    admins = User.query.filter_by(
+        family_id=family_id, status='approved', is_admin=True).all()
+    for user in admins:
+        if exclude_user_id is not None and user.id == exclude_user_id:
+            continue
+        create_notification(user, event_type, title, body=body, url=url)
+
+
 def send_push_notification(user, title, body=None, url=None):
     """Dispatch a push notification to all registered devices for the user.
 
@@ -65,8 +76,8 @@ def send_push_notification(user, title, body=None, url=None):
                 _send_apns(device.token, title, body, url)
             elif device.platform == 'android':
                 _send_fcm(device.token, title, body, url)
-        except Exception:
-            pass  # stale token — prune in a future task
+        except Exception as e:
+            _report_push_error(e)
 
 
 _apns_token_cache = {}  # (key_id, team_id) → (token_str, expires_at)
@@ -148,9 +159,25 @@ def _send_apns(token, title, body, url):
             timeout=10,
         )
         if resp.status_code == 410:
+            # Apple says this token is dead (app uninstalled / unregistered).
             from .models import UserDevice
             UserDevice.query.filter_by(token=token).delete()
             db.session.commit()
+        elif resp.status_code >= 400:
+            _report_push_error(Exception(
+                f'APNs {resp.status_code}: {resp.text[:300]}'))
+    except Exception as e:
+        _report_push_error(e)
+
+
+def _report_push_error(e):
+    """Surface a push failure instead of swallowing it (a silent except: pass
+    is exactly what hid the email outage). Pruning of dead tokens is handled
+    separately via the APNs 410 response."""
+    print(f'Push error: {e}')
+    try:
+        import sentry_sdk
+        sentry_sdk.capture_exception(e)
     except Exception:
         pass
 

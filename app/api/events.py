@@ -94,6 +94,8 @@ def event_rsvp(event_id):
         rsvp = EventRSVP(event_id=event_id, person_id=person_id, status=status)
         db.session.add(rsvp)
     db.session.commit()
+    from ..routes.events import _notify_rsvp
+    _notify_rsvp(event, person, status, actor_user_id=user.id if user else None)
     return jsonify({'ok': True, 'status': status}), 200
 
 
