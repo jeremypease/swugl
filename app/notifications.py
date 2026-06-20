@@ -93,7 +93,12 @@ def _get_apns_jwt(key_id, team_id, private_key_pem):
     if cached and cached[1] > time.time() + 60:
         return cached[0]
 
-    pem = private_key_pem.encode() if isinstance(private_key_pem, str) else private_key_pem
+    if isinstance(private_key_pem, str):
+        # Tolerate a key pasted with escaped newlines (a common env-var foot-gun)
+        # as well as a real multi-line PEM.
+        pem = private_key_pem.replace('\\n', '\n').encode()
+    else:
+        pem = private_key_pem
     key = load_pem_private_key(pem, password=None)
     now = int(time.time())
     token = pyjwt.encode(
