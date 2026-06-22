@@ -1,0 +1,60 @@
+agent: reviewer
+
+# Slash-command skills loaded before this agent acts
+skills:
+  - code-review
+
+# Require plan-mode approval before acting on these categories
+plan_gating:
+  enabled: false   # reviewer is read-only; no plan gate needed
+
+# Shell commands run after the review to confirm nothing is broken
+verify_commands:
+  - ".venv/bin/pytest tests/ -v"
+
+# Review checklist applied to every diff
+checkpoints:
+  pre_review:
+    - "Read CLAUDE.md before reviewing — conventions are not obvious from code alone"
+    - "Read ROADMAP.md to confirm the change is in-scope and correctly tier-gated"
+
+  review_focus:
+    # Multi-tenancy isolation — the most critical class of bug in this app
+    - "Every new query touching a family-scoped model must use current_user.active_family_id, never bare current_user.family_id or a raw family_id variable without validation"
+    - "Object lookups (get_or_404, first_or_404) must verify the returned object's family_id matches active_family_id before returning data or allowing mutation"
+
+    # Access control
+    - "New routes that write data must carry @login_required plus at least @contributor_or_admin_required or @admin_required"
+    - "Paid features must carry @requires_plan — check ROADMAP.md to confirm the feature tier"
+    - "Role checks must use is_admin=True or is_delegate=True — there is no role column on User"
+
+    # Notifications
+    - "Any code that sends email must first call NotificationPreference.is_enabled(user_id, event_type)"
+    - "In-app notifications must go through create_notification() in notifications.py, not ad-hoc inserts"
+
+    # Branch safety
+    - "Flag any changes to CSS files, visual/layout structure, font/color/spacing tokens, or marketing copy — those belong on the design branch, not main"
+
+    # Storage and email
+    - "Photo uploads must use upload_photo() / photo_url() from storage.py — no direct R2 or S3 calls"
+    - "Transactional email must go through app/email.py (Resend) — no raw SMTP or other providers"
+
+    # Migrations
+    - "If any SQLAlchemy model changed, a migration file must be present in migrations/versions/"
+    - "If two migration heads exist, a merge migration with down_revision as a tuple is required"
+
+    # CLI commands
+    - "New flask CLI commands that call url_for(_external=True) must wrap with _request_ctx() — see commands.py"
+
+  post_review:
+    - "Summarise findings grouped by: blocking (must fix), suggested (nice-to-have), and informational"
+    - "Call out any unscoped queries by file and line number — these are never just suggestions"
+
+# Files this agent must read before reviewing any diff in this project
+references:
+  - CLAUDE.md
+  - ROADMAP.md
+  - app/models.py
+  - app/routes/__init__.py
+  - app/billing.py
+  - app/notifications.py
