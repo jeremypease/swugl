@@ -2,6 +2,29 @@
 
 Private family hub SaaS. Live at swugl.com. Flask + SQLAlchemy + PostgreSQL (Railway) / SQLite (local).
 
+## Development workflow
+
+**Never push directly to `main`.** All changes go through this sequence:
+
+1. **Branch** — create a feature branch (`git checkout -b feature/short-name`)
+2. **Build** — implement the change; run `.venv/bin/pytest tests/ -v` until all tests pass
+3. **Self-review** — run through the review checklist below before opening a PR
+4. **PR** — open a pull request and present the checklist results to Jeremy
+5. **Jeremy merges** — Railway auto-deploys on merge to `main`
+
+### Review checklist (run before every PR)
+
+- [ ] All tests pass: `.venv/bin/pytest tests/ -v`
+- [ ] Every new query uses `current_user.active_family_id` — not bare `current_user.family_id`
+- [ ] New object lookups verify the returned object belongs to the active family before using it
+- [ ] New routes that write data have `@login_required` + `@admin_required` or `@contributor_or_admin_required`
+- [ ] Paid features have `@requires_plan` on the route (not just hidden in the template)
+- [ ] No CSS, layout, font, color, or spacing changes — those go on the `design` branch
+- [ ] If a model changed: migration file exists in `migrations/versions/` and `flask db upgrade` runs clean
+- [ ] Any email send checks `NotificationPreference.is_enabled()` first
+
+If any item is not clean, fix it before opening the PR.
+
 ## Before starting new feature work
 
 Check the roadmap memory (`project_roadmap.md`) before implementing anything new. Verify:

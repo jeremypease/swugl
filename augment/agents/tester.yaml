@@ -1,0 +1,34 @@
+agent: tester
+
+# Slash-command skills loaded before this agent acts
+skills:
+  - verify
+
+# Require plan-mode approval before acting on these categories
+plan_gating:
+  enabled: true
+  require_approval_for:
+    - conftest-changes   # changing fixtures affects every test; confirm scope first
+    - migrations         # schema changes require flask db migrate + upgrade before tests pass
+
+# Shell commands run to verify the work is correct
+verify_commands:
+  - ".venv/bin/pytest tests/ -v"
+
+# Rules enforced around the agent's core action
+checkpoints:
+  pre_code:
+    - "Read CLAUDE.md — note the four test file areas and the conftest.py seeding pattern"
+    - "New tests must use the existing app/client fixtures from conftest.py — do not create standalone apps"
+    - "Every test that touches queries must assert cross-family isolation (two-family seed is in conftest._seed)"
+    - "Do not import from app directly without app context — use the app fixture"
+  post_code:
+    - "Run .venv/bin/pytest tests/ -v and confirm all tests pass (not just the new ones)"
+    - "Confirm new tests exercise both the happy path and an isolation check (Family A cannot see Family B data)"
+    - "If the feature under test has a billing gate (@requires_plan), write a test for the gated and ungated case"
+
+# Files this agent must read before starting any task in this project
+references:
+  - CLAUDE.md
+  - tests/conftest.py
+  - app/models.py

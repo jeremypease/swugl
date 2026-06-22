@@ -1,0 +1,71 @@
+agent: architect
+
+# Slash-command skills loaded before this agent acts
+skills: []
+
+# Require plan-mode approval before acting on these categories
+plan_gating:
+  enabled: true
+  require_approval_for:
+    - schema-changes      # any new model, column, or relationship → migration required
+    - blueprint-additions # new Flask blueprint changes app/__init__.py registration order
+    - multi-pod-work      # Phase 1D is partially built; changes here risk data migration pain
+    - billing-model       # billing.py / plan gating / Stripe webhook changes
+    - api-contracts       # /api/v1 changes may break external callers or mobile clients
+
+# No verify commands — architect produces plans, not runnable code
+# (the coder agent that executes the plan runs the tests)
+verify_commands: []
+
+# Design checklist applied to every proposal
+checkpoints:
+  pre_design:
+    - "Read CLAUDE.md — note blueprint layout, access-control decorators, and key conventions"
+    - "Read ROADMAP.md — confirm the feature is in-scope, check its tier (free vs paid), and check for phase ordering constraints (e.g. 2A notifications must land before 2B/2C/2D)"
+    - "Check whether Phase 1D (multi-pod membership) affects the design: any new query that touches User.family_id must account for the eventual migration to active_family_id + UserPodMembership"
+
+  design_principles:
+    # Multi-tenancy
+    - "Every new model that stores family data needs a family_id FK and an index on it"
+    - "Never design a query that crosses family boundaries; all list queries must accept family_id as a filter parameter"
+    - "Design around current_user.active_family_id, not current_user.family_id — the latter is the deprecated home-pod column"
+
+    # Blueprint and route organisation
+    - "New feature areas belong in a new blueprint or an existing one (main, billing, platform, oauth, tf, api) — do not pile unrelated routes into routes/__init__.py"
+    - "API routes go under /api/v1 in the api blueprint; browser routes go in the appropriate non-api blueprint"
+    - "Admin-only routes go in platform_routes.py (platform blueprint), not main routes"
+
+    # Billing gates
+    - "Identify tier at design time: free / trial / paid. Paid features get @requires_plan in routes and a plan-check in any relevant API endpoint"
+    - "Never gate a feature only in the template — the route must also enforce the gate"
+
+    # Schema and migrations
+    - "Propose the full model definition including column types, nullability, defaults, indexes, and FK relationships before any code is written"
+    - "Flag when a migration will be destructive or require a data backfill — Railway runs migrations before gunicorn, so a bad migration takes down production"
+    - "Multiple Alembic heads → propose a merge migration with down_revision as a tuple"
+
+    # Notifications
+    - "Any feature that generates user-visible events must wire into NotificationPreference (email channel, push channel) — design the event_type string at proposal time"
+    - "Digest-eligible content (weekly roundup) should be flagged so the digest query can include it"
+
+    # CSS / layout
+    - "Do not design solutions that require CSS/layout changes as part of the server-side feature — note CSS work as a separate task for the design branch"
+
+    # CLI and background jobs
+    - "New CLI commands that call url_for(_external=True) must use _request_ctx() — see commands.py"
+    - "Railway cron runs flask commands; propose cron schedule (UTC) alongside any new background job"
+
+  post_design:
+    - "Produce a structured plan: models → migrations → routes → templates → tests → cron/CLI (in that order)"
+    - "Call out open questions and risks before handing off to the coder agent"
+    - "Flag any Phase 1D migration risk — if the design touches User.family_id call sites, list them"
+
+# Files this agent must read before designing anything in this project
+references:
+  - CLAUDE.md
+  - ROADMAP.md
+  - app/models.py
+  - app/__init__.py
+  - app/billing.py
+  - app/notifications.py
+  - migrations/env.py

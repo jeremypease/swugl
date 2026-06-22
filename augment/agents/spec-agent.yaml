@@ -1,0 +1,73 @@
+agent: spec-agent
+
+# No skills needed — spec-agent reads and writes specs, never code
+skills: []
+
+# Plan gate on specs that touch billing or multi-pod — those need careful wording
+plan_gating:
+  enabled: true
+  require_approval_for:
+    - billing-spec      # any spec that defines paid vs free behaviour
+    - multi-pod-spec    # any spec that must define per-pod role behaviour (Phase 1D)
+
+# No verify commands — specs are documents, not runnable artifacts
+verify_commands: []
+
+# Spec-writing checklist
+checkpoints:
+  pre_spec:
+    - "Read ROADMAP.md and find the item(s) this spec covers — copy the roadmap reference into the spec header"
+    - "Read CLAUDE.md — confirm tier, access model, and any relevant convention before writing a single acceptance criterion"
+    - "Ask: does the context-agent packet exist for this task? If so, use it; if not, gather the minimum context yourself (models involved, billing tier, roles)"
+
+  spec_sections:
+    # Every spec must have these sections in this order
+
+    - "ROADMAP REF — phase and item (e.g. Phase 2C / Gift Ideas)"
+
+    - "SUMMARY — one paragraph: what the feature does, who it is for, and why it exists"
+
+    - "TIER — one of: free / paid / admin-only. If paid, state the gate: @requires_plan on which routes. If free with limits, state the limits (FREE_MEMBER_LIMIT=25, FREE_EVENT_LIMIT=3 are the current caps in billing.py)"
+
+    - "ROLES — who can do what:
+        admin     (is_admin=True)         — full control
+        delegate  (is_delegate=True)      — contributor access
+        member    (neither)               — read-only or restricted
+        anonymous (not logged in)         — redirect to login
+       State explicitly if a role can read but not write, or is blocked entirely"
+
+    - "MULTI-POD BEHAVIOUR — how the feature behaves when a user belongs to more than one pod (active_family_id scoping). State: data is scoped to active pod only / data spans pods / feature is pod-agnostic"
+
+    - "DATA MODEL — for each new or changed model:
+        table name, new columns (type, nullable, default, index), FKs, constraints
+        explicitly state whether family_id is present and indexed"
+
+    - "ROUTES — for each new route:
+        METHOD /path  blueprint  decorators  → what it returns or does"
+
+    - "NOTIFICATION BEHAVIOUR — does the feature generate a notification?
+        If yes: event_type string (must exist in NOTIFICATION_EVENTS or be added), who receives it (family / admins / specific user), channel (email + in_app / in_app only), default enabled?"
+
+    - "ACCEPTANCE CRITERIA — numbered list, each testable by the tester agent:
+        AC-1  happy path (logged-in member, paid plan)
+        AC-2  access control (correct role required; wrong role gets 403 or redirect)
+        AC-3  billing gate (free-plan user sees gate; paid user does not) — only if paid feature
+        AC-4  cross-family isolation (Family A cannot see or modify Family B data)
+        AC-5  notification fires / does not fire based on preference
+        AC-n  any feature-specific edge cases"
+
+    - "OUT OF SCOPE — explicitly list what this spec does NOT cover (CSS/layout goes on design branch; related features deferred to later phases)"
+
+    - "OPEN QUESTIONS — anything that must be resolved before implementation starts; tag the person responsible (e.g. [Jeremy] confirm whether gift claims are visible to admins)"
+
+  post_spec:
+    - "Confirm every acceptance criterion is independently testable — if it cannot be expressed as a pytest assertion or a browser action, rewrite it"
+    - "Confirm the tier and role sections are unambiguous — the coder agent must be able to choose the correct decorator without reading the roadmap"
+    - "Confirm OUT OF SCOPE calls out CSS work explicitly if the feature touches any UI"
+
+# Files this agent must read before writing any spec
+references:
+  - CLAUDE.md
+  - ROADMAP.md
+  - app/models.py
+  - app/billing.py

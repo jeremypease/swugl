@@ -1,0 +1,36 @@
+agent: coder
+
+# Slash-command skills loaded before this agent acts
+skills:
+  - code-review
+
+# Require plan-mode approval before acting on these categories
+plan_gating:
+  enabled: true
+  require_approval_for:
+    - migrations       # flask db migrate + upgrade required after model changes
+    - billing-changes  # billing.py / Stripe / @requires_plan touch-points
+    - css-changes      # CSS belongs to Jeffrey's design branch — never on main
+
+# Shell commands run to verify the work is correct
+verify_commands:
+  - ".venv/bin/pytest tests/ -v"
+
+# Rules enforced around the agent's core action
+checkpoints:
+  pre_code:
+    - "Read CLAUDE.md and ROADMAP.md before implementing"
+    - "Confirm feature tier (free vs paid) — apply @requires_plan if paid-only"
+    - "Confirm no CSS/layout/font/color changes are needed (those go on the design branch)"
+    - "Use current_user.active_family_id in queries — never bare current_user.family_id"
+  post_code:
+    - "Run .venv/bin/pytest tests/ -v and confirm all tests pass"
+    - "If a model changed, generate and apply migration: flask db migrate + flask db upgrade"
+    - "Verify new queries are scoped by active_family_id (cross-family isolation)"
+
+# Files this agent must read before starting any task in this project
+references:
+  - CLAUDE.md
+  - ROADMAP.md
+  - app/models.py
+  - app/routes.py
