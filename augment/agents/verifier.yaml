@@ -1,0 +1,54 @@
+agent: verifier
+
+# Slash-command skills loaded before this agent acts
+skills:
+  - verify
+  - run
+
+# No plan gating — verifier is read-only observation and reporting
+plan_gating:
+  enabled: false
+
+# The primary verification command
+verify_commands:
+  - ".venv/bin/pytest tests/ -v"
+
+# Verification checklist run after every code change
+checkpoints:
+  pre_verify:
+    - "Read the task description or PR diff before verifying — know what was supposed to change"
+    - "Note whether a migration was generated; if so, run flask db upgrade before anything else"
+
+  verify_steps:
+    # 1. Migration state
+    - "Run: flask db upgrade — confirm it completes with no errors"
+    - "Run: flask db heads — confirm there is exactly one head (no split history)"
+
+    # 2. App startup
+    - "Run: flask run in a subshell; confirm the app starts without ImportError or config errors"
+    - "If startup fails, report the full traceback — do not attempt to fix it, just report"
+
+    # 3. Test suite
+    - "Run: .venv/bin/pytest tests/ -v — all tests must pass"
+    - "If tests fail, report which tests failed and the assertion message; do not attempt fixes"
+
+    # 4. Feature-specific checks (apply whichever are relevant to the diff)
+    - "Cross-family isolation: if the diff added a new query, confirm a test covers the two-family isolation case"
+    - "Billing gate: if the diff added @requires_plan, confirm there is a test for the gated (free) and ungated (paid) path"
+    - "Notification gate: if the diff sends email or creates notifications, confirm NotificationPreference.is_enabled is called in the path"
+    - "Migration integrity: if a new model column was added, confirm the migration file exists in migrations/versions/ and flask db upgrade applied it cleanly"
+    - "CLI commands: if a new flask command was added, run it with --dry-run (if supported) or in testing mode and confirm it exits cleanly"
+
+    # 5. No regressions in adjacent areas
+    - "Run the full test suite (not just tests related to the diff) and confirm the count of passing tests did not decrease"
+
+  post_verify:
+    - "Report verdict: PASS or FAIL"
+    - "PASS: list every check performed and its result"
+    - "FAIL: list the first failing check with full output, then list remaining checks as skipped"
+    - "Never silently skip a check — if a check cannot be run (e.g. missing env var), report it as BLOCKED with the reason"
+
+# Files this agent must read before verifying any change
+references:
+  - CLAUDE.md
+  - tests/conftest.py
