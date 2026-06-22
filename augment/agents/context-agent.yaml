@@ -1,0 +1,78 @@
+agent: context-agent
+
+# No skills needed — this agent only reads, never writes
+skills: []
+
+# Read-only agent; no plan gating required
+plan_gating:
+  enabled: false
+
+# No verify commands — context-agent produces a report, not code
+verify_commands: []
+
+# Context-gathering checklist run before any other agent starts work
+checkpoints:
+  gather:
+    # 1. Task framing
+    - "Read the task description and identify: (a) the feature area, (b) the models involved, (c) the route(s) affected, (d) whether it is free or paid tier"
+    - "Check ROADMAP.md — find the relevant item, confirm it is not already marked done, and note any phase ordering constraint (e.g. 2A must land before 2B)"
+
+    # 2. Models
+    - "For each model involved, read its definition in app/models.py — note columns, indexes, FKs, and relationships"
+    - "Check whether the model has a family_id column and index — if not, flag it"
+    - "Note any use of User.family_id vs active_family_id — the latter is correct; the former is the deprecated single-pod column"
+
+    # 3. Routes
+    - "Find the blueprint that owns the feature area:
+        main     → app/routes/__init__.py and app/routes/*.py
+        billing  → app/billing.py
+        platform → app/platform_routes.py
+        oauth    → app/oauth.py
+        tf       → app/two_factor.py
+        api      → app/api/*.py"
+    - "For each affected route, note: HTTP method, URL rule, decorators (@login_required, @admin_required, @contributor_or_admin_required, @requires_plan), and the query pattern"
+
+    # 4. Templates
+    - "Find the template(s) for the feature — note whether it uses Jinja2 includes from a subdirectory (e.g. templates/event/ partials)"
+    - "Note any inline JS in the template that would be affected by the change"
+
+    # 5. Tests
+    - "Search tests/ for existing coverage of the feature area — list the test file(s) and the test function names"
+    - "Check whether a cross-family isolation test exists for any query the feature touches"
+    - "Check whether a billing gate test exists if the route carries @requires_plan"
+
+    # 6. Notifications
+    - "If the feature creates or modifies user-visible events, check NOTIFICATION_EVENTS in app/models.py for an existing event_type"
+    - "Known event_types: digest, new_event, announcement, new_member, rsvp_reminder, assignment, event_comment, chat_message, new_poll, new_card, new_photos, story_prompt, new_story, event_updated, rsvp_received, birthday"
+    - "If no matching event_type exists, flag that a new one must be added to NOTIFICATION_EVENTS before the feature ships"
+
+    # 7. Migration state
+    - "Run: flask db heads — confirm there is exactly one head before any new work begins"
+    - "Run: flask db current — note the current revision"
+    - "List any pending migration files that have not yet been applied"
+
+    # 8. Related CLI or cron
+    - "Check app/commands.py for any CLI command that touches the feature area"
+    - "Note whether any Railway cron job (daily at 08:00 UTC for email-sequence, weekly for digest) is relevant"
+
+  output_format:
+    - "Produce a structured context packet with these sections:"
+    - "  TASK — one-sentence summary of what is being built"
+    - "  TIER — free / trial / paid (with rationale)"
+    - "  ROADMAP — phase and item reference, ordering constraints"
+    - "  MODELS — each model with relevant columns and any family_id concerns"
+    - "  ROUTES — blueprint, file, decorators, query pattern for each affected route"
+    - "  TEMPLATES — file path(s), any partials, relevant JS"
+    - "  TESTS — existing test files/functions, gaps (missing isolation test, missing billing test)"
+    - "  NOTIFICATIONS — relevant event_type(s), whether they already exist"
+    - "  MIGRATION STATE — current head, pending migrations, any split-head warning"
+    - "  OPEN QUESTIONS — anything ambiguous that the architect or coder should resolve first"
+    - "Hand the packet to the next agent (architect, coder, or tester) — do not start implementing"
+
+# Files this agent reads for every task
+references:
+  - CLAUDE.md
+  - ROADMAP.md
+  - app/models.py
+  - app/notifications.py
+  - tests/conftest.py
