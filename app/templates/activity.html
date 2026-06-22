@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Activity — {{ current_user.active_family.name }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <div class="eyebrow">{{ current_user.active_family.name }}</div>
+        <h1>Activity</h1>
+    </div>
+</div>
+
+<div style="max-width:680px;">
+    {% if items %}
+    <div class="card" style="padding:0;">
+        {% for item in items %}
+        <a href="{{ item.url }}" style="display:flex;gap:12px;align-items:flex-start;padding:14px 18px;{% if not loop.last %}border-bottom:1px solid var(--hairline);{% endif %}text-decoration:none;color:inherit;">
+            <div style="flex-shrink:0;width:34px;height:34px;border-radius:50%;background:var(--leaf-mist);display:flex;align-items:center;justify-content:center;color:var(--vine);">
+                <i data-lucide="{{ item.icon }}" style="width:17px;height:17px;"></i>
+            </div>
+            <div style="flex:1;min-width:0;">
+                <div style="font-size:14px;color:var(--ink);">{{ item.text }}</div>
+                <div style="font-size:12px;color:var(--slate-soft);margin-top:2px;">{{ item.timestamp.strftime('%b %-d, %Y · %-I:%M %p') }}</div>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card" style="text-align:center;padding:48px 24px;color:var(--slate);">
+        <i data-lucide="rss" style="width:32px;height:32px;color:var(--slate-soft);"></i>
+        <p style="margin-top:12px;">No activity yet. Post an announcement, add a photo, or create an event to get things rolling.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

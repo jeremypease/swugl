@@ -60,6 +60,9 @@
             <a href="/home" {% if request.path == '/home' %}class="active"{% endif %}>
                 <i data-lucide="home"></i> Home
             </a>
+            <a href="/activity" {% if request.path == '/activity' %}class="active"{% endif %}>
+                <i data-lucide="rss"></i> Activity
+            </a>
             <a href="/events" {% if request.path.startswith('/events') %}class="active"{% endif %}>
                 <i data-lucide="calendar"></i> Events
             </a>

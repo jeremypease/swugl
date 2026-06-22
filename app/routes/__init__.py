@@ -1327,6 +1327,14 @@ def _rel_time(dt):
         return f"{delta.days} days ago"
     return dt.strftime('%B %-d, %Y')
 
+@main.route('/activity')
+@login_required
+def activity():
+    from ..activity import recent_activity
+    items = recent_activity(current_user.active_family_id)
+    return render_template('activity.html', items=items)
+
+
 @main.route('/announcements')
 @login_required
 def announcements():
