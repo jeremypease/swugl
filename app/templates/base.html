@@ -94,6 +94,9 @@
                 <i data-lucide="bar-chart-2"></i> Polls
             </a>
             {% endif %}
+            <a href="/registries" {% if request.path.startswith('/registries') %}class="active"{% endif %}>
+                <i data-lucide="shopping-bag"></i> Gifts
+            </a>
             {% if chat_visible %}
             <a href="/chat" {% if request.path.startswith('/chat') %}class="active"{% endif %} style="position:relative;">
                 <i data-lucide="message-circle"></i> Chat
