@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}New Future Message — {{ current_user.active_family.name }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <div class="eyebrow">Future Messages</div>
+        <h1>Schedule a message</h1>
+    </div>
+    <a href="{{ url_for('main.messages') }}" class="btn btn-secondary"><i data-lucide="x"></i> Cancel</a>
+</div>
+
+<div style="max-width:560px;">
+    <div class="card">
+        <p style="font-size:13px;color:var(--slate);margin-bottom:16px;">
+            Your message stays private and hidden from the recipient until the delivery date arrives.
+        </p>
+        <form method="POST">
+            {{ form.hidden_tag() }}
+
+            <div class="field-row">
+                <div class="field">
+                    {{ form.recipient_id.label }}
+                    {{ form.recipient_id() }}
+                    {% for e in form.recipient_id.errors %}<span class="msg">{{ e }}</span>{% endfor %}
+                </div>
+                <div class="field">
+                    {{ form.deliver_on.label }}
+                    {{ form.deliver_on() }}
+                    {% for e in form.deliver_on.errors %}<span class="msg">{{ e }}</span>{% endfor %}
+                </div>
+            </div>
+
+            <div class="field">
+                {{ form.subject.label }}
+                {{ form.subject(placeholder="e.g. Happy 18th birthday") }}
+                {% for e in form.subject.errors %}<span class="msg">{{ e }}</span>{% endfor %}
+            </div>
+
+            <div class="field">
+                {{ form.body.label }}
+                {{ form.body(rows=8, placeholder="Write your message…") }}
+                {% for e in form.body.errors %}<span class="msg">{{ e }}</span>{% endfor %}
+            </div>
+
+            <div style="display:flex;gap:10px;margin-top:8px;">
+                <button type="submit" class="btn btn-primary">Schedule message</button>
+                <a href="{{ url_for('main.messages') }}" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

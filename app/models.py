@@ -378,6 +378,7 @@ NOTIFICATION_EVENTS = {
     'event_updated': {'label': 'Event date/time/place changes', 'default': True, 'in_app': True},
     'rsvp_received': {'label': 'Someone RSVPs (admins)',     'default': True, 'in_app': True},
     'birthday':      {'label': 'Upcoming birthday reminders', 'default': True, 'in_app': True},
+    'scheduled_message': {'label': 'A scheduled message arrives for you', 'default': True, 'in_app': True},
 }
 
 
@@ -906,6 +907,30 @@ class StoryResponse(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     answered_by = db.relationship('Person')
+
+
+class ScheduledMessage(db.Model):
+    """A message written now and delivered to a family member on a future date —
+    a birthday letter, a wedding-day note, a message timed years out. Hidden
+    from the recipient until it's delivered."""
+    __tablename__ = 'scheduled_messages'
+
+    id = db.Column(db.Integer, primary_key=True)
+    family_id = db.Column(db.Integer, db.ForeignKey('families.id'), nullable=False, index=True)
+    author_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    recipient_person_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=False, index=True)
+    subject = db.Column(db.String(150), nullable=True)
+    body = db.Column(db.Text, nullable=False)
+    deliver_on = db.Column(db.Date, nullable=False, index=True)
+    delivered_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    author = db.relationship('User', foreign_keys=[author_user_id])
+    recipient = db.relationship('Person', foreign_keys=[recipient_person_id])
+
+    @property
+    def is_delivered(self):
+        return self.delivered_at is not None
 
 
 class AnnouncementReaction(db.Model):
