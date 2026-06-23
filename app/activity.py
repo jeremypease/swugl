@@ -11,6 +11,8 @@ is intentionally left out of v1 rather than faking a time.)
 """
 from collections import namedtuple, defaultdict
 
+from flask import current_app
+
 from .models import Announcement, Event, Photo, Poll, Album, StoryResponse, StoryPrompt
 
 ActivityItem = namedtuple('ActivityItem', 'kind icon timestamp text url')
@@ -21,37 +23,43 @@ def _trunc(s, n=80):
     return s if len(s) <= n else s[:n - 1] + '…'
 
 
+def _src(feature, query):
+    """Yield from `query` only when `feature` is live in this build, so the feed
+    never surfaces (or links to) a hidden feature's content."""
+    return query if feature in current_app.config.get('ENABLED_FEATURES', ()) else []
+
+
 def recent_activity(family_id, limit=40):
     """Return up to `limit` ActivityItems for a family, newest first."""
     items = []
 
-    for a in (Announcement.query.filter_by(family_id=family_id)
-              .order_by(Announcement.created_at.desc()).limit(limit)):
+    for a in _src('announcements', Announcement.query.filter_by(family_id=family_id)
+                  .order_by(Announcement.created_at.desc()).limit(limit)):
         who = a.author.get_display_name() if a.author else 'Someone'
         items.append(ActivityItem('announcement', 'megaphone', a.created_at,
                                    f'{who} posted “{_trunc(a.title)}”', '/announcements'))
 
-    for e in (Event.query.filter_by(family_id=family_id)
-              .order_by(Event.created_at.desc()).limit(limit)):
+    for e in _src('events', Event.query.filter_by(family_id=family_id)
+                  .order_by(Event.created_at.desc()).limit(limit)):
         items.append(ActivityItem('event', 'calendar', e.created_at,
                                    f'New event: {_trunc(e.name)}', f'/events/{e.id}'))
 
-    for p in (Poll.query.filter_by(family_id=family_id)
-              .order_by(Poll.created_at.desc()).limit(limit)):
+    for p in _src('polls', Poll.query.filter_by(family_id=family_id)
+                  .order_by(Poll.created_at.desc()).limit(limit)):
         who = p.created_by.get_display_name() if p.created_by else 'Someone'
         items.append(ActivityItem('poll', 'bar-chart-2', p.created_at,
                                    f'{who} started a poll: {_trunc(p.question)}', '/polls'))
 
-    for al in (Album.query.filter_by(family_id=family_id)
-               .order_by(Album.created_at.desc()).limit(limit)):
+    for al in _src('photos', Album.query.filter_by(family_id=family_id)
+                   .order_by(Album.created_at.desc()).limit(limit)):
         items.append(ActivityItem('album', 'folder', al.created_at,
                                    f'New album: {_trunc(al.name)}', f'/albums/{al.id}'))
 
     # Photos — collapse by (album, uploader, calendar day) so a 30-photo upload
     # is one feed item, not thirty.
     groups = defaultdict(lambda: {'count': 0, 'ts': None, 'album_id': None, 'uploader': 'Someone'})
-    for ph in (Photo.query.filter_by(family_id=family_id)
-               .order_by(Photo.created_at.desc()).limit(limit * 5)):
+    for ph in _src('photos', Photo.query.filter_by(family_id=family_id)
+                   .order_by(Photo.created_at.desc()).limit(limit * 5)):
         if not ph.created_at:
             continue
         key = (ph.album_id, ph.uploaded_by_id, ph.created_at.date())
@@ -67,10 +75,10 @@ def recent_activity(family_id, limit=40):
         items.append(ActivityItem('photos', 'image', g['ts'],
                                    f'{g["uploader"]} added {n} photo{"s" if n != 1 else ""}', url))
 
-    for r in (StoryResponse.query
-              .join(StoryPrompt, StoryResponse.prompt_id == StoryPrompt.id)
-              .filter(StoryPrompt.family_id == family_id)
-              .order_by(StoryResponse.created_at.desc()).limit(limit)):
+    for r in _src('stories', StoryResponse.query
+                  .join(StoryPrompt, StoryResponse.prompt_id == StoryPrompt.id)
+                  .filter(StoryPrompt.family_id == family_id)
+                  .order_by(StoryResponse.created_at.desc()).limit(limit)):
         subject = (r.prompt.person.get_display_name()
                    if r.prompt and r.prompt.person else 'A family member')
         items.append(ActivityItem('story', 'book-open', r.created_at,

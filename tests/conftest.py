@@ -8,6 +8,7 @@ os.environ.setdefault('DATABASE_URL', '')
 os.environ.setdefault('FLASK_ENV', 'testing')
 
 from app import create_app, db as _db
+from app.features import ALL_FEATURES
 from app.models import Family, User, Person, Event, UserCredential
 from datetime import date
 
@@ -25,6 +26,9 @@ def app():
         # a developer .env loaded
         'R2_ACCOUNT_ID': None,
         'MAIL_ENABLED': False,
+        # Tests exercise every feature regardless of the production MVP cut;
+        # the gate itself is tested explicitly in test_mvp_features.py.
+        'ENABLED_FEATURES': set(ALL_FEATURES),
     })
     with application.app_context():
         _db.create_all()
