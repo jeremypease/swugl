@@ -908,6 +908,46 @@ class StoryResponse(db.Model):
     answered_by = db.relationship('Person')
 
 
+class GiftRegistry(db.Model):
+    """A gift-coordination board for one family member (the recipient). Others
+    add gift ideas and claim them so nobody double-buys; the recipient is
+    blocked from viewing it so surprises aren't spoiled. Paid feature."""
+    __tablename__ = 'gift_registries'
+
+    id = db.Column(db.Integer, primary_key=True)
+    family_id = db.Column(db.Integer, db.ForeignKey('families.id'), nullable=False, index=True)
+    recipient_person_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=False, index=True)
+    event_id = db.Column(db.Integer, db.ForeignKey('events.id'), nullable=True, index=True)
+    title = db.Column(db.String(150), nullable=False)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    recipient = db.relationship('Person', foreign_keys=[recipient_person_id])
+    created_by = db.relationship('Person', foreign_keys=[created_by_id])
+    event = db.relationship('Event')
+    items = db.relationship('GiftRegistryItem', backref='registry',
+                            cascade='all, delete-orphan',
+                            order_by='GiftRegistryItem.created_at')
+
+
+class GiftRegistryItem(db.Model):
+    __tablename__ = 'gift_registry_items'
+
+    id = db.Column(db.Integer, primary_key=True)
+    registry_id = db.Column(db.Integer, db.ForeignKey('gift_registries.id'), nullable=False, index=True)
+    name = db.Column(db.String(200), nullable=False)
+    url = db.Column(db.String(500), nullable=True)
+    notes = db.Column(db.String(300), nullable=True)
+    claimed_by_person_id = db.Column(db.Integer, db.ForeignKey('people.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    claimed_by = db.relationship('Person', foreign_keys=[claimed_by_person_id])
+
+    @property
+    def is_claimed(self):
+        return self.claimed_by_person_id is not None
+
+
 class AnnouncementReaction(db.Model):
     __tablename__ = 'announcement_reactions'
 

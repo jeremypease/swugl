@@ -2647,6 +2647,6 @@ def serve_photo(key):
 # ── Feature route modules ──────────────────────────────────────────────────────
 # Imported last so the `main` blueprint and shared helpers above already exist.
 # Each module attaches its routes to `main` via @main.route.
-from . import chat, checklists, documents, stories, polls, cards, events  # noqa: E402,F401
+from . import chat, checklists, documents, stories, polls, cards, events, registry  # noqa: E402,F401
 # _geocode_location lives in events.py but is shared by the location-admin routes above.
 from .events import _geocode_location  # noqa: E402,F401

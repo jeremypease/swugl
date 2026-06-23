@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Gift Registries — {{ current_user.active_family.name }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <div class="eyebrow">{{ current_user.active_family.name }}</div>
+        <h1>Gift Registries</h1>
+    </div>
+    <a href="{{ url_for('main.registry_new') }}" class="btn btn-primary">
+        <i data-lucide="plus"></i> New registry
+    </a>
+</div>
+
+<div style="max-width:640px;">
+    <p style="font-size:13px;color:var(--slate);margin-bottom:16px;">
+        Coordinate gifts for a family member without spoiling the surprise — they can't see their own registry.
+    </p>
+    {% if registries %}
+    <div class="card" style="padding:0;">
+        {% for r in registries %}
+        <a href="{{ url_for('main.registry_detail', registry_id=r.id) }}" style="display:flex;align-items:center;gap:12px;padding:14px 18px;{% if not loop.last %}border-bottom:1px solid var(--hairline);{% endif %}text-decoration:none;color:inherit;">
+            <div style="flex-shrink:0;width:34px;height:34px;border-radius:50%;background:var(--leaf-mist);display:flex;align-items:center;justify-content:center;color:var(--vine);">
+                <i data-lucide="gift" style="width:17px;height:17px;"></i>
+            </div>
+            <div style="flex:1;min-width:0;">
+                <div style="font-weight:500;">{{ r.title }}</div>
+                <div style="font-size:12px;color:var(--slate-soft);margin-top:2px;">
+                    For {{ r.recipient.get_display_name() if r.recipient else '—' }}
+                    {% if r.event %} · {{ r.event.name }}{% endif %}
+                    · {{ r.items|length }} idea{{ 's' if r.items|length != 1 }}
+                </div>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card" style="text-align:center;padding:40px 24px;color:var(--slate);">
+        <i data-lucide="gift" style="width:30px;height:30px;color:var(--slate-soft);"></i>
+        <p style="margin-top:12px;">No registries yet. Start one for an upcoming birthday, graduation, or wedding.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
