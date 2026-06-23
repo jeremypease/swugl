@@ -7,6 +7,7 @@ Railway cron jobs:
     flask annual-events    — weekly (0 9 * * 1)
     flask story-prompts    — weekly (0 9 * * 1)
     flask birthday-reminders — daily (0 8 * * *)
+    flask deliver-messages   — daily (0 8 * * *)
 """
 import click
 from datetime import datetime, timedelta, date
@@ -441,3 +442,40 @@ def birthday_reminders(dry_run):
                 )
     verb = 'would notify' if dry_run else 'notified'
     click.echo(f'birthday-reminders done: {verb} for {total} birthday(s).')
+
+
+@click.command('deliver-messages')
+@click.option('--dry-run', is_flag=True, help='List what would be delivered without sending.')
+@with_appcontext
+def deliver_messages(dry_run):
+    """Deliver scheduled messages whose date has arrived (in-app + push + email)."""
+    from .models import ScheduledMessage
+    from .notifications import create_notification
+    from .email import send_scheduled_message_email
+    due = (ScheduledMessage.query
+           .filter(ScheduledMessage.delivered_at.is_(None),
+                   ScheduledMessage.deliver_on <= date.today()).all())
+    delivered = 0
+    with _request_ctx():
+        for m in due:
+            recipient = m.recipient
+            user = recipient.user if recipient else None
+            if not user:
+                continue  # no account yet — hold until the recipient has one
+            author_name = m.author.get_full_name() if m.author else 'A family member'
+            delivered += 1
+            if dry_run:
+                click.echo(f'[DRY RUN] would deliver to {recipient.get_display_name()} '
+                           f'(due {m.deliver_on})')
+                continue
+            url = url_for('main.message_detail', message_id=m.id, _external=True)
+            create_notification(user, 'scheduled_message',
+                                m.subject or f'A message from {author_name}',
+                                body='A scheduled message has arrived for you.', url=url)
+            if current_app.config.get('MAIL_ENABLED'):
+                send_scheduled_message_email(user, author_name, m, url)
+            m.delivered_at = datetime.utcnow()
+        if not dry_run:
+            db.session.commit()
+    verb = 'would deliver' if dry_run else 'delivered'
+    click.echo(f'deliver-messages done: {verb} {delivered} message(s).')

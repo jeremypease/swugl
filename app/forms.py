@@ -85,6 +85,15 @@ class OAuthSignupForm(FlaskForm):
     submit = SubmitField('Create my circle')
 
 
+class MessageForm(FlaskForm):
+    """Compose a message to be delivered to a family member on a future date."""
+    recipient_id = SelectField('To', coerce=int, validators=[DataRequired()])
+    deliver_on = DateField('Deliver on', validators=[DataRequired()])
+    subject = StringField('Subject (optional)', validators=[Optional(), Length(max=150)])
+    body = TextAreaField('Message', validators=[DataRequired(), Length(max=5000)])
+    submit = SubmitField('Schedule message')
+
+
 class ProfileForm(FlaskForm):
     nickname = StringField('Nickname', validators=[Optional(), Length(max=50)])
     gender = SelectField('Gender', choices=[

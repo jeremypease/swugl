@@ -81,6 +81,9 @@
             <a href="/announcements" {% if request.path.startswith('/announcements') %}class="active"{% endif %}>
                 <i data-lucide="megaphone"></i> Announcements
             </a>
+            <a href="/messages" {% if request.path.startswith('/messages') %}class="active"{% endif %}>
+                <i data-lucide="mail-plus"></i> Messages
+            </a>
             {% if current_user.active_family.enable_greeting_cards %}
             <a href="/cards" {% if request.path.startswith('/cards') %}class="active"{% endif %}>
                 <i data-lucide="gift"></i> Cards

@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Future Messages — {{ current_user.active_family.name }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <div class="eyebrow">{{ current_user.active_family.name }}</div>
+        <h1>Future Messages</h1>
+    </div>
+    <a href="{{ url_for('main.message_new') }}" class="btn btn-primary">
+        <i data-lucide="plus"></i> New message
+    </a>
+</div>
+
+<div style="max-width:640px;">
+    {% if received %}
+    <h3 style="font-size:15px;margin:8px 0 10px;">Delivered to you</h3>
+    <div class="card" style="padding:0;margin-bottom:24px;">
+        {% for m in received %}
+        <a href="{{ url_for('main.message_detail', message_id=m.id) }}" style="display:block;padding:14px 18px;{% if not loop.last %}border-bottom:1px solid var(--hairline);{% endif %}text-decoration:none;color:inherit;">
+            <div style="font-weight:500;">{{ m.subject or 'A message from ' + (m.author.get_full_name() if m.author else 'a family member') }}</div>
+            <div style="font-size:12px;color:var(--slate-soft);margin-top:2px;">Delivered {{ m.delivered_at.strftime('%B %-d, %Y') }}</div>
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <h3 style="font-size:15px;margin:8px 0 10px;">Scheduled by you</h3>
+    {% if authored %}
+    <div class="card" style="padding:0;">
+        {% for m in authored %}
+        <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;{% if not loop.last %}border-bottom:1px solid var(--hairline);{% endif %}">
+            <div style="flex:1;min-width:0;">
+                <a href="{{ url_for('main.message_detail', message_id=m.id) }}" style="font-weight:500;color:inherit;text-decoration:none;">{{ m.subject or 'Message' }}</a>
+                <div style="font-size:12px;color:var(--slate-soft);margin-top:2px;">
+                    To {{ m.recipient.get_display_name() if m.recipient else '—' }} ·
+                    {% if m.is_delivered %}<span style="color:var(--vine);">delivered {{ m.delivered_at.strftime('%b %-d, %Y') }}</span>
+                    {% else %}scheduled for {{ m.deliver_on.strftime('%b %-d, %Y') }}{% endif %}
+                </div>
+            </div>
+            {% if not m.is_delivered %}
+            <form method="POST" action="{{ url_for('main.message_cancel', message_id=m.id) }}"
+                  data-confirm="Cancel this scheduled message to {{ m.recipient.get_display_name() if m.recipient else 'them' }}?">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tomato);">Cancel</button>
+            </form>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card" style="text-align:center;padding:40px 24px;color:var(--slate);">
+        <i data-lucide="mail-plus" style="width:30px;height:30px;color:var(--slate-soft);"></i>
+        <p style="margin-top:12px;">No scheduled messages yet. Write a note to be delivered on a future date — a birthday, a graduation, any day that matters.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
