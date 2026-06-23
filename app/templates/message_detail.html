@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}{{ msg.subject or 'Message' }} — {{ current_user.active_family.name }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <div class="eyebrow">Future Messages</div>
+        <h1>{{ msg.subject or 'Message' }}</h1>
+    </div>
+    <a href="{{ url_for('main.messages') }}" class="btn btn-secondary"><i data-lucide="arrow-left"></i> Back</a>
+</div>
+
+<div style="max-width:600px;">
+    <div class="card">
+        <div style="font-size:13px;color:var(--slate);margin-bottom:14px;">
+            {% if is_author %}
+                To <strong>{{ msg.recipient.get_display_name() if msg.recipient else '—' }}</strong> ·
+                {% if msg.is_delivered %}delivered {{ msg.delivered_at.strftime('%B %-d, %Y') }}
+                {% else %}scheduled for {{ msg.deliver_on.strftime('%B %-d, %Y') }}{% endif %}
+            {% else %}
+                From <strong>{{ msg.author.get_full_name() if msg.author else 'a family member' }}</strong> ·
+                delivered {{ msg.delivered_at.strftime('%B %-d, %Y') }}
+            {% endif %}
+        </div>
+        <div style="white-space:pre-wrap;font-size:15px;line-height:1.6;color:var(--ink);">{{ msg.body }}</div>
+    </div>
+</div>
+{% endblock %}

@@ -553,6 +553,23 @@ def send_support_email(user, family, category, message, support_email):
     return send_email(support_email, subject, html_content, reply_to=user.email)
 
 
+def send_scheduled_message_email(user, author_name, message, url):
+    """Notify a recipient that a future-dated message has been delivered."""
+    heading = message.subject or f'A message from {author_name}'
+    return send_email(
+        user.email,
+        heading,
+        f"""
+        <h2>Hi {user.first_name},</h2>
+        <p><strong>{author_name}</strong> scheduled a message to reach you today.</p>
+        <blockquote style="border-left:3px solid #3D7040;margin:16px 0;padding:8px 0 8px 16px;color:#444;">
+            {message.body}
+        </blockquote>
+        <p><a href="{url}">View it on Swugl &rarr;</a></p>
+        """
+    )
+
+
 def send_story_prompt_email(user, subject_person, question, answer_url):
     """Weekly Family Stories prompt — links to the in-app answer form."""
     return send_email(

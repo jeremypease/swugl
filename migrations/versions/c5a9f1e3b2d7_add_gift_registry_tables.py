@@ -1,7 +1,7 @@
 """add gift registry tables
 
 Revision ID: c5a9f1e3b2d7
-Revises: 9f42e2f51be1
+Revises: 06b730e78a80
 Create Date: 2026-06-23 00:00:00.000000
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'c5a9f1e3b2d7'
-down_revision = '9f42e2f51be1'
+down_revision = '06b730e78a80'
 branch_labels = None
 depends_on = None
 
