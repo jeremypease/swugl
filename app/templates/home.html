@@ -226,7 +226,7 @@
     {% endif %}
 
     {# Announcements #}
-    {% if home_announcements %}
+    {% if home_announcements and feature_enabled('announcements') %}
     <div class="card">
         <div class="card-header">
             <h3>Announcements</h3>

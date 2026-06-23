@@ -60,50 +60,68 @@
             <a href="/home" {% if request.path == '/home' %}class="active"{% endif %}>
                 <i data-lucide="home"></i> Home
             </a>
+            {% if feature_enabled('activity') %}
             <a href="/activity" {% if request.path == '/activity' %}class="active"{% endif %}>
                 <i data-lucide="rss"></i> Activity
             </a>
+            {% endif %}
+            {% if feature_enabled('events') %}
             <a href="/events" {% if request.path.startswith('/events') %}class="active"{% endif %}>
                 <i data-lucide="calendar"></i> Events
             </a>
+            {% endif %}
+            {% if feature_enabled('photos') %}
             <a href="/albums" {% if request.path.startswith('/albums') %}class="active"{% endif %}>
                 <i data-lucide="image"></i> Photos
             </a>
+            {% endif %}
+            {% if feature_enabled('members') %}
             <a href="/members" {% if request.path == '/members' %}class="active"{% endif %}>
                 <i data-lucide="users"></i> Members
             </a>
+            {% endif %}
+            {% if feature_enabled('timeline') %}
             <a href="/timeline" {% if request.path == '/timeline' %}class="active"{% endif %}>
                 <i data-lucide="git-commit-vertical"></i> Timeline
             </a>
+            {% endif %}
+            {% if feature_enabled('documents') %}
             <a href="/documents" {% if request.path.startswith('/documents') %}class="active"{% endif %}>
                 <i data-lucide="folder"></i> Docs
             </a>
+            {% endif %}
+            {% if feature_enabled('announcements') %}
             <a href="/announcements" {% if request.path.startswith('/announcements') %}class="active"{% endif %}>
                 <i data-lucide="megaphone"></i> Announcements
             </a>
+            {% endif %}
+            {% if feature_enabled('messages') %}
             <a href="/messages" {% if request.path.startswith('/messages') %}class="active"{% endif %}>
                 <i data-lucide="mail-plus"></i> Messages
             </a>
-            {% if current_user.active_family.enable_greeting_cards %}
+            {% endif %}
+            {% if feature_enabled('cards') and current_user.active_family.enable_greeting_cards %}
             <a href="/cards" {% if request.path.startswith('/cards') %}class="active"{% endif %}>
                 <i data-lucide="gift"></i> Cards
             </a>
             {% endif %}
-            {% if current_user.active_family.enable_polls %}
+            {% if feature_enabled('polls') and current_user.active_family.enable_polls %}
             <a href="/polls" {% if request.path.startswith('/polls') %}class="active"{% endif %}>
                 <i data-lucide="bar-chart-2"></i> Polls
             </a>
             {% endif %}
+            {% if feature_enabled('gifts') %}
             <a href="/registries" {% if request.path.startswith('/registries') %}class="active"{% endif %}>
                 <i data-lucide="shopping-bag"></i> Gifts
             </a>
-            {% if chat_visible %}
+            {% endif %}
+            {% if feature_enabled('chat') and chat_visible %}
             <a href="/chat" {% if request.path.startswith('/chat') %}class="active"{% endif %} style="position:relative;">
                 <i data-lucide="message-circle"></i> Chat
                 {% if chat_paid and unread_chat_count %}<span id="chat-badge" style="position:absolute;top:6px;right:10px;background:var(--vine);color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px;line-height:1;">{{ unread_chat_count if unread_chat_count < 100 else '99+' }}</span>{% endif %}
             </a>
             {% endif %}
-            {% if stories_visible %}
+            {% if feature_enabled('stories') and stories_visible %}
             <a href="/stories" {% if request.path.startswith('/stories') %}class="active"{% endif %}>
                 <i data-lucide="book-heart"></i> Stories
             </a>

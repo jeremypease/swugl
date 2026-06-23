@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, g
+from flask import Flask, render_template, request, redirect, url_for, g, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, current_user
 from flask_migrate import Migrate
@@ -65,6 +65,11 @@ def create_app(test_config=None):
         app.config.update(test_config)
 
     app.config['REGISTRATION_OPEN'] = os.environ.get('REGISTRATION_OPEN', '').lower() == 'true'
+
+    # MVP feature cut: which features are exposed (nav + routes). Hidden features
+    # stay in the code, dormant. Overridable via test_config / ENABLED_FEATURES.
+    from .features import resolve_enabled_features
+    app.config['ENABLED_FEATURES'] = resolve_enabled_features()
 
     app.config['RESEND_API_KEY'] = os.environ.get('RESEND_API_KEY')
     app.config['RESEND_FROM_EMAIL'] = os.environ.get('RESEND_FROM_EMAIL', 'Swugl <noreply@swugl.com>')
@@ -200,6 +205,15 @@ def create_app(test_config=None):
 
     app.jinja_env.globals['photo_url'] = photo_url
 
+    @app.before_request
+    def _gate_disabled_features():
+        # Block direct access to any feature that's hidden in this build, so
+        # bookmarks / deep links to dormant features 404 instead of rendering.
+        from .features import path_feature
+        feat = path_feature(request.path)
+        if feat and feat not in app.config['ENABLED_FEATURES']:
+            abort(404)
+
     @app.context_processor
     def inject_globals():
         from flask import session as s
@@ -255,6 +269,7 @@ def create_app(test_config=None):
             'chat_visible': chat_visible,
             'chat_paid': chat_paid,
             'unread_chat_count': unread_chat,
+            'feature_enabled': lambda key: key in app.config.get('ENABLED_FEATURES', set()),
         }
 
     @app.template_filter('datetime_format')
