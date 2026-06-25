@@ -181,8 +181,12 @@ details[open] .details-chevron { transform: rotate(180deg); }
                 {% if event.rsvp_deadline %}<span style="color:var(--slate-soft);">· RSVP by {{ event.rsvp_deadline.strftime('%B %-d') }}</span>{% endif %}
             </div>
         </div>
-        {% if current_user.active_is_admin %}
+        {% if current_user.active_is_admin or current_user.is_delegate %}
         <div style="display:flex;gap:8px;">
+            <a href="{{ url_for('main.event_schedule', event_id=event.id) }}" class="btn btn-secondary" title="Printable / shareable schedule">
+                <i data-lucide="printer"></i> Print Schedule
+            </a>
+            {% if current_user.active_is_admin %}
             <button class="btn btn-secondary" data-open-modal="edit-event-modal">
                 <i data-lucide="edit-2"></i> Edit
             </button>
@@ -193,6 +197,7 @@ details[open] .details-chevron { transform: rotate(180deg); }
                     <i data-lucide="trash-2"></i>
                 </button>
             </form>
+            {% endif %}
         </div>
         {% endif %}
     </div>
