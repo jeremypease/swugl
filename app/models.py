@@ -596,6 +596,7 @@ class Event(db.Model):
     has_assignments = db.Column(db.Boolean, default=False)
     has_sleeping = db.Column(db.Boolean, default=False)
     has_carpool = db.Column(db.Boolean, default=False)
+    has_agenda = db.Column(db.Boolean, default=False)
     start_time = db.Column(db.Time, nullable=True)
     end_time = db.Column(db.Time, nullable=True)
     lat = db.Column(db.Float, nullable=True)
@@ -606,6 +607,8 @@ class Event(db.Model):
     saved_location = db.relationship('Location', backref='events', foreign_keys=[location_id])
 
     meals = db.relationship('EventMeal', backref='event', cascade='all, delete-orphan', order_by='EventMeal.meal_date')
+    agenda_items = db.relationship('EventAgendaItem', backref='event', cascade='all, delete-orphan',
+                                   order_by='(EventAgendaItem.item_date, EventAgendaItem.sort_order)')
     assignments = db.relationship('EventAssignment', backref='event', cascade='all, delete-orphan')
     sleeping_spots = db.relationship('EventSleepingSpot', backref='event', cascade='all, delete-orphan')
     rsvps = db.relationship('EventRSVP', backref='event', cascade='all, delete-orphan')
@@ -740,6 +743,19 @@ class EventComment(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     person = db.relationship('Person')
+
+
+class EventAgendaItem(db.Model):
+    __tablename__ = 'event_agenda_items'
+
+    id          = db.Column(db.Integer, primary_key=True)
+    event_id    = db.Column(db.Integer, db.ForeignKey('events.id'), nullable=False, index=True)
+    item_date   = db.Column(db.Date, nullable=True)   # nullable for single-day events
+    item_time   = db.Column(db.String(20), nullable=True)  # e.g. "8:30 AM"
+    title       = db.Column(db.String(150), nullable=False)
+    notes       = db.Column(db.Text, nullable=True)
+    assigned_to = db.Column(db.String(100), nullable=True)  # free-text name/family
+    sort_order  = db.Column(db.Integer, default=0, nullable=False)
 
 
 class ChatMessage(db.Model):

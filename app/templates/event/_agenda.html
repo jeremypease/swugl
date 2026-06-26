@@ -1,0 +1,118 @@
+{% set is_multiday = event.end_date and event.end_date != event.start_date %}
+
+{% if event.has_agenda %}
+<div class="card">
+    <div class="card-header">
+        <h3>Schedule</h3>
+        <div style="display:flex;gap:6px;align-items:center;">
+            {% if current_user.active_is_admin %}
+            <button class="btn btn-ghost btn-sm" data-toggle-form="agenda-add-form">
+                <i data-lucide="plus"></i> Add item
+            </button>
+            <form method="POST" action="/events/{{ event.id }}/disable-section" style="display:contents;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="section" value="agenda">
+                <button type="submit" class="btn btn-ghost btn-sm" title="Hide schedule"
+                        style="color:var(--slate-soft);padding:4px 6px;"
+                        data-confirm="Hide Schedule? Existing items will be preserved.">
+                    <i data-lucide="eye-off" style="width:14px;height:14px;"></i>
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if current_user.active_is_admin %}
+    <div id="agenda-add-form" style="display:none;padding:12px 0;border-bottom:1px solid var(--hairline);">
+        <form method="POST" action="/events/{{ event.id }}/agenda/add">
+            {{ agenda_form.hidden_tag() }}
+            <div class="field-row">
+                <div class="field" style="flex:2;">
+                    {{ agenda_form.title.label }}
+                    {{ agenda_form.title(placeholder="e.g. Water Balloon Games") }}
+                </div>
+                {% if is_multiday %}
+                <div class="field" style="max-width:160px;">
+                    <label>Day</label>
+                    <select name="item_date" style="font-size:14px;">
+                        <option value="">— Day —</option>
+                        {% for d in event_date_range %}
+                        <option value="{{ d.isoformat() }}">{{ d.strftime('%a %b %-d') }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% else %}
+                <input type="hidden" name="item_date" value="{{ event.start_date.isoformat() }}">
+                {% endif %}
+                <div class="field" style="max-width:130px;">
+                    {{ agenda_form.item_time.label }}
+                    {{ agenda_form.item_time(placeholder="e.g. 10:45 AM") }}
+                </div>
+                <div class="field" style="max-width:180px;">
+                    {{ agenda_form.assigned_to.label }}
+                    {{ agenda_form.assigned_to(placeholder="e.g. Ryan") }}
+                </div>
+            </div>
+            <div class="field">
+                {{ agenda_form.notes.label }}<span style="color:var(--slate-soft);font-size:12px;"> (optional)</span>
+                {{ agenda_form.notes(rows=1, placeholder="Any extra details…") }}
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Add</button>
+        </form>
+    </div>
+    {% endif %}
+
+    {% if event.agenda_items %}
+    <div style="display:flex;flex-direction:column;">
+        {% for day, items in agenda_days.items() %}
+        {% if is_multiday and day %}
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;
+                    color:#2693FF;padding:12px 0 5px;border-bottom:1px solid var(--hairline);margin-bottom:2px;">
+            {{ day.strftime('%A, %B %-d') }}
+        </div>
+        {% endif %}
+        {% for item in items %}
+        <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;
+                    {% if not loop.last or not loop.parent.loop.last %}border-bottom:1px solid var(--hairline);{% endif %}">
+            {# Time badge #}
+            <div style="min-width:72px;font-size:12px;font-weight:600;color:#6CCF97;padding-top:2px;flex-shrink:0;">
+                {{ item.item_time or '' }}
+            </div>
+            <div style="flex:1;min-width:0;">
+                <div style="font-weight:600;font-size:14px;">{{ item.title }}</div>
+                {% if item.assigned_to %}
+                <div style="font-size:12px;color:var(--slate);margin-top:1px;">{{ item.assigned_to }}</div>
+                {% endif %}
+                {% if item.notes %}
+                <div style="font-size:12px;color:var(--slate-soft);margin-top:3px;">{{ item.notes }}</div>
+                {% endif %}
+            </div>
+            {% if current_user.active_is_admin %}
+            <form method="POST" action="/events/{{ event.id }}/agenda/{{ item.id }}/delete"
+                  style="flex-shrink:0;margin-top:2px;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-ghost btn-sm"
+                        style="color:var(--slate-soft);padding:0 4px;font-size:13px;"
+                        data-confirm="Remove "{{ item.title }}" from the schedule?">×</button>
+            </form>
+            {% endif %}
+        </div>
+        {% endfor %}
+        {% endfor %}
+    </div>
+    {% else %}
+    <p style="color:var(--slate);font-size:14px;padding:8px 0;">
+        No schedule items yet.{% if current_user.active_is_admin %} Click "Add item" to build the agenda.{% endif %}
+    </p>
+    {% endif %}
+</div>
+
+{% elif current_user.active_is_admin %}
+<form method="POST" action="/events/{{ event.id }}/enable-section">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="section" value="agenda">
+    <button type="submit" class="btn btn-ghost btn-sm" style="font-size:13px;color:var(--slate);padding:0;">
+        <i data-lucide="list" style="width:13px;height:13px;"></i> Enable Schedule
+    </button>
+</form>
+{% endif %}
