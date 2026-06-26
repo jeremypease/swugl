@@ -18,20 +18,21 @@
         }
         .btn-primary { background: #3D7040; color: #fff; border-color: #3D7040; }
         header.evt { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px;
-                     border-bottom: 2px solid #3D7040; padding-bottom: 16px; margin-bottom: 8px; }
+                     border-bottom: 2px solid #2693FF; padding-bottom: 16px; margin-bottom: 8px; }
+        .time-col { min-width: 72px; font-size: 12px; font-weight: 600; color: #6CCF97; flex-shrink: 0; }
         header.evt h1 { font-size: 26px; margin: 0 0 4px; }
         .meta { color: #555; font-size: 14px; }
         .qr { text-align: center; flex-shrink: 0; }
         .qr img { width: 104px; height: 104px; }
         .qr .url { font-size: 10px; color: #777; word-break: break-all; max-width: 120px; margin-top: 2px; }
         section { margin-top: 28px; page-break-inside: avoid; }
-        section > h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: #3D7040;
+        section > h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: #2693FF;
                        border-bottom: 1px solid #e3e8e3; padding-bottom: 5px; margin: 0 0 10px; }
         .day-head { font-weight: 700; font-size: 15px; margin: 14px 0 6px; }
         .row { padding: 7px 0; border-bottom: 1px solid #f0f2f0; }
         .row:last-child { border-bottom: none; }
         .row .t { font-weight: 600; }
-        .row .who { color: #3D7040; font-size: 13px; }
+        .row .who { color: #2693FF; font-size: 13px; }
         .row .sub { color: #666; font-size: 13px; }
         ul.items { margin: 4px 0 0; padding-left: 18px; font-size: 13px; color: #444; }
         .empty { color: #888; font-size: 13px; }
@@ -64,6 +65,28 @@
         </div>
         {% endif %}
     </header>
+
+    {# ── Schedule / Agenda ──────────────────────────────────────────── #}
+    {% set is_multiday = event.end_date and event.end_date != event.start_date %}
+    {% if event.has_agenda and agenda_days %}
+    <section>
+        <h2>Schedule</h2>
+        {% for day, items in agenda_days.items() %}
+        {% if is_multiday and day %}<div class="day-head">{{ day.strftime('%A, %B %-d') }}</div>{% endif %}
+        {% for item in items %}
+        <div class="row" style="display:flex;gap:12px;align-items:flex-start;">
+            <span class="time-col">{{ item.item_time or '' }}</span>
+            <div style="flex:1;">
+                <div class="t">{{ item.title }}
+                    {% if item.assigned_to %}<span class="who"> — {{ item.assigned_to }}</span>{% endif %}
+                </div>
+                {% if item.notes %}<div class="sub">{{ item.notes }}</div>{% endif %}
+            </div>
+        </div>
+        {% endfor %}
+        {% endfor %}
+    </section>
+    {% endif %}
 
     {# ── Meals (the dated, day-by-day agenda) ───────────────────────── #}
     {% if event.has_meals and meal_days %}
