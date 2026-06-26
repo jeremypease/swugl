@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ event.name }} — Schedule</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: #1a1a1a; line-height: 1.5; margin: 0;
+            padding: 32px; max-width: 760px; margin: 0 auto;
+        }
+        .toolbar { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 16px; }
+        .btn {
+            font: inherit; font-size: 14px; padding: 8px 16px; border-radius: 8px;
+            border: 1px solid #cbd5cf; background: #fff; cursor: pointer; text-decoration: none; color: #1a1a1a;
+        }
+        .btn-primary { background: #3D7040; color: #fff; border-color: #3D7040; }
+        header.evt { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px;
+                     border-bottom: 2px solid #3D7040; padding-bottom: 16px; margin-bottom: 8px; }
+        header.evt h1 { font-size: 26px; margin: 0 0 4px; }
+        .meta { color: #555; font-size: 14px; }
+        .qr { text-align: center; flex-shrink: 0; }
+        .qr img { width: 104px; height: 104px; }
+        .qr .url { font-size: 10px; color: #777; word-break: break-all; max-width: 120px; margin-top: 2px; }
+        section { margin-top: 28px; page-break-inside: avoid; }
+        section > h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: #3D7040;
+                       border-bottom: 1px solid #e3e8e3; padding-bottom: 5px; margin: 0 0 10px; }
+        .day-head { font-weight: 700; font-size: 15px; margin: 14px 0 6px; }
+        .row { padding: 7px 0; border-bottom: 1px solid #f0f2f0; }
+        .row:last-child { border-bottom: none; }
+        .row .t { font-weight: 600; }
+        .row .who { color: #3D7040; font-size: 13px; }
+        .row .sub { color: #666; font-size: 13px; }
+        ul.items { margin: 4px 0 0; padding-left: 18px; font-size: 13px; color: #444; }
+        .empty { color: #888; font-size: 13px; }
+        @media print {
+            body { padding: 0; max-width: none; }
+            .no-print { display: none !important; }
+            a[href] { color: inherit; text-decoration: none; }
+            section { page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+    <div class="toolbar no-print">
+        <a href="{{ url_for('main.event_detail', event_id=event.id) }}" class="btn">← Back to event</a>
+        <button class="btn btn-primary" onclick="window.print()">Print</button>
+    </div>
+
+    <header class="evt">
+        <div>
+            <h1>{{ event.name }}</h1>
+            <div class="meta">
+                {{ event.date_range_display() }}
+                {% if event.location %}<br>{{ event.location }}{% endif %}
+            </div>
+        </div>
+        {% if qr %}
+        <div class="qr">
+            <img src="{{ qr }}" alt="Scan to open on Swugl">
+            <div class="url">{{ live_url }}</div>
+        </div>
+        {% endif %}
+    </header>
+
+    {# ── Meals (the dated, day-by-day agenda) ───────────────────────── #}
+    {% if event.has_meals and meal_days %}
+    <section>
+        <h2>Meals &amp; Agenda</h2>
+        {% for day, meals in meal_days.items() %}
+        {% if day %}<div class="day-head">{{ day.strftime('%A, %B %-d') }}</div>{% elif meal_days|length > 1 %}<div class="day-head">Any time</div>{% endif %}
+        {% for meal in meals %}
+        <div class="row">
+            <div class="t">{{ meal.meal_time + ' · ' if meal.meal_time }}{{ meal.name }}
+                {% if meal.assigned_family %}<span class="who">— {{ meal.assigned_family.get_couple_name() }}</span>{% endif %}
+            </div>
+            {% if meal.notes %}<div class="sub">{{ meal.notes }}</div>{% endif %}
+            {% if meal.items %}
+            <ul class="items">
+                {% for item in meal.items %}
+                <li>{{ item.label }}{% if item.quantity and item.quantity > 1 %} (×{{ item.quantity }}){% endif %}{% if item.assigned_to %} — {{ item.assigned_to.get_display_name() }}{% endif %}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        </div>
+        {% endfor %}
+        {% endfor %}
+    </section>
+    {% endif %}
+
+    {# ── Assignments ────────────────────────────────────────────────── #}
+    {% if event.has_assignments and event.assignments %}
+    <section>
+        <h2>Assignments</h2>
+        {% for a in event.assignments %}
+        <div class="row">
+            <div class="t">{{ a.title }}
+                {% if a.claimed_by %}<span class="who">— {{ a.claimed_by.get_display_name() }}</span>{% endif %}
+            </div>
+            <div class="sub">
+                {% if a.category %}{{ a.category }}{% endif %}
+                {% if a.due_date %}{{ ' · due ' if a.category else 'Due ' }}{{ a.due_date.strftime('%B %-d') }}{% endif %}
+            </div>
+            {% if a.tasks %}
+            <ul class="items">
+                {% for t in a.tasks %}<li>{{ t.label }}</li>{% endfor %}
+            </ul>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </section>
+    {% endif %}
+
+    {# ── Sleeping ───────────────────────────────────────────────────── #}
+    {% if event.has_sleeping and event.sleeping_spots %}
+    <section>
+        <h2>Sleeping</h2>
+        {% for spot in event.sleeping_spots %}
+        <div class="row">
+            <div class="t">{{ spot.name }}{% if spot.spot_type %} <span class="sub">({{ spot.spot_type }}{% if spot.capacity %}, sleeps {{ spot.capacity }}{% endif %})</span>{% endif %}</div>
+            {% if spot.people %}<div class="who">{{ spot.people | map('attr', 'name') | join(', ') }}</div>{% else %}<div class="empty">Unassigned</div>{% endif %}
+        </div>
+        {% endfor %}
+    </section>
+    {% endif %}
+
+    {# ── Carpool ────────────────────────────────────────────────────── #}
+    {% if event.has_carpool and (drivers or riders) %}
+    <section>
+        <h2>Carpool</h2>
+        {% for d in drivers %}
+        <div class="row">
+            <div class="t">🚗 {{ d.person.get_display_name() }}
+                {% if d.seats %}<span class="sub">— {{ d.seats }} seat{{ 's' if d.seats != 1 }}</span>{% endif %}
+            </div>
+            {% if d.departure_from %}<div class="sub">From {{ d.departure_from }}</div>{% endif %}
+            {% set my_riders = riders | selectattr('passenger_of_id', 'equalto', d.id) | list %}
+            {% if my_riders %}<div class="who">Riders: {{ my_riders | map('attr', 'person') | map('attr', 'name') | join(', ') }}</div>{% endif %}
+        </div>
+        {% endfor %}
+        {% set unmatched = riders | rejectattr('passenger_of_id') | list %}
+        {% if unmatched %}
+        <div class="row">
+            <div class="sub">Looking for a ride: {{ unmatched | map('attr', 'person') | map('attr', 'name') | join(', ') }}</div>
+        </div>
+        {% endif %}
+    </section>
+    {% endif %}
+
+    <script>if (window.lucide) { /* no-op: standalone page, no icon lib */ }</script>
+</body>
+</html>

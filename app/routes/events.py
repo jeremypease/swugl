@@ -487,6 +487,39 @@ def event_detail(event_id):
     )
 
 
+def _qr_data_uri(text):
+    """A PNG data-URI QR code for `text`, for the printable schedule (#74)."""
+    import io, base64, qrcode
+    img = qrcode.make(text, box_size=6, border=2)
+    buf = io.BytesIO()
+    img.save(buf, format='PNG')
+    return 'data:image/png;base64,' + base64.b64encode(buf.getvalue()).decode()
+
+
+@main.route('/events/<int:event_id>/schedule')
+@login_required
+def event_schedule(event_id):
+    """Clean, printer-/share-friendly schedule for an event (#74)."""
+    event = db.session.get(Event, event_id)
+    if not event:
+        abort(404)
+    if event.family_id != current_user.active_family_id:
+        abort(403)
+    drivers = [o for o in event.carpool_offers if o.role == 'driver']
+    riders = [o for o in event.carpool_offers if o.role == 'rider']
+    # Group meals by day (dated first, undated last) so multi-day events read
+    # as a day-by-day agenda.
+    from collections import OrderedDict
+    meal_days = OrderedDict()
+    for m in sorted(event.meals,
+                    key=lambda m: (m.meal_date is None, m.meal_date or date.min, m.meal_time or '')):
+        meal_days.setdefault(m.meal_date, []).append(m)
+    live_url = url_for('main.event_detail', event_id=event.id, _external=True)
+    return render_template('event/schedule.html', event=event, meal_days=meal_days,
+                           drivers=drivers, riders=riders,
+                           live_url=live_url, qr=_qr_data_uri(live_url))
+
+
 @main.route('/events/<int:event_id>/edit', methods=['GET', 'POST'])
 @login_required
 @admin_required
