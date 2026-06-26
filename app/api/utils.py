@@ -2,6 +2,7 @@ from flask import jsonify
 from flask_jwt_extended import get_jwt
 
 from ..storage import photo_url
+from ..billing import family_has_paid_access
 
 
 def error_response(status, message, code=None):
@@ -14,6 +15,7 @@ def api_family_id():
 
 
 def serialize_user(user):
+    family = user.family
     return {
         'id': user.id,
         'email': user.email,
@@ -22,6 +24,8 @@ def serialize_user(user):
         'is_admin': user.is_admin,
         'family_id': user.family_id,
         'person_id': user.person_id,
+        'plan': family.plan if family else 'free',
+        'has_paid_access': family_has_paid_access(family) if family else False,
     }
 
 
