@@ -271,6 +271,13 @@ class EventAssignmentAdminAssignForm(FlaskForm):
     person_id = SelectField('Assign to', coerce=int, validators=[Optional()])
     submit = SubmitField('Assign')
 
+class EventAgendaItemForm(FlaskForm):
+    title       = StringField('Activity', validators=[DataRequired(), Length(max=150)])
+    item_time   = StringField('Time', validators=[Optional(), Length(max=20)])
+    assigned_to = StringField('Who', validators=[Optional(), Length(max=100)])
+    notes       = TextAreaField('Notes', validators=[Optional()])
+    submit      = SubmitField('Add Item')
+
 class EventSleepingSpotForm(FlaskForm):
     name = StringField('Room / Spot', validators=[DataRequired(), Length(max=150)])
     spot_type = SelectField('Type', choices=[('', '— Type —'), ('Bedroom', 'Bedroom'), ('Couch', 'Couch'), ('Air mattress', 'Air mattress'), ('Tent', 'Tent'), ('Cabin bunk', 'Cabin bunk'), ('Other', 'Other')], validators=[Optional()])

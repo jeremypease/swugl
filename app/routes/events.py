@@ -14,11 +14,12 @@ from ..models import (Family, User, Person, Event, EventMeal, EventMealItem,
     EventAssignment, AssignmentTask, ASSIGNMENT_CATEGORIES, EventRSVP,
     EventSleepingSpot, SPOT_TYPES, EventComment, EventPaymentConfig,
     EventPaymentRecord, FamilyPayoutAccount, Location, Album, Photo, NotificationPreference,
-    CarpoolOffer, EventSurveyResponse, SpouseRelationship, ParentRelationship)
+    CarpoolOffer, EventSurveyResponse, SpouseRelationship, ParentRelationship,
+    EventAgendaItem)
 from ..forms import (EventForm, EventCommentForm, EventMealForm,
     EventMealFamilyAssignForm, EventMealItemForm, EventMealSelfSignupForm,
     EventMealAssignForm, EventAssignmentForm, EventAssignmentAdminAssignForm,
-    EventSleepingSpotForm, EventSleepingAssignForm)
+    EventSleepingSpotForm, EventSleepingAssignForm, EventAgendaItemForm)
 from . import main, admin_required, contributor_or_admin_required
 
 # ── Events ────────────────────────────────────────────────────────────────────
@@ -444,6 +445,12 @@ def event_detail(event_id):
         _edr.append(_cur)
         _cur += timedelta(days=1)
 
+    agenda_form = EventAgendaItemForm()
+    # Group agenda items by date preserving chronological order within each day.
+    agenda_days = {}
+    for item in event.agenda_items:
+        agenda_days.setdefault(item.item_date, []).append(item)
+
     event_photos = Photo.query.join(Album).filter(
         Album.event_id == event.id,
         Album.family_id == current_user.active_family_id,
@@ -484,6 +491,8 @@ def event_detail(event_id):
         my_charge_cents=my_charge_cents,
         payment_stats=payment_stats,
         payout_account=current_user.family.payout_account,
+        agenda_form=agenda_form,
+        agenda_days=agenda_days,
     )
 
 
@@ -514,8 +523,13 @@ def event_schedule(event_id):
     for m in sorted(event.meals,
                     key=lambda m: (m.meal_date is None, m.meal_date or date.min, m.meal_time or '')):
         meal_days.setdefault(m.meal_date, []).append(m)
+    # Group agenda items by date, same pattern as meals.
+    agenda_days = {}
+    for item in event.agenda_items:
+        agenda_days.setdefault(item.item_date, []).append(item)
     live_url = url_for('main.event_detail', event_id=event.id, _external=True)
     return render_template('event/schedule.html', event=event, meal_days=meal_days,
+                           agenda_days=agenda_days,
                            drivers=drivers, riders=riders,
                            live_url=live_url, qr=_qr_data_uri(live_url))
 
@@ -832,6 +846,8 @@ def event_enable_section(event_id):
         event.has_sleeping = True
     elif section == 'carpool':
         event.has_carpool = True
+    elif section == 'agenda':
+        event.has_agenda = True
     db.session.commit()
     return redirect(url_for('main.event_detail', event_id=event_id))
 
@@ -852,6 +868,8 @@ def event_disable_section(event_id):
         event.has_sleeping = False
     elif section == 'carpool':
         event.has_carpool = False
+    elif section == 'agenda':
+        event.has_agenda = False
     db.session.commit()
     return redirect(url_for('main.event_detail', event_id=event_id))
 
@@ -1863,6 +1881,50 @@ def event_sleeping_self_unassign(event_id, sid):
         spot.people.remove(person)
         db.session.commit()
         flash(f'You\'ve been removed from {spot.name}.', 'info')
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+# ── Agenda ────────────────────────────────────────────────────────────────────
+
+@main.route('/events/<int:event_id>/agenda/add', methods=['POST'])
+@login_required
+@admin_required
+def event_agenda_add(event_id):
+    event = db.session.get(Event, event_id)
+    if not event or event.family_id != current_user.active_family_id:
+        flash('Event not found.', 'error')
+        return redirect(url_for('main.events_list'))
+    form = EventAgendaItemForm()
+    if form.validate_on_submit():
+        item_date_str = request.form.get('item_date') or None
+        item_date = date.fromisoformat(item_date_str) if item_date_str else None
+        # Determine sort_order: one more than the last item on the same day.
+        same_day = [i for i in event.agenda_items if i.item_date == item_date]
+        sort_order = max((i.sort_order for i in same_day), default=-1) + 1
+        item = EventAgendaItem(
+            event_id=event_id,
+            item_date=item_date,
+            item_time=form.item_time.data.strip() or None,
+            title=form.title.data.strip(),
+            notes=form.notes.data.strip() or None,
+            assigned_to=form.assigned_to.data.strip() or None,
+            sort_order=sort_order,
+        )
+        db.session.add(item)
+        db.session.commit()
+    return redirect(url_for('main.event_detail', event_id=event_id))
+
+
+@main.route('/events/<int:event_id>/agenda/<int:item_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def event_agenda_delete(event_id, item_id):
+    item = db.session.get(EventAgendaItem, item_id)
+    if not item or item.event.family_id != current_user.active_family_id:
+        flash('Item not found.', 'error')
+        return redirect(url_for('main.event_detail', event_id=event_id))
+    db.session.delete(item)
+    db.session.commit()
     return redirect(url_for('main.event_detail', event_id=event_id))
 
 
