@@ -120,8 +120,12 @@ class Person(db.Model):
     family = db.relationship('Family', back_populates='people', foreign_keys='Person.family_id')
 
     # Parent/child via ParentRelationship
-    child_rels  = db.relationship('ParentRelationship', foreign_keys='ParentRelationship.parent_id', backref='parent_person', cascade='all, delete-orphan')
-    parent_rels = db.relationship('ParentRelationship', foreign_keys='ParentRelationship.child_id',  backref='child_person',  cascade='all, delete-orphan')
+    child_rels  = db.relationship('ParentRelationship', foreign_keys='ParentRelationship.parent_id',
+                                   backref=db.backref('parent_person', overlaps='parent'),
+                                   cascade='all, delete-orphan', overlaps='parent_person,parent')
+    parent_rels = db.relationship('ParentRelationship', foreign_keys='ParentRelationship.child_id',
+                                   backref=db.backref('child_person', overlaps='child'),
+                                   cascade='all, delete-orphan', overlaps='child_person,child')
 
     @property
     def children(self):
