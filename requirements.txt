@@ -30,6 +30,7 @@ psycopg2-binary==2.9.12
 pycparser==3.0
 python-dotenv==1.2.2
 requests==2.34.2
+httpx[http2]==0.28.1
 resend==2.32.2
 sentry-sdk[flask]==2.63.0
 SQLAlchemy==2.0.51

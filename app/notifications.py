@@ -114,13 +114,11 @@ def _get_apns_jwt(key_id, team_id, private_key_pem):
 def _send_apns(token, title, body, url):
     """Send APNs HTTP/2 push via JWT auth.
 
-    Uses HTTP/1.1 (requests library) for now — swap the HTTP call to
-    httpx[http2] before App Store submission for proper HTTP/2 multiplexing.
     Configure APNS_KEY_ID, APNS_TEAM_ID, APNS_BUNDLE_ID, APNS_PRIVATE_KEY,
     and optionally APNS_PRODUCTION (default: sandbox).
     """
     import json
-    import requests as http_req
+    import httpx
 
     key_id = current_app.config.get('APNS_KEY_ID', '')
     team_id = current_app.config.get('APNS_TEAM_ID', '')
@@ -157,12 +155,13 @@ def _send_apns(token, title, body, url):
     }
 
     try:
-        resp = http_req.post(
-            f'https://{host}/3/device/{token}',
-            data=json.dumps(payload),
-            headers=headers,
-            timeout=10,
-        )
+        with httpx.Client(http2=True) as client:
+            resp = client.post(
+                f'https://{host}/3/device/{token}',
+                content=json.dumps(payload),
+                headers=headers,
+                timeout=10,
+            )
         if resp.status_code == 410:
             # Apple says this token is dead (app uninstalled / unregistered).
             from .models import UserDevice
