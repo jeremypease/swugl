@@ -36,7 +36,7 @@ sentry-sdk[flask]==2.66.1
 SQLAlchemy==2.0.51
 stripe==15.4.0
 typing_extensions==4.16.0
-urllib3==2.7.0
+urllib3==2.8.0
 Werkzeug==3.1.8
 wrapt==2.3.0
 WTForms==3.2.2
